@@ -1,26 +1,84 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* CSS Custom Properties for Theme System */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light theme colors */
+  --color-primary: 50 111 247;       /* #326FF7 */
+  --color-primary-dark: 29 87 210;   /* #1D57D2 */
+  --color-primary-light: 77 132 249; /* #4D84F9 */
+  --color-primary-foreground: 255 255 255;
+  --color-accent: 247 163 50;        /* #F7A332 */
+  --color-accent-foreground: 17 24 39; /* dark text for contrast */
+  --color-success: 53 214 139;       /* #35D68B */
+  --color-warning: 255 197 72;       /* #FFC548 */
+  --color-error: 241 85 85;          /* #F15555 */
+  --color-secondary: 244 244 245;    /* neutral light */
+  --color-secondary-foreground: 39 39 42;
+  --color-muted: 244 244 245;
+  --color-muted-foreground: 113 113 122;
+  --color-destructive: 241 85 85;    /* same as error */
+  --color-destructive-foreground: 255 255 255;
+  --color-border: 228 228 231;
+  --color-input: 228 228 231;
+  --color-ring: 50 111 247; /* primary */
+  --color-background: 255 255 255;
+  --color-foreground: 39 39 42;
+  --color-card: 255 255 255;
+  --color-card-foreground: 39 39 42;
+  --color-popover: 255 255 255;
+  --color-popover-foreground: 39 39 42;
+  --color-sidebar: 249 250 251;
+  --color-sidebar-foreground: 17 24 39;
+  --color-nav: 255 255 255;
+  --color-nav-foreground: 17 24 39;
+  --color-content: 255 255 255;
+  --color-content-foreground: 17 24 39;
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.dark {
+  /* Dark theme colors */
+  --color-primary: 50 111 247;       /* #326FF7 */
+  --color-primary-dark: 29 87 210;   /* #1D57D2 */
+  --color-primary-light: 77 132 249; /* #4D84F9 */
+  --color-primary-foreground: 255 255 255;
+  --color-accent: 247 163 50;        /* #F7A332 */
+  --color-accent-foreground: 24 24 27; /* dark bg contrast */
+  --color-success: 53 214 139;       /* #35D68B */
+  --color-warning: 255 197 72;       /* #FFC548 */
+  --color-error: 241 85 85;          /* #F15555 */
+  --color-secondary: 39 39 42;       /* dark bg */
+  --color-secondary-foreground: 228 228 231;
+  --color-muted: 39 39 42;
+  --color-muted-foreground: 161 161 170;
+  --color-destructive: 241 85 85;
+  --color-destructive-foreground: 255 255 255;
+  --color-border: 63 63 70;
+  --color-input: 39 39 42;
+  --color-ring: 50 111 247;
+  --color-background: 24 24 27;
+  --color-foreground: 228 228 231;
+  --color-card: 39 39 42;
+  --color-card-foreground: 228 228 231;
+  --color-popover: 39 39 42;
+  --color-popover-foreground: 228 228 231;
+  --color-sidebar: 39 39 42;
+  --color-sidebar-foreground: 228 228 231;
+  --color-nav: 39 39 42;
+  --color-nav-foreground: 228 228 231;
+  --color-content: 39 39 42;
+  --color-content-foreground: 228 228 231;
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.2);
 }
