@@ -337,8 +337,10 @@ export type Database = {
           created_at: string | null
           created_by: string
           id: string
+          industry: string | null
           name: string
           owner_id: string
+          size: string | null
           status: string | null
           updated_at: string | null
         }
@@ -346,8 +348,10 @@ export type Database = {
           created_at?: string | null
           created_by: string
           id?: string
+          industry?: string | null
           name: string
           owner_id: string
+          size?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -355,8 +359,10 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           id?: string
+          industry?: string | null
           name?: string
           owner_id?: string
+          size?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -372,6 +378,10 @@ export type Database = {
           id: string
           name: string
           organization_id: string | null
+          organization_industry: string | null
+          organization_name: string | null
+          organization_size: string | null
+          organization_website: string | null
           registration_completed: boolean | null
           status: string | null
           terms_accepted: boolean | null
@@ -386,6 +396,10 @@ export type Database = {
           id: string
           name: string
           organization_id?: string | null
+          organization_industry?: string | null
+          organization_name?: string | null
+          organization_size?: string | null
+          organization_website?: string | null
           registration_completed?: boolean | null
           status?: string | null
           terms_accepted?: boolean | null
@@ -400,6 +414,10 @@ export type Database = {
           id?: string
           name?: string
           organization_id?: string | null
+          organization_industry?: string | null
+          organization_name?: string | null
+          organization_size?: string | null
+          organization_website?: string | null
           registration_completed?: boolean | null
           status?: string | null
           terms_accepted?: boolean | null
@@ -940,6 +958,19 @@ export type Database = {
       can_write_test_suite: {
         Args: { suite_id: string; user_id: string }
         Returns: boolean
+      }
+      handle_new_user_registration: {
+        Args: {
+          org_industry?: string
+          org_name?: string
+          org_size?: string
+          user_account_type: string
+          user_email: string
+          user_id: string
+          user_name: string
+          user_terms_accepted: boolean
+        }
+        Returns: Json
       }
       is_org_admin: {
         Args: { org_id: string; user_id: string }

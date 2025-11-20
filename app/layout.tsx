@@ -5,6 +5,7 @@ import "./globals.css";
 import { GlobalThemeProvider } from "@/providers/GlobalThemeProvider";
 import { SupabaseProvider } from "@/providers/SupabaseProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -154,6 +155,7 @@ export default function RootLayout({
           <SupabaseProvider>
             <QueryProvider>
               {children}
+              <Toaster />
             </QueryProvider>
           </SupabaseProvider>
         </GlobalThemeProvider>

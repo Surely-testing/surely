@@ -108,16 +108,16 @@
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     font-family: 'Josefin Sans', 'Poppins', system-ui, -apple-system, sans-serif;
   }
-  
+
   html {
     @apply scroll-smooth;
   }
-  
+
   /* Disable transitions during theme switching for instant change */
   html.changing-theme,
   html.changing-theme *,
@@ -128,24 +128,27 @@
 }
 
 @layer components {
+
   /* Override default select styles */
   select {
     @apply bg-background text-foreground border-border focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-200;
   }
+
   select[data-active='true'] {
     @apply bg-blue-50 text-blue-800 border-blue-500;
   }
-  
+
   /* Override default input styles */
   input[type="text"],
   input[type="email"],
   input[type="password"] {
     @apply bg-background text-foreground border-border focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-200;
   }
+
   input[type="text"][data-active='true'] {
     @apply bg-blue-50 text-blue-800 border-blue-500;
   }
-  
+
   /* Primary Button - Fluid Gradient */
   .btn-primary {
     @apply relative px-6 py-3 rounded-lg font-semibold text-white overflow-hidden;
@@ -155,118 +158,364 @@
     box-shadow: 0 4px 15px rgba(50, 111, 247, 0.3);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .btn-primary:hover {
     box-shadow: 0 8px 30px rgba(50, 111, 247, 0.5), 0 0 40px rgba(103, 232, 249, 0.3);
     transform: translateY(-2px);
   }
-  
+
   .btn-primary:active {
     transform: translateY(0);
   }
-  
+
   /* Accent Gradient Background */
   .bg-gradient-accent {
     background: linear-gradient(135deg, #F7A332 0%, #FFB84D 50%, #FFC966 100%);
     background-size: 200% 200%;
     animation: gradient-flow 4s ease infinite;
   }
-  
+
   /* Background colors */
-  .bg-background { background-color: rgb(var(--color-background)); }
-  .bg-foreground { background-color: rgb(var(--color-foreground)); }
-  .bg-card { background-color: rgb(var(--color-card)); }
-  .bg-card-foreground { background-color: rgb(var(--color-card-foreground)); }
-  .bg-popover { background-color: rgb(var(--color-popover)); }
-  .bg-popover-foreground { background-color: rgb(var(--color-popover-foreground)); }
-  .bg-primary { background-color: rgb(var(--color-primary)); }
-  .bg-primary-foreground { background-color: rgb(var(--color-primary-foreground)); }
-  .bg-secondary { background-color: rgb(var(--color-secondary)); }
-  .bg-secondary-foreground { background-color: rgb(var(--color-secondary-foreground)); }
-  .bg-muted { background-color: rgb(var(--color-muted)); }
-  .bg-muted-foreground { background-color: rgb(var(--color-muted-foreground)); }
-  .bg-accent { background-color: rgb(var(--color-accent)); }
-  .bg-accent-foreground { background-color: rgb(var(--color-accent-foreground)); }
-  .bg-destructive { background-color: rgb(var(--color-destructive)); }
-  .bg-destructive-foreground { background-color: rgb(var(--color-destructive-foreground)); }
-  .bg-border { background-color: rgb(var(--color-border)); }
-  .bg-input { background-color: rgb(var(--color-input)); }
-  .bg-sidebar { background-color: rgb(var(--color-sidebar)); }
-  .bg-nav { background-color: rgb(var(--color-nav)); }
-  .bg-content { background-color: rgb(var(--color-content)); }
-  .bg-blue-50 { background-color: rgb(var(--color-blue-50)); }
-  .bg-blue-100 { background-color: rgb(var(--color-blue-100)); }
-  .bg-blue-300 { background-color: rgb(var(--color-blue-300)); }
-  .bg-blue-500 { background-color: rgb(var(--color-blue-500)); }
-  .bg-blue-600 { background-color: rgb(var(--color-blue-600)); }
-  .bg-blue-800 { background-color: rgb(var(--color-blue-800)); }
-  
+  .bg-background {
+    background-color: rgb(var(--color-background));
+  }
+
+  .bg-foreground {
+    background-color: rgb(var(--color-foreground));
+  }
+
+  .bg-card {
+    background-color: rgb(var(--color-card));
+  }
+
+  .bg-card-foreground {
+    background-color: rgb(var(--color-card-foreground));
+  }
+
+  .bg-popover {
+    background-color: rgb(var(--color-popover));
+  }
+
+  .bg-popover-foreground {
+    background-color: rgb(var(--color-popover-foreground));
+  }
+
+  .bg-primary {
+    background-color: rgb(var(--color-primary));
+  }
+
+  .bg-primary-foreground {
+    background-color: rgb(var(--color-primary-foreground));
+  }
+
+  .bg-secondary {
+    background-color: rgb(var(--color-secondary));
+  }
+
+  .bg-secondary-foreground {
+    background-color: rgb(var(--color-secondary-foreground));
+  }
+
+  .bg-muted {
+    background-color: rgb(var(--color-muted));
+  }
+
+  .bg-muted-foreground {
+    background-color: rgb(var(--color-muted-foreground));
+  }
+
+  .bg-accent {
+    background-color: rgb(var(--color-accent));
+  }
+
+  .bg-accent-foreground {
+    background-color: rgb(var(--color-accent-foreground));
+  }
+
+  .bg-destructive {
+    background-color: rgb(var(--color-destructive));
+  }
+
+  .bg-destructive-foreground {
+    background-color: rgb(var(--color-destructive-foreground));
+  }
+
+  .bg-border {
+    background-color: rgb(var(--color-border));
+  }
+
+  .bg-input {
+    background-color: rgb(var(--color-input));
+  }
+
+  .bg-sidebar {
+    background-color: rgb(var(--color-sidebar));
+  }
+
+  .bg-nav {
+    background-color: rgb(var(--color-nav));
+  }
+
+  .bg-content {
+    background-color: rgb(var(--color-content));
+  }
+
+  .bg-blue-50 {
+    background-color: rgb(var(--color-blue-50));
+  }
+
+  .bg-blue-100 {
+    background-color: rgb(var(--color-blue-100));
+  }
+
+  .bg-blue-300 {
+    background-color: rgb(var(--color-blue-300));
+  }
+
+  .bg-blue-500 {
+    background-color: rgb(var(--color-blue-500));
+  }
+
+  .bg-blue-600 {
+    background-color: rgb(var(--color-blue-600));
+  }
+
+  .bg-blue-800 {
+    background-color: rgb(var(--color-blue-800));
+  }
+
   /* Text colors */
-  .text-background { color: rgb(var(--color-background)); }
-  .text-foreground { color: rgb(var(--color-foreground)); }
-  .text-card { color: rgb(var(--color-card)); }
-  .text-card-foreground { color: rgb(var(--color-card-foreground)); }
-  .text-popover { color: rgb(var(--color-popover)); }
-  .text-popover-foreground { color: rgb(var(--color-popover-foreground)); }
-  .text-primary { color: rgb(var(--color-primary)); }
-  .text-primary-foreground { color: rgb(var(--color-primary-foreground)); }
-  .text-secondary { color: rgb(var(--color-secondary)); }
-  .text-secondary-foreground { color: rgb(var(--color-secondary-foreground)); }
-  .text-muted { color: rgb(var(--color-muted)); }
-  .text-muted-foreground { color: rgb(var(--color-muted-foreground)); }
-  .text-accent { color: rgb(var(--color-accent)); }
-  .text-accent-foreground { color: rgb(var(--color-accent-foreground)); }
-  .text-destructive { color: rgb(var(--color-destructive)); }
-  .text-destructive-foreground { color: rgb(var(--color-destructive-foreground)); }
-  .text-border { color: rgb(var(--color-border)); }
-  .text-input { color: rgb(var(--color-input)); }
-  .text-ring { color: rgb(var(--color-ring)); }
-  .text-sidebar-foreground { color: rgb(var(--color-sidebar-foreground)); }
-  .text-nav-foreground { color: rgb(var(--color-nav-foreground)); }
-  .text-content-foreground { color: rgb(var(--color-content-foreground)); }
-  .text-success { color: rgb(var(--color-success)); }
-  .text-warning { color: rgb(var(--color-warning)); }
-  .text-error { color: rgb(var(--color-error)); }
-  .text-info { color: rgb(var(--color-info)); }
-  .text-blue-500 { color: rgb(var(--color-blue-500)); }
-  .text-blue-600 { color: rgb(var(--color-blue-600)); }
-  .text-blue-800 { color: rgb(var(--color-blue-800)); }
-  
+  .text-background {
+    color: rgb(var(--color-background));
+  }
+
+  .text-foreground {
+    color: rgb(var(--color-foreground));
+  }
+
+  .text-card {
+    color: rgb(var(--color-card));
+  }
+
+  .text-card-foreground {
+    color: rgb(var(--color-card-foreground));
+  }
+
+  .text-popover {
+    color: rgb(var(--color-popover));
+  }
+
+  .text-popover-foreground {
+    color: rgb(var(--color-popover-foreground));
+  }
+
+  .text-primary {
+    color: rgb(var(--color-primary));
+  }
+
+  .text-primary-foreground {
+    color: rgb(var(--color-primary-foreground));
+  }
+
+  .text-secondary {
+    color: rgb(var(--color-secondary));
+  }
+
+  .text-secondary-foreground {
+    color: rgb(var(--color-secondary-foreground));
+  }
+
+  .text-muted {
+    color: rgb(var(--color-muted));
+  }
+
+  .text-muted-foreground {
+    color: rgb(var(--color-muted-foreground));
+  }
+
+  .text-accent {
+    color: rgb(var(--color-accent));
+  }
+
+  .text-accent-foreground {
+    color: rgb(var(--color-accent-foreground));
+  }
+
+  .text-destructive {
+    color: rgb(var(--color-destructive));
+  }
+
+  .text-destructive-foreground {
+    color: rgb(var(--color-destructive-foreground));
+  }
+
+  .text-border {
+    color: rgb(var(--color-border));
+  }
+
+  .text-input {
+    color: rgb(var(--color-input));
+  }
+
+  .text-ring {
+    color: rgb(var(--color-ring));
+  }
+
+  .text-sidebar-foreground {
+    color: rgb(var(--color-sidebar-foreground));
+  }
+
+  .text-nav-foreground {
+    color: rgb(var(--color-nav-foreground));
+  }
+
+  .text-content-foreground {
+    color: rgb(var(--color-content-foreground));
+  }
+
+  .text-success {
+    color: rgb(var(--color-success));
+  }
+
+  .text-warning {
+    color: rgb(var(--color-warning));
+  }
+
+  .text-error {
+    color: rgb(var(--color-error));
+  }
+
+  .text-info {
+    color: rgb(var(--color-info));
+  }
+
+  .text-blue-500 {
+    color: rgb(var(--color-blue-500));
+  }
+
+  .text-blue-600 {
+    color: rgb(var(--color-blue-600));
+  }
+
+  .text-blue-800 {
+    color: rgb(var(--color-blue-800));
+  }
+
   /* Border colors */
-  .border-border { border-color: rgb(var(--color-border)); }
-  .border-input { border-color: rgb(var(--color-input)); }
-  .border-ring { border-color: rgb(var(--color-ring)); }
-  .border-primary { border-color: rgb(var(--color-primary)); }
-  .border-secondary { border-color: rgb(var(--color-secondary)); }
-  .border-destructive { border-color: rgb(var(--color-destructive)); }
-  .border-accent { border-color: rgb(var(--color-accent)); }
-  .border-blue-300 { border-color: rgb(var(--color-blue-300)); }
-  .border-blue-500 { border-color: rgb(var(--color-blue-500)); }
-  
+  .border-border {
+    border-color: rgb(var(--color-border));
+  }
+
+  .border-input {
+    border-color: rgb(var(--color-input));
+  }
+
+  .border-ring {
+    border-color: rgb(var(--color-ring));
+  }
+
+  .border-primary {
+    border-color: rgb(var(--color-primary));
+  }
+
+  .border-secondary {
+    border-color: rgb(var(--color-secondary));
+  }
+
+  .border-destructive {
+    border-color: rgb(var(--color-destructive));
+  }
+
+  .border-accent {
+    border-color: rgb(var(--color-accent));
+  }
+
+  .border-blue-300 {
+    border-color: rgb(var(--color-blue-300));
+  }
+
+  .border-blue-500 {
+    border-color: rgb(var(--color-blue-500));
+  }
+
   /* Ring colors */
-  .ring-ring { --tw-ring-color: rgb(var(--color-ring)); }
-  .ring-offset-background { --tw-ring-offset-color: rgb(var(--color-background)); }
-  
+  .ring-ring {
+    --tw-ring-color: rgb(var(--color-ring));
+  }
+
+  .ring-offset-background {
+    --tw-ring-offset-color: rgb(var(--color-background));
+  }
+
   /* Shadows */
-  .shadow-theme-sm { box-shadow: var(--shadow-sm); }
-  .shadow-theme { box-shadow: var(--shadow); }
-  .shadow-theme-md { box-shadow: var(--shadow-md); }
-  .shadow-theme-lg { box-shadow: var(--shadow-lg); }
-  .shadow-theme-xl { box-shadow: var(--shadow-xl); }
+  .shadow-theme-sm {
+    box-shadow: var(--shadow-sm);
+  }
+
+  .shadow-theme {
+    box-shadow: var(--shadow);
+  }
+
+  .shadow-theme-md {
+    box-shadow: var(--shadow-md);
+  }
+
+  .shadow-theme-lg {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .shadow-theme-xl {
+    box-shadow: var(--shadow-xl);
+  }
+
   .shadow-glow-accent {
     box-shadow: 0 4px 15px rgba(247, 163, 50, 0.3);
   }
+
   .shadow-glow-accent:hover {
     box-shadow: 0 8px 30px rgba(247, 163, 50, 0.5), 0 0 40px rgba(247, 163, 50, 0.3);
   }
 }
 
 @keyframes gradient-flow {
-  0%, 100% {
+
+  0%,
+  100% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
+  }
+}
+
+@keyframes blob {
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+}
+
+@layer utilities {
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+
+  .animation-delay-4000 {
+    animation-delay: 4s;
   }
 }
 

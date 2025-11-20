@@ -14,7 +14,7 @@ const CTA = () => {
         <h2 className="text-4xl sm:text-5xl font-bold text-primary-foreground mb-8 leading-tight">
           Ready to transform your QA process?
         </h2>
-        <p className="text-lg sm:text-xl text-primary-foreground/90 mb-12 max-w-2xl mx-auto">
+        <p className="text-lg sm:text-xl text-primary-foreground opacity-90 mb-12 max-w-2xl mx-auto">
           Join thousands of teams already using Surely to ship better software faster.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -31,7 +31,7 @@ const CTA = () => {
             <Button
               variant="outline"
               size="lg"
-              className="bg-transparent text-primary-foreground border-primary-foreground hover:bg-primary-foreground/10"
+              className="bg-transparent text-primary-foreground border-primary-foreground hover:bg-primary-foreground hover:bg-opacity-10"
             >
               Schedule Demo
             </Button>
