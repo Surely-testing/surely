@@ -10,16 +10,9 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Database } from '@/types/database.types'
 
-type Suite = {
-  id: string
-  name: string
-  description: string | null
-  owner_type: 'individual' | 'organization'
-  owner_id: string
-  created_at: string
-  updated_at: string
-}
+type Suite = Database['public']['Tables']['test_suites']['Row']
 
 interface SuiteSelectorViewProps {
   suites: Suite[]
@@ -89,7 +82,7 @@ export function SuiteSelectorView({ suites, userId }: SuiteSelectorViewProps) {
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4 mr-2" />
                   <span>
-                    Updated {new Date(suite.updated_at).toLocaleDateString()}
+                    Updated {suite.updated_at ? new Date(suite.updated_at).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
               </CardContent>
