@@ -243,6 +243,12 @@ const RegisterForm = () => {
           data: {
             full_name: formData.name,
             account_type: formData.accountType,
+            // Store org details in metadata for later
+            ...(formData.accountType === 'organization' && {
+              organization_name: formData.organizationName,
+              organization_industry: formData.organizationIndustry,
+              organization_size: formData.organizationSize,
+            }),
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
@@ -254,42 +260,7 @@ const RegisterForm = () => {
         throw new Error('User creation failed')
       }
 
-      // 2. IMPORTANT: Get a fresh session to ensure auth.uid() works
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-
-      if (sessionError || !sessionData.session) {
-        console.log('No session yet, user needs to verify email first')
-        toast.success('Registration successful! Please check your email to verify your account.', {
-          duration: 5000,
-        })
-        router.push('/verify-email')
-        return
-      }
-
-      // 3. Use service role for profile creation (or use a database function)
-      // Since we can't use service role from client, we'll use a different approach
-
-      // Create profile using anon key but with proper RLS
-      const profileData: any = {
-        id: authData.user.id,
-        email: formData.email,
-        name: formData.name,
-        account_type: formData.accountType,
-        registration_completed: false,
-        terms_accepted: formData.terms,
-        created_by: authData.user.id,
-      }
-
-      if (formData.accountType === 'organization') {
-        if (!formData.organizationName || !formData.organizationIndustry || !formData.organizationSize) {
-          throw new Error('Organization details are required')
-        }
-
-        profileData.organization_name = formData.organizationName
-        profileData.organization_industry = formData.organizationIndustry
-        profileData.organization_size = formData.organizationSize
-      }
-
+      // 2. Call registration function immediately (don't wait for session)
       const { data: registrationResult, error: registrationError } = await supabase.rpc(
         'handle_new_user_registration',
         {
@@ -303,16 +274,20 @@ const RegisterForm = () => {
           org_size: formData.accountType === 'organization' ? formData.organizationSize : undefined,
         }
       )
+
       if (registrationError) {
         console.error('Registration function error:', registrationError)
         throw new Error(`Failed to complete registration: ${registrationError.message}`)
       }
+
+      console.log('Registration successful:', registrationResult)
 
       toast.success('Registration successful! Please check your email to verify your account.', {
         duration: 5000,
       })
 
       router.push('/verify-email')
+
     } catch (err: any) {
       console.error('Registration error:', err)
       toast.error(err.message || 'Registration failed. Please try again.')

@@ -1,43 +1,69 @@
 // ============================================
-// FILE: components/dashboard/StatsCard.tsx
+// components/dashboard/StatsCard.tsx
 // ============================================
-import React from 'react'
-import { LucideIcon } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/Card'
+'use client';
+
+import React from 'react';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 
 interface StatsCardProps {
-  title: string
-  value: number | string
-  icon: LucideIcon
+  title: string;
+  value: string | number;
+  icon: string;
+  iconBgColor: string;
+  badges?: Array<{
+    label: string;
+    variant: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';  // ✅ Fixed to match Badge
+  }>;
   trend?: {
-    value: number
-    isPositive: boolean
-  }
-  onClick?: () => void
+    value: number;
+    direction: 'up' | 'down';
+  };
 }
 
-export function StatsCard({ title, value, icon: Icon, trend, onClick }: StatsCardProps) {
+export function StatsCard({
+  title,
+  value,
+  icon,
+  iconBgColor,
+  badges,
+  trend,
+}: StatsCardProps) {
   return (
-    <Card 
-      className={`${onClick ? 'cursor-pointer hover:shadow-theme-lg' : ''} transition-all duration-200`}
-      onClick={onClick}
-    >
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="p-3 bg-gradient-primary rounded-xl">
-            <Icon className="h-6 w-6 text-white" />
-          </div>
-          {trend && (
-            <span className={`text-sm font-medium ${trend.isPositive ? 'text-success' : 'text-error'}`}>
-              {trend.isPositive ? '+' : ''}{trend.value}%
-            </span>
-          )}
-        </div>
+    <Card className="p-6">
+      <div className="flex items-center justify-between">
         <div>
-          <p className="text-3xl font-bold text-foreground mb-1">{value}</p>
-          <p className="text-sm text-muted-foreground">{title}</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            {title}
+          </p>
+          <p className="text-3xl font-bold text-foreground mt-2">
+            {value}
+          </p>
         </div>
-      </CardContent>
+        <div className={`w-12 h-12 ${iconBgColor} rounded-lg flex items-center justify-center`}>
+          <span className="text-2xl">{icon}</span>
+        </div>
+      </div>
+
+      {badges && badges.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {badges.map((badge, index) => (
+            <Badge key={index} variant={badge.variant}>
+              {badge.label}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {trend && (
+        <div className="mt-4 flex items-center gap-1 text-sm">
+          <span className={trend.direction === 'up' ? 'text-success' : 'text-error'}>
+            {trend.direction === 'up' ? '↑' : '↓'} {Math.abs(trend.value)}%
+          </span>
+          <span className="text-muted-foreground">vs last period</span>
+        </div>
+      )}
     </Card>
-  )
+  );
 }

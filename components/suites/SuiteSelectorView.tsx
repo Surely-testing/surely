@@ -1,95 +1,125 @@
 // ============================================
-// FILE: components/suites/SuiteSelectorView.tsx
+// components/dashboard/SuiteSwitcher.tsx
 // ============================================
-'use client'
+'use client';
 
-import React from 'react'
-import Link from 'next/link'
-import { Plus, FolderOpen, Calendar, Users2 } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { Database } from '@/types/database.types'
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTestSuites } from '@/lib/hooks/useTestSuites';
+import { Button } from '@/components/ui/Button';
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { ChevronDown, Plus, Check } from 'lucide-react';
 
-type Suite = Database['public']['Tables']['test_suites']['Row']
-
-interface SuiteSelectorViewProps {
-  suites: Suite[]
-  userId: string
+interface SuiteSwitcherProps {
+  currentSuiteId: string;
 }
 
-export function SuiteSelectorView({ suites, userId }: SuiteSelectorViewProps) {
-  if (suites.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <EmptyState
-          icon={<FolderOpen className="h-16 w-16" />}
-          title="No test suites yet"
-          description="Create your first test suite to start organizing your testing workflow"
-          actionLabel="Create Test Suite"
-          onAction={() => window.location.href = '/suites/new'}
-        />
-      </div>
-    )
-  }
+export function SuiteSwitcher({ currentSuiteId }: SuiteSwitcherProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
+  const { data: suites, isLoading } = useTestSuites();
+
+  const currentSuite = suites?.find(s => s.id === currentSuiteId);
+
+  const handleSuiteChange = (suiteId: string) => {
+    setIsOpen(false);
+    router.push(`/${suiteId}`);
+  };
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              Select Test Suite
-            </h1>
-            <p className="text-muted-foreground">
-              Choose a test suite to continue working
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-semibold text-sm">
+              {currentSuite?.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="text-left min-w-0">
+            <p className="font-medium text-gray-900 dark:text-white truncate">
+              {currentSuite?.name || 'Select Suite'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Current Suite
             </p>
           </div>
-          <Link href="/suites/new">
-            <Button variant="primary" leftIcon={<Plus className="h-5 w-5" />}>
-              New Suite
-            </Button>
-          </Link>
         </div>
-      </div>
+        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {suites.map((suite) => (
-          <Link key={suite.id} href={`/${suite.id}`}>
-            <Card
-              variant="elevated"
-              className="h-full cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:border-primary/50"
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center">
-                    <FolderOpen className="h-6 w-6 text-white" />
-                  </div>
-                  <Badge variant={suite.owner_type === 'organization' ? 'primary' : 'default'}>
-                    {suite.owner_type === 'organization' ? (
-                      <Users2 className="h-3 w-3 mr-1" />
-                    ) : null}
-                    {suite.owner_type}
-                  </Badge>
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-96 overflow-y-auto">
+            {isLoading ? (
+              <div className="p-8 flex items-center justify-center">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <>
+                <div className="p-2">
+                  <p className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Your Suites
+                  </p>
+                  {suites && suites.length > 0 ? (
+                    suites.map((suite) => (
+                      <button
+                        key={suite.id}
+                        onClick={() => handleSuiteChange(suite.id)}
+                        className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+                            <span className="text-white font-semibold text-sm">
+                              {suite.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {suite.name}
+                            </p>
+                            {suite.description && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                                {suite.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {suite.id === currentSuiteId && (
+                          <Check className="w-4 h-4 text-blue-600" />
+                        )}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                      No suites found
+                    </div>
+                  )}
                 </div>
-                <CardTitle className="line-clamp-1">{suite.name}</CardTitle>
-                <CardDescription className="line-clamp-2">
-                  {suite.description || 'No description'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <span>
-                    Updated {suite.updated_at ? new Date(suite.updated_at).toLocaleDateString() : 'N/A'}
-                  </span>
+                <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setIsOpen(false);
+                      router.push('/suites/new');
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create New Suite
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
-  )
+  );
 }

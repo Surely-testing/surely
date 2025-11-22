@@ -41,6 +41,64 @@ export async function createTestSuite(data: {
   return { success: true, suite }
 }
 
+export async function getTestSuite(suiteId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Not authenticated' }
+  }
+
+  const { data: suite, error } = await supabase
+    .from('test_suites')
+    .select('*')
+    .eq('id', suiteId)
+    .single()
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  if (!suite) {
+    return { error: 'Suite not found' }
+  }
+
+  // Verify user has access (is owner, admin, or member)
+  const hasAccess = 
+    (suite.owner_type === 'individual' && suite.owner_id === user.id) ||
+    suite.admins?.includes(user.id) ||
+    suite.members?.includes(user.id)
+
+  if (!hasAccess) {
+    return { error: 'Access denied' }
+  }
+
+  return { success: true, suite }
+}
+
+// Also add a function to get all suites for a user
+export async function getUserTestSuites() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Not authenticated' }
+  }
+
+  const { data: suites, error } = await supabase
+    .from('test_suites')
+    .select('*')
+    .or(`owner_id.eq.${user.id},admins.cs.{${user.id}},members.cs.{${user.id}}`)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  return { success: true, suites: suites || [] }
+}
+
 export async function updateTestSuite(
   suiteId: string,
   data: { name?: string; description?: string }

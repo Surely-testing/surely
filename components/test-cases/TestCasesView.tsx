@@ -14,7 +14,7 @@ import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useSuiteContext } from '@/providers/SuiteContextProvider'
 
-type TestCase = {
+export type TestCase = {
   id: string
   title: string
   description: string | null

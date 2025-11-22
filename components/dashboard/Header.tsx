@@ -10,6 +10,7 @@ import { signOut } from '@/lib/actions/auth'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getInitials } from '@/lib/utils/formatters'
+import type { Suite } from '@/types/dashboard.types'
 
 type User = {
   id: string
@@ -23,10 +24,6 @@ type Profile = {
   avatar_url: string | null
 }
 
-type Suite = {
-  id: string
-  name: string
-}
 
 interface HeaderProps {
   user: User

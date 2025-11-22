@@ -39,7 +39,7 @@ export function TestCaseDetail({ testCase, suiteId }: TestCaseDetailProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button
-          variant="ghost"
+          variant="outline"
           leftIcon={<ArrowLeft className="h-4 w-4" />}
           onClick={() => router.push(`/${suiteId}/test-cases`)}
         >
@@ -57,7 +57,7 @@ export function TestCaseDetail({ testCase, suiteId }: TestCaseDetailProps) {
           )}
           {canAdmin && (
             <Button
-              variant="ghost"
+              variant="outline"
               leftIcon={<Trash2 className="h-4 w-4" />}
               className="text-error hover:bg-red-50 dark:hover:bg-red-900/20"
             >

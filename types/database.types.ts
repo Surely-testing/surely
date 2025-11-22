@@ -128,6 +128,13 @@ export type Database = {
       }
       bugs: {
         Row: {
+          stepsToReproduce: any
+          expectedBehavior: any
+          actualBehavior: any
+          environment: any
+          assignedTo: any
+          createdAt: string | number | Date
+          updatedAt: string | number | Date
           created_at: string | null
           created_by: string
           description: string | null
@@ -942,6 +949,32 @@ export type Database = {
           },
         ]
       }
+      user_sessions: {
+        Row: {
+          current_suite_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          current_suite_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          current_suite_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_current_suite_id_fkey"
+            columns: ["current_suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -959,6 +992,7 @@ export type Database = {
         Args: { suite_id: string; user_id: string }
         Returns: boolean
       }
+      downgrade_expired_trials: { Args: never; Returns: undefined }
       handle_new_user_registration: {
         Args: {
           org_industry?: string

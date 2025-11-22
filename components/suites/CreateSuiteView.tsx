@@ -56,7 +56,7 @@ export function CreateSuiteView() {
       if (createError) throw createError
 
       // Redirect to new suite
-      router.push(`/${suite.id}`)
+      router.push(`/dashboard/${suite.id}`)
       router.refresh()
     } catch (err: any) {
       setError(err.message || 'Failed to create test suite')
@@ -69,7 +69,7 @@ export function CreateSuiteView() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
         <Button
-          variant="ghost"
+          variant="primary"
           leftIcon={<ArrowLeft className="h-4 w-4" />}
           onClick={() => router.back()}
         >

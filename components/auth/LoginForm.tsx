@@ -48,7 +48,7 @@ const LoginForm = () => {
         toast.success('Welcome back!', {
           description: 'Redirecting to your dashboard...',
         })
-        router.push('/dashboard')
+        router.push(`/`);
         router.refresh()
       }
     } catch (err: any) {

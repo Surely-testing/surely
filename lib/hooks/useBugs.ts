@@ -2,7 +2,7 @@
 // lib/hooks/useBugs.ts
 // ============================================
 
-import { createClient } from "../supabase/server";
+import { createClient } from "../supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface BugFilters {
@@ -20,6 +20,17 @@ interface BugFormData {
   status?: string;
   steps_to_reproduce?: any[];
   sprint_id?: string | null;
+}
+
+// Helper function to transform null to undefined
+function transformBug(bug: any) {
+  return {
+    ...bug,
+    description: bug.description ?? undefined,
+    sprint_id: bug.sprint_id ?? undefined,
+    steps_to_reproduce: bug.steps_to_reproduce ?? undefined,
+    // Add any other fields that might be null but should be undefined
+  };
 }
 
 export function useBugs(suiteId: string, filters?: BugFilters) {
@@ -41,7 +52,9 @@ export function useBugs(suiteId: string, filters?: BugFilters) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      
+      // Transform null values to undefined
+      return data?.map(transformBug) ?? [];
     },
     enabled: !!suiteId,
   });
@@ -58,7 +71,9 @@ export function useBug(bugId: string) {
         .eq('id', bugId)
         .single();
       if (error) throw error;
-      return data;
+      
+      // Transform null values to undefined
+      return data ? transformBug(data) : null;
     },
     enabled: !!bugId,
   });
@@ -87,7 +102,7 @@ export function useCreateBug(suiteId: string) {
         .select()
         .single();
       if (error) throw error;
-      return bug;
+      return bug ? transformBug(bug) : null;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bugs', suiteId] });
@@ -107,7 +122,7 @@ export function useUpdateBug(suiteId: string) {
         .select()
         .single();
       if (error) throw error;
-      return bug;
+      return bug ? transformBug(bug) : null;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['bugs', suiteId] });

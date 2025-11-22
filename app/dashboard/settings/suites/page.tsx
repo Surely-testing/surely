@@ -2,7 +2,7 @@
 // FILE: app/(dashboard)/suites/page.tsx
 // ============================================
 import { createClient } from '@/lib/supabase/server'
-import { SuiteSelectorView } from '@/components/suites/SuiteSelectorView'
+// import { SuiteSelectorView } from '@/components/suites/SuiteSelectorView'
 import { redirect } from 'next/navigation'
 
 export const metadata = {
@@ -24,5 +24,5 @@ export default async function SuitesPage() {
     .select('*')
     .order('created_at', { ascending: false })
 
-  return <SuiteSelectorView suites={suites || []} userId={user.id} />
+  // return <SuiteSelectorView suites={suites || []} userId={user.id} />
 }

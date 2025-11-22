@@ -52,44 +52,44 @@ export const marketingNav: NavItem[] = [
   },
 ]
 
-// Dashboard navigation (suite context)
-export const getSuiteNavigation = (suiteId: string): NavSection[] => [
+// Suite navigation - NO suite ID in URLs
+export const suiteNavigation: NavSection[] = [
   {
     title: 'Suite',
     items: [
       {
         title: 'Overview',
-        href: `/${suiteId}`,
+        href: '/dashboard',
         icon: LayoutDashboard,
       },
       {
         title: 'Test Cases',
-        href: `/${suiteId}/test-cases`,
+        href: '/dashboard/test-cases',
         icon: FileText,
       },
       {
         title: 'Bugs',
-        href: `/${suiteId}/bugs`,
+        href: '/dashboard/bugs',
         icon: Bug,
       },
       {
         title: 'Sprints',
-        href: `/${suiteId}/sprints`,
+        href: '/dashboard/sprints',
         icon: Rocket,
       },
       {
         title: 'Reports',
-        href: `/${suiteId}/reports`,
+        href: '/dashboard/reports',
         icon: BarChart3,
       },
       {
         title: 'Documents',
-        href: `/${suiteId}/documents`,
+        href: '/dashboard/documents',
         icon: FolderOpen,
       },
       {
         title: 'Members',
-        href: `/${suiteId}/members`,
+        href: '/dashboard/members',
         icon: Users,
       },
     ],

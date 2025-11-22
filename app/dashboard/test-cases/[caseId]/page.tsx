@@ -3,7 +3,7 @@
 // ============================================
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import TestCaseDetail from '@/components/test-cases/TestCaseDetails';
+import { TestCaseDetail } from '@/components/test-cases/TestCaseDetails';
 
 interface TestCaseDetailPageProps {
   params: { suiteId: string; caseId: string }

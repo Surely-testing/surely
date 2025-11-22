@@ -5,29 +5,14 @@
 
 import React, { useState } from 'react'
 import { usePathname } from 'next/navigation'
-// import { Sidebar } from './Sidebar'
-// import { Header } from './Header'
-
-type User = {
-  id: string
-  email?: string
-}
-
-type Profile = {
-  id: string
-  name: string
-  email: string
-  avatar_url: string | null
-}
-
-type Suite = {
-  id: string
-  name: string
-  description: string | null
-  owner_type: string
-  owner_id: string
-  created_at: string
-}
+import { AIAssistantProvider } from '@/components/ai/AIAssistantProvider'
+import { AIAssistant } from '@/components/ai/AIAssistant'
+import { AIFloatingButton } from '@/components/ai/AIFloatingButton'
+import { ContextualTips } from '@/components/ai/ContextualTips'
+import { Header } from './Header'
+import { Sidebar } from './Sidebar'
+import { useSuiteContext } from '@/providers/SuiteContextProvider'
+import type { User, Profile, Suite } from '@/types/dashboard.types'
 
 interface DashboardShellProps {
   user: User
@@ -39,41 +24,47 @@ interface DashboardShellProps {
 export function DashboardShell({ user, profile, suites, children }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const pathname = usePathname()
+  
+  // Get current suite from context instead of URL
+  const { suite: currentSuite } = useSuiteContext()
 
-  // Extract current suite ID from pathname
-  const getCurrentSuiteId = () => {
-    const match = pathname.match(/^\/([a-f0-9-]{36})/)
-    return match ? match[1] : null
-  }
-
-  const currentSuiteId = getCurrentSuiteId()
-  const currentSuite = suites.find(s => s.id === currentSuiteId)
+  console.log('DashboardShell - Current suite:', currentSuite?.id, currentSuite?.name)
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      {/* <Sidebar
-        suites={suites}
-        currentSuiteId={currentSuiteId}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-      /> */}
+    <AIAssistantProvider
+      userId={user.id}
+      suiteId={currentSuite.id}
+      suiteName={currentSuite.name}
+    >
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Sidebar */}
+        <Sidebar
+          suites={suites}
+          currentSuiteId={currentSuite.id}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+        />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* <Header
-          user={user}
-          profile={profile}
-          currentSuite={currentSuite}
-          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-        /> */}
-        
-        <main className="flex-1 overflow-y-auto bg-muted/30">
-          <div className="container mx-auto p-6">
-            {children}
-          </div>
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header
+            user={user}
+            profile={profile}
+            currentSuite={currentSuite}
+            onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+          />
+
+          <main className="flex-1 overflow-y-auto bg-muted/30">
+            <div className="container mx-auto p-6">
+              {children}
+            </div>
+          </main>
+        </div>
+
+        {/* AI Components - Work across ALL dashboards */}
+        <ContextualTips />
+        <AIFloatingButton />
+        <AIAssistant />
       </div>
-    </div>
+    </AIAssistantProvider>
   )
 }
