@@ -1,5 +1,5 @@
 // ============================================
-// components/dashboard/RecentActivity.tsx
+// FILE: components/dashboard/RecentActivity.tsx
 // ============================================
 'use client';
 
@@ -7,6 +7,7 @@ import React from 'react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { formatDistanceToNow } from 'date-fns';
+import { FileCheck, Bug, Rocket, FileText, Activity } from 'lucide-react';
 
 interface Activity {
   id: string;
@@ -28,38 +29,38 @@ export function RecentActivity({ activities }: RecentActivityProps) {
   const getIcon = (type: Activity['type']) => {
     switch (type) {
       case 'test_case':
-        return '✅';
+        return <FileCheck className="w-5 h-5 text-blue-600" />;
       case 'bug':
-        return '🐛';
+        return <Bug className="w-5 h-5 text-red-600" />;
       case 'sprint':
-        return '🚀';
+        return <Rocket className="w-5 h-5 text-green-600" />;
       case 'document':
-        return '📁';
+        return <FileText className="w-5 h-5 text-purple-600" />;
       default:
-        return '📝';
+        return <Activity className="w-5 h-5 text-gray-600" />;
     }
   };
 
-  const getActionColor = (action: Activity['action']) => {
+  const getActionColor = (action: Activity['action']): 'success' | 'default' | 'danger' => {
     switch (action) {
       case 'created':
         return 'success';
       case 'updated':
-        return 'secondary';
+        return 'default';
       case 'deleted':
-        return 'error';
+        return 'danger';
       default:
-        return 'secondary';
+        return 'default';
     }
   };
 
   if (!activities || activities.length === 0) {
     return (
       <Card className="p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+        <h2 className="text-xl font-semibold text-foreground mb-4">
           Recent Activity
         </h2>
-        <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+        <p className="text-muted-foreground text-center py-8">
           No recent activity
         </p>
       </Card>
@@ -68,31 +69,31 @@ export function RecentActivity({ activities }: RecentActivityProps) {
 
   return (
     <Card className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+      <h2 className="text-xl font-semibold text-foreground mb-4">
         Recent Activity
       </h2>
       <div className="space-y-4">
         {activities.map((activity) => (
           <div
             key={activity.id}
-            className="flex items-start gap-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted transition-colors"
           >
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              <span className="text-lg">{getIcon(activity.type)}</span>
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+              {getIcon(activity.type)}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <p className="font-medium text-gray-900 dark:text-white truncate">
+                <p className="font-medium text-foreground truncate">
                   {activity.user.name}
                 </p>
                 <Badge variant={getActionColor(activity.action)} size="sm">
                   {activity.action}
                 </Badge>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+              <p className="text-sm text-muted-foreground truncate">
                 {activity.title}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
               </p>
             </div>

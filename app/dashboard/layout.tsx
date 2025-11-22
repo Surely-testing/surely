@@ -1,5 +1,5 @@
 // ============================================
-// FILE: app/(dashboard)/layout.tsx
+// FILE: app/dashboard/layout.tsx
 // ============================================
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'

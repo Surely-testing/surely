@@ -1,20 +1,25 @@
+
+
 // ============================================
-// FILE: app/error.tsx
+// FILE: app/dashboard/error.tsx
 // ============================================
 'use client'
 
 import { useEffect } from 'react'
-import { Button } from '../components/ui/Button'
+import { Button } from '../../components/ui/Button'
+import { useRouter } from 'next/navigation'
 
-export default function RootError({
+export default function DashboardError({
   error,
   reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const router = useRouter()
+
   useEffect(() => {
-    console.error('Root error:', error)
+    console.error('Dashboard error:', error)
   }, [error])
 
   return (
@@ -22,10 +27,10 @@ export default function RootError({
       <div className="max-w-md w-full text-center space-y-6">
         <div className="space-y-2">
           <h1 className="text-4xl font-bold text-foreground">
-            Something went wrong
+            Dashboard Error
           </h1>
           <p className="text-muted-foreground">
-            An unexpected error occurred. Please try again.
+            We couldn't load your dashboard. This might be a temporary issue.
           </p>
         </div>
 
@@ -42,7 +47,7 @@ export default function RootError({
             Try again
           </Button>
           <Button 
-            onClick={() => window.location.href = '/'}
+            onClick={() => router.push('/')}
             variant="outline"
           >
             Go home

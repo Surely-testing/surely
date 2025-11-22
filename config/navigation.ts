@@ -11,6 +11,10 @@ import {
   Users,
   Settings,
   Building2,
+  User,
+  CreditCard,
+  Bell,
+  Shield,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -83,6 +87,16 @@ export const suiteNavigation: NavSection[] = [
         icon: BarChart3,
       },
       {
+        title: 'Test Data',
+        href: '/dashboard/test-data',
+        icon: FolderOpen,
+      },
+      {
+        title: 'Recordings',
+        href: '/dashboard/recordings',
+        icon: FolderOpen,
+      },
+      {
         title: 'Documents',
         href: '/dashboard/documents',
         icon: FolderOpen,
@@ -102,11 +116,6 @@ export const globalNavigation: NavSection[] = [
     title: 'General',
     items: [
       {
-        title: 'Organizations',
-        href: '/organizations',
-        icon: Building2,
-      },
-      {
         title: 'Settings',
         href: '/settings',
         icon: Settings,
@@ -120,21 +129,31 @@ export const settingsNav: NavItem[] = [
   {
     title: 'Profile',
     href: '/settings/profile',
+    icon: User,
   },
   {
     title: 'Account',
     href: '/settings/account',
+    icon: Settings,
+  },
+  {
+    title: 'Organizations',
+    href: '/settings/organizations',
+    icon: Building2,
   },
   {
     title: 'Subscription',
     href: '/settings/subscription',
+    icon: CreditCard,
   },
   {
     title: 'Notifications',
     href: '/settings/notifications',
+    icon: Bell,
   },
   {
     title: 'Security',
     href: '/settings/security',
+    icon: Shield,
   },
 ]

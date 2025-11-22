@@ -6,7 +6,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, Plus, FolderOpen } from 'lucide-react'
+import { ChevronDown, Plus, FolderOpen, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { suiteNavigation, globalNavigation } from '@/config/navigation'
 import Image from 'next/image'
@@ -20,11 +20,12 @@ interface SidebarProps {
   onToggle: () => void
 }
 
-export function Sidebar({ suites, currentSuiteId, isOpen }: SidebarProps) {
+export function Sidebar({ suites, currentSuiteId, isOpen, onToggle }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [suiteSwitcherOpen, setSuiteSwitcherOpen] = React.useState(false)
   const [isSwitching, setIsSwitching] = React.useState(false)
+  const [isCollapsed, setIsCollapsed] = React.useState(false)
 
   const currentSuite = suites.find(s => s.id === currentSuiteId)
 
@@ -37,6 +38,9 @@ export function Sidebar({ suites, currentSuiteId, isOpen }: SidebarProps) {
     if (result.success) {
       setSuiteSwitcherOpen(false)
       router.refresh()
+      if (window.innerWidth < 1024) {
+        onToggle()
+      }
     } else {
       alert('Failed to switch suite: ' + result.error)
     }
@@ -44,163 +48,274 @@ export function Sidebar({ suites, currentSuiteId, isOpen }: SidebarProps) {
     setIsSwitching(false)
   }
 
+  const handleNavClick = () => {
+    if (window.innerWidth < 1024) {
+      onToggle()
+    }
+  }
+
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed)
+    if (!isCollapsed) {
+      setSuiteSwitcherOpen(false)
+    }
+  }
+
   return (
-    <aside
-      className={cn(
-        'bg-sidebar border-r border-border flex flex-col transition-all duration-300',
-        isOpen ? 'w-64' : 'w-0 lg:w-20'
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
+          onClick={onToggle}
+          aria-hidden="true"
+        />
       )}
-    >
-      {/* Logo */}
-      <div className="h-16 flex items-center justify-center px-4 border-b border-border">
-        <Link href="/dashboard" className="flex items-center">
-          <Image
-            src={process.env.NEXT_PUBLIC_CLOUDINARY_LOGO_URL || '/logo.svg'}
-            alt="Surely"
-            width={32}
-            height={32}
-            className="flex-shrink-0"
-          />
-          {isOpen && (
-            <span className="ml-2 text-xl font-bold text-sidebar-foreground">
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          'fixed lg:sticky top-0 h-screen border-r border-border flex flex-col transition-all duration-300 ease-in-out z-50',
+          'lg:translate-x-0',
+          isOpen ? 'translate-x-0' : '-translate-x-full',
+          isCollapsed ? 'lg:w-20' : 'w-72 lg:w-64'
+        )}
+      >
+        {/* Header */}
+        <div className={cn(
+          "h-16 flex items-center border-b border-border shrink-0",
+          isCollapsed ? "lg:justify-center lg:px-4" : "justify-between px-6"
+        )}>
+          <Link 
+            href="/dashboard" 
+            className="flex items-center gap-3 group transition-all duration-300"
+            onClick={handleNavClick}
+          >
+            <Image
+              src={process.env.NEXT_PUBLIC_CLOUDINARY_LOGO_URL || '/logo.svg'}
+              alt="Surely"
+              width={32}
+              height={32}
+              className="transition-transform group-hover:rotate-12 group-hover:scale-110 duration-300"
+            />
+            <span className={cn(
+              "text-xl font-bold text-foreground tracking-tight transition-all duration-300",
+              isCollapsed && "lg:opacity-0 lg:w-0 lg:overflow-hidden"
+            )}>
               Surely
             </span>
-          )}
-        </Link>
-      </div>
-
-      {/* Suite Switcher */}
-      {currentSuite && (
-        <div className="p-4 border-b border-border">
+          </Link>
+          
+          {/* Mobile Close Button */}
           <button
-            onClick={() => setSuiteSwitcherOpen(!suiteSwitcherOpen)}
-            className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-muted transition-colors group"
-            disabled={isSwitching}
+            onClick={onToggle}
+            className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-muted/50 transition-colors"
+            aria-label="Close menu"
           >
-            <div className="flex items-center min-w-0 flex-1">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                <FolderOpen className="h-4 w-4 text-white" />
-              </div>
-              {isOpen && (
-                <div className="ml-3 min-w-0 flex-1">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">
+            <X className="h-5 w-5 text-foreground" />
+          </button>
+        </div>
+
+        {/* Suite Switcher */}
+        {currentSuite && (
+          <div className={cn(
+            "py-6 border-b border-border shrink-0",
+            isCollapsed ? "lg:px-2" : "px-4"
+          )}>
+            <button
+              onClick={() => setSuiteSwitcherOpen(!suiteSwitcherOpen)}
+              className={cn(
+                "w-full flex items-center rounded-xl transition-all duration-200",
+                "hover:bg-muted/50 active:scale-[0.98] group",
+                suiteSwitcherOpen && "bg-muted/30",
+                isCollapsed ? "lg:justify-center lg:px-2 lg:py-2" : "justify-between px-4 py-3"
+              )}
+              disabled={isSwitching}
+            >
+              <div className={cn(
+                "flex items-center min-w-0 flex-1",
+                isCollapsed ? "lg:justify-center" : "gap-3"
+              )}>
+                <div className="w-10 h-10 rounded-lg border border-border flex items-center justify-center shrink-0 group-hover:border-primary transition-colors">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                </div>
+                <div className={cn(
+                  "min-w-0 flex-1 text-left transition-all duration-300",
+                  isCollapsed ? "lg:hidden" : "ml-3"
+                )}>
+                  <p className="text-sm font-semibold text-foreground truncate">
                     {currentSuite.name}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className="text-xs text-muted-foreground truncate capitalize">
                     {currentSuite.owner_type}
                   </p>
                 </div>
-              )}
-            </div>
-            {isOpen && (
+              </div>
               <ChevronDown
                 className={cn(
-                  'h-4 w-4 text-muted-foreground transition-transform flex-shrink-0',
-                  suiteSwitcherOpen && 'rotate-180'
+                  'h-4 w-4 text-muted-foreground transition-all duration-200 shrink-0',
+                  suiteSwitcherOpen && 'rotate-180 text-foreground',
+                  isCollapsed && "lg:hidden"
                 )}
               />
-            )}
-          </button>
+            </button>
 
-          {/* Suite Dropdown */}
-          {suiteSwitcherOpen && isOpen && (
-            <div className="mt-2 space-y-1">
-              {suites.map(suite => (
-                <button
-                  key={suite.id}
-                  onClick={() => handleSwitchSuite(suite.id)}
-                  disabled={isSwitching}
+            {/* Suite Dropdown */}
+            {suiteSwitcherOpen && !isCollapsed && (
+              <div className="mt-3 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                <div className="max-h-64 overflow-y-auto space-y-1.5">
+                  {suites.map(suite => (
+                    <button
+                      key={suite.id}
+                      onClick={() => handleSwitchSuite(suite.id)}
+                      disabled={isSwitching}
+                      className={cn(
+                        'w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+                        'hover:bg-muted/50 active:scale-[0.98]',
+                        suite.id === currentSuiteId
+                          ? 'bg-primary/5 text-primary border border-primary/20'
+                          : 'text-foreground border border-transparent',
+                        isSwitching && 'opacity-50 cursor-not-allowed'
+                      )}
+                    >
+                      <div className="truncate">{suite.name}</div>
+                    </button>
+                  ))}
+                </div>
+                <Link
+                  href="/create-suite"
+                  onClick={handleNavClick}
                   className={cn(
-                    'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
-                    suite.id === currentSuiteId
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-primary font-medium'
-                      : 'text-sidebar-foreground hover:bg-muted',
-                    isSwitching && 'opacity-50 cursor-not-allowed'
+                    "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                    "text-primary hover:bg-primary/5 active:scale-[0.98] border border-dashed border-primary/30 hover:border-primary/50"
                   )}
                 >
-                  {suite.name}
-                </button>
-              ))}
-              <Link
-                href="/create-suite"
-                className="flex items-center px-3 py-2 rounded-lg text-sm text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New Suite
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Suite Navigation */}
-        {currentSuiteId && suiteNavigation.map((section, idx) => (
-          <div key={idx}>
-            {isOpen && (
-              <h3 className="px-2 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {section.title}
-              </h3>
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <span>New Suite</span>
+                </Link>
+              </div>
             )}
-            <div className="space-y-1">
-              {section.items.map(item => {
-                const Icon = item.icon
-                const isActive = pathname === item.href
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-primary'
-                        : 'text-sidebar-foreground hover:bg-muted'
-                    )}
-                  >
-                    {Icon && <Icon className="h-5 w-5 flex-shrink-0" />}
-                    {isOpen && <span className="ml-3">{item.title}</span>}
-                  </Link>
-                )
-              })}
-            </div>
           </div>
-        ))}
+        )}
 
-        {/* Global Navigation */}
-        {globalNavigation.map((section, idx) => (
-          <div key={idx}>
-            {isOpen && (
-              <h3 className="px-2 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {section.title}
-              </h3>
-            )}
-            <div className="space-y-1">
-              {section.items.map(item => {
-                const Icon = item.icon
-                const isActive = pathname.startsWith(item.href)
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-primary'
-                        : 'text-sidebar-foreground hover:bg-muted'
-                    )}
+        {/* Navigation */}
+        <nav className={cn(
+          "flex-1 overflow-y-auto py-6 space-y-8",
+          isCollapsed ? "lg:px-2" : "px-4"
+        )}>
+          {/* Suite Navigation */}
+          {currentSuiteId && suiteNavigation.map((section, idx) => (
+            <div key={idx} className="space-y-2">
+              <div className={cn(
+                "flex items-center justify-between",
+                isCollapsed ? "lg:px-0" : "px-4"
+              )}>
+                {!isCollapsed && (
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    {section.title}
+                  </h3>
+                )}
+                {idx === 0 && (
+                  <button
+                    onClick={toggleCollapse}
+                    className="hidden lg:flex p-1.5 rounded-lg hover:bg-muted/50 transition-all duration-200 hover:scale-110 active:scale-95 shrink-0 ml-auto"
+                    aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                   >
-                    {Icon && <Icon className="h-5 w-5 flex-shrink-0" />}
-                    {isOpen && <span className="ml-3">{item.title}</span>}
-                  </Link>
-                )
-              })}
+                    {isCollapsed ? (
+                      <ChevronRight className="h-4 w-4 text-foreground transition-transform duration-200" />
+                    ) : (
+                      <ChevronLeft className="h-4 w-4 text-foreground transition-transform duration-200" />
+                    )}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1">
+                {section.items.map(item => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={handleNavClick}
+                      title={isCollapsed ? item.title : undefined}
+                      className={cn(
+                        'flex items-center rounded-xl text-sm font-medium transition-all duration-200',
+                        'active:scale-[0.98] group relative',
+                        isActive
+                          ? 'bg-primary/5 text-primary border border-primary/20'
+                          : 'text-foreground hover:bg-muted/50 border border-transparent hover:border-border',
+                        isCollapsed ? 'lg:justify-center lg:p-3' : 'gap-3 px-4 py-3'
+                      )}
+                    >
+                      {Icon && (
+                        <Icon className={cn(
+                          "h-5 w-5 shrink-0 transition-colors",
+                          isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                        )} />
+                      )}
+                      <span className={cn(
+                        "truncate transition-all duration-300",
+                        isCollapsed && "lg:hidden"
+                      )}>
+                        {item.title}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
-    </aside>
+          ))}
+
+          {/* Global Navigation */}
+          {globalNavigation.map((section, idx) => (
+            <div key={idx} className="space-y-2">
+              {!isCollapsed && (
+                <h3 className="px-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  {section.title}
+                </h3>
+              )}
+              <div className="space-y-1">
+                {section.items.map(item => {
+                  const Icon = item.icon
+                  const isActive = pathname.startsWith(item.href)
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={handleNavClick}
+                      title={isCollapsed ? item.title : undefined}
+                      className={cn(
+                        'flex items-center rounded-xl text-sm font-medium transition-all duration-200',
+                        'active:scale-[0.98] group',
+                        isActive
+                          ? 'bg-primary/5 text-primary border border-primary/20'
+                          : 'text-foreground hover:bg-muted/50 border border-transparent hover:border-border',
+                        isCollapsed ? 'lg:justify-center lg:p-3' : 'gap-3 px-4 py-3'
+                      )}
+                    >
+                      {Icon && (
+                        <Icon className={cn(
+                          "h-5 w-5 shrink-0 transition-colors",
+                          isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                        )} />
+                      )}
+                      <span className={cn(
+                        "truncate transition-all duration-300",
+                        isCollapsed && "lg:hidden"
+                      )}>
+                        {item.title}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </aside>
+    </>
   )
 }

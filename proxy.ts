@@ -1,5 +1,5 @@
 // ==========================================
-// FILE: proxy.ts (SIMPLIFIED FOR SESSION)
+// FILE: proxy.ts (FIXED - Allow Homepage Access)
 // ==========================================
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
@@ -45,9 +45,13 @@ export default async function proxy(request: NextRequest) {
   const protectedRoutes = ['/subscription', '/settings', '/profile', '/suites', '/organizations', '/create-suite']
   const isProtectedRoute = protectedRoutes.some(route => path.startsWith(route)) || isDashboardRoute
 
-  // Public auth routes
+  // Public auth routes that should redirect to dashboard when logged in
   const authRoutes = ['/login', '/signup']
   const isAuthRoute = authRoutes.includes(path)
+
+  // Public marketing pages that anyone can access (authenticated or not)
+  const publicPages = ['/', '/features', '/pricing', '/about', '/contact']
+  const isPublicPage = publicPages.includes(path)
 
   // Allow auth callback and verify-email
   if (path === '/auth/callback' || path === '/verify-email') {
@@ -86,9 +90,15 @@ export default async function proxy(request: NextRequest) {
 
     // If registration complete
     if (profile?.registration_completed) {
-      // Redirect from onboarding/home/auth to dashboard
-      if (path === '/onboarding' || path === '/' || isAuthRoute) {
+      // Redirect from onboarding or auth routes to dashboard
+      // BUT allow access to public marketing pages
+      if (path === '/onboarding' || isAuthRoute) {
         return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+      
+      // Allow authenticated users to access public pages (homepage, features, etc.)
+      if (isPublicPage) {
+        return response
       }
     }
 

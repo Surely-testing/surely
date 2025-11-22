@@ -1,5 +1,5 @@
 // ============================================
-// components/dashboard/StatsCard.tsx
+// FILE: components/dashboard/StatsCard.tsx
 // ============================================
 'use client';
 
@@ -10,11 +10,11 @@ import { Badge } from '@/components/ui/Badge';
 interface StatsCardProps {
   title: string;
   value: string | number;
-  icon: string;
+  icon: React.ReactNode;
   iconBgColor: string;
   badges?: Array<{
     label: string;
-    variant: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';  // ✅ Fixed to match Badge
+    variant: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
   }>;
   trend?: {
     value: number;
@@ -42,7 +42,7 @@ export function StatsCard({
           </p>
         </div>
         <div className={`w-12 h-12 ${iconBgColor} rounded-lg flex items-center justify-center`}>
-          <span className="text-2xl">{icon}</span>
+          {icon}
         </div>
       </div>
 

@@ -128,13 +128,6 @@ export type Database = {
       }
       bugs: {
         Row: {
-          stepsToReproduce: any
-          expectedBehavior: any
-          actualBehavior: any
-          environment: any
-          assignedTo: any
-          createdAt: string | number | Date
-          updatedAt: string | number | Date
           created_at: string | null
           created_by: string
           description: string | null
