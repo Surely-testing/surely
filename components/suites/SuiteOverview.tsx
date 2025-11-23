@@ -9,9 +9,8 @@ import Link from 'next/link';
 import { useTestCaseStats } from '@/lib/hooks/useTestCases';
 import { useBugStats } from '@/lib/hooks/useBugs';
 import { useSprints } from '@/lib/hooks/useSprints';
-import { useRecentActivity } from '@/lib/hooks/uesActivity';
+import { useRecentActivity } from '@/lib/hooks/useActivity';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import {
@@ -102,6 +101,19 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
         }
     };
 
+    // Add right after the hook declarations
+    console.log('🔍 Debug Info:', {
+        suiteId,
+        testCaseStats,
+        bugStats,
+        sprints,
+        loadingTestCases,
+        loadingBugs,
+        loadingSprints,
+        hasData,
+        isConnected
+    });
+
     const calculateTrend = (current: number, previous: number) => {
         if (previous === 0) return { value: 0, isPositive: true };
         const change = ((current - previous) / previous) * 100;
@@ -129,7 +141,8 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
     const mediumBugs = bugStats?.by_severity.medium || 0;
     const lowBugs = bugStats?.by_severity.low || 0;
     const resolutionRate = Math.round(bugStats?.resolution_rate || 0);
-    const testCoverage = totalTests > 0 ? Math.round((activeTests / totalTests) * 100) : 0;
+    const executionRate = testCaseStats?.execution_rate || 0;
+    const passRate = testCaseStats?.pass_rate || 0;
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -186,11 +199,10 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-3 md:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border transition-all ${
-                            showFilters
-                                ? 'bg-primary/10 border-primary text-primary'
-                                : 'bg-card border-border text-foreground hover:bg-muted'
-                        }`}
+                        className={`flex items-center gap-2 px-3 md:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border transition-all ${showFilters
+                            ? 'bg-primary/10 border-primary text-primary'
+                            : 'bg-card border-border text-foreground hover:bg-muted'
+                            }`}
                     >
                         <SlidersHorizontal className="w-4 h-4" />
                         <span className="hidden sm:inline">Filters</span>
@@ -309,8 +321,8 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                             {coverageTrend.value}%
                         </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mb-1">Pass Rate</p>
-                    <p className="text-2xl font-bold text-foreground">{testCoverage}%</p>
+                    <p className="text-xs text-muted-foreground mb-1">Execution Rate</p>
+                    <p className="text-2xl font-bold text-foreground">{executionRate}%</p>
                 </Card>
 
                 {/* Active Tests */}
@@ -365,11 +377,10 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as TabType)}
-                                className={`flex items-center gap-2 px-1 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                                    isActive
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                                }`}
+                                className={`flex items-center gap-2 px-1 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                                    }`}
                             >
                                 <Icon className="w-4 h-4" />
                                 {tab.label}

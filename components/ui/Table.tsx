@@ -1,6 +1,5 @@
 import * as React from "react"
-
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 
 const Table = React.forwardRef<
   HTMLDivElement,
@@ -24,7 +23,7 @@ const TableRow = React.forwardRef<
   const [isHovering, setIsHovering] = React.useState(false)
 
   return (
-    <div className="relative mb-4">
+    <div className="relative mb-4 group">
       <div
         ref={ref}
         className={cn(
@@ -84,9 +83,8 @@ const TableCheckbox = React.forwardRef<
   React.HTMLAttributes<HTMLDivElement> & {
     checked?: boolean
     onCheckedChange?: (checked: boolean) => void
-    visible?: boolean
   }
->(({ className, checked, onCheckedChange, visible = true, ...props }, ref) => (
+>(({ className, checked, onCheckedChange, ...props }, ref) => (
   <div
     ref={ref}
     role="checkbox"
@@ -98,8 +96,9 @@ const TableCheckbox = React.forwardRef<
     }}
     className={cn(
       "absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center",
-      checked ? "bg-primary border-primary" : "hover:border-primary/50",
-      visible ? "opacity-100" : "opacity-0",
+      checked 
+        ? "bg-primary border-primary opacity-100" 
+        : "hover:border-primary/50 group-hover:opacity-100 opacity-0",
       className
     )}
     {...props}

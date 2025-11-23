@@ -55,3 +55,4 @@ export interface TestCaseStats {
   by_status: Record<TestCaseStatus, number>;
   by_sprint: Record<string, number>;
 }
+

@@ -1,21 +1,26 @@
 // ============================================
-// FILE: app/(dashboard)/[suiteId]/page.tsx
+// FILE: app/dashboard/page.tsx
 // ============================================
+'use client'
+
 import { SuiteOverview } from "@/components/suites/SuiteOverview"
+import { useSuiteContext } from "@/providers/SuiteContextProvider"
 
-interface SuiteDashboardPageProps {
-  params: Promise<{ suiteId: string }>
-}
-
-export default async function SuiteDashboardPage({ params }: SuiteDashboardPageProps) {
-  const { suiteId } = await params
-  console.log('🎯 Suite Dashboard Page Hit!', suiteId)
+export default function DashboardPage() {
+  const { suite: currentSuite } = useSuiteContext()
   
-  return <SuiteOverview suiteId={suiteId} />
+  console.log('🎯 Dashboard Page - Current Suite:', currentSuite?.id)
   
-}
-
-export const metadata = {
-  title: 'Suite Overview',
-  description: 'Monitor your testing progress and activity',
+  if (!currentSuite?.id) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-foreground mb-2">No Suite Selected</h2>
+          <p className="text-sm text-muted-foreground">Please select a test suite from the sidebar</p>
+        </div>
+      </div>
+    )
+  }
+  
+  return <SuiteOverview suiteId={currentSuite.id} suiteName={currentSuite.name} />
 }

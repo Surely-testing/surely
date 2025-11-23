@@ -126,6 +126,45 @@ export type Database = {
           },
         ]
       }
+      asset_relationships: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          notes: string | null
+          relationship_type: string
+          source_id: string
+          source_type: string
+          target_id: string
+          target_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          notes?: string | null
+          relationship_type: string
+          source_id: string
+          source_type: string
+          target_id: string
+          target_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          notes?: string | null
+          relationship_type?: string
+          source_id?: string
+          source_type?: string
+          target_id?: string
+          target_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       bugs: {
         Row: {
           created_at: string | null
@@ -179,6 +218,126 @@ export type Database = {
             columns: ["sprint_id"]
             isOneToOne: false
             referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comment_attachments: {
+        Row: {
+          comment_id: string
+          created_at: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          uploaded_by: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id?: string
+          uploaded_by: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string | null
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_attachments_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comment_reactions: {
+        Row: {
+          comment_id: string
+          created_at: string | null
+          emoji: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string | null
+          emoji: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string | null
+          emoji?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_reactions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          created_at: string | null
+          edited: boolean | null
+          id: string
+          mentions: string[] | null
+          parent_comment_id: string | null
+          resource_id: string
+          resource_type: string
+          text: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          edited?: boolean | null
+          id?: string
+          mentions?: string[] | null
+          parent_comment_id?: string | null
+          resource_id: string
+          resource_type: string
+          text: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          edited?: boolean | null
+          id?: string
+          mentions?: string[] | null
+          parent_comment_id?: string | null
+          resource_id?: string
+          resource_type?: string
+          text?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
             referencedColumns: ["id"]
           },
         ]
@@ -750,46 +909,121 @@ export type Database = {
       }
       test_cases: {
         Row: {
+          actual_duration: number | null
+          archived_at: string | null
+          archived_by: string | null
+          assigned_to: string | null
+          attachments: Json | null
           created_at: string | null
           created_by: string
+          custom_fields: Json | null
           description: string | null
+          estimated_duration: number | null
+          execution_count: number | null
           expected_result: string | null
+          fail_count: number | null
           id: string
+          is_automated: boolean | null
+          last_executed_at: string | null
+          last_executed_by: string | null
+          last_fail_date: string | null
+          last_pass_date: string | null
+          last_result: string | null
+          linked_bugs: string[] | null
+          module: string | null
+          parent_id: string | null
+          pass_count: number | null
+          postconditions: string | null
+          preconditions: string | null
           priority: string | null
           sprint_id: string | null
           status: string | null
           steps: Json | null
           suite_id: string
+          tags: string[] | null
+          test_data_id: string | null
           title: string
+          type: string | null
           updated_at: string | null
+          version: number | null
         }
         Insert: {
+          actual_duration?: number | null
+          archived_at?: string | null
+          archived_by?: string | null
+          assigned_to?: string | null
+          attachments?: Json | null
           created_at?: string | null
           created_by: string
+          custom_fields?: Json | null
           description?: string | null
+          estimated_duration?: number | null
+          execution_count?: number | null
           expected_result?: string | null
+          fail_count?: number | null
           id?: string
+          is_automated?: boolean | null
+          last_executed_at?: string | null
+          last_executed_by?: string | null
+          last_fail_date?: string | null
+          last_pass_date?: string | null
+          last_result?: string | null
+          linked_bugs?: string[] | null
+          module?: string | null
+          parent_id?: string | null
+          pass_count?: number | null
+          postconditions?: string | null
+          preconditions?: string | null
           priority?: string | null
           sprint_id?: string | null
           status?: string | null
           steps?: Json | null
           suite_id: string
+          tags?: string[] | null
+          test_data_id?: string | null
           title: string
+          type?: string | null
           updated_at?: string | null
+          version?: number | null
         }
         Update: {
+          actual_duration?: number | null
+          archived_at?: string | null
+          archived_by?: string | null
+          assigned_to?: string | null
+          attachments?: Json | null
           created_at?: string | null
           created_by?: string
+          custom_fields?: Json | null
           description?: string | null
+          estimated_duration?: number | null
+          execution_count?: number | null
           expected_result?: string | null
+          fail_count?: number | null
           id?: string
+          is_automated?: boolean | null
+          last_executed_at?: string | null
+          last_executed_by?: string | null
+          last_fail_date?: string | null
+          last_pass_date?: string | null
+          last_result?: string | null
+          linked_bugs?: string[] | null
+          module?: string | null
+          parent_id?: string | null
+          pass_count?: number | null
+          postconditions?: string | null
+          preconditions?: string | null
           priority?: string | null
           sprint_id?: string | null
           status?: string | null
           steps?: Json | null
           suite_id?: string
+          tags?: string[] | null
+          test_data_id?: string | null
           title?: string
+          type?: string | null
           updated_at?: string | null
+          version?: number | null
         }
         Relationships: [
           {
@@ -800,10 +1034,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "test_cases_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "test_cases_suite_id_fkey"
             columns: ["suite_id"]
             isOneToOne: false
             referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_cases_test_data_id_fkey"
+            columns: ["test_data_id"]
+            isOneToOne: false
+            referencedRelation: "test_data"
             referencedColumns: ["id"]
           },
         ]
@@ -970,9 +1218,31 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      asset_relationships_with_details: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          creator_avatar: string | null
+          creator_name: string | null
+          id: string | null
+          notes: string | null
+          relationship_type: string | null
+          source_id: string | null
+          source_title: string | null
+          source_type: string | null
+          target_id: string | null
+          target_title: string | null
+          target_type: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      can_access_asset: {
+        Args: { asset_id: string; asset_type: string; user_id: string }
+        Returns: boolean
+      }
       can_admin_test_suite: {
         Args: { suite_id: string; user_id: string }
         Returns: boolean
@@ -986,6 +1256,33 @@ export type Database = {
         Returns: boolean
       }
       downgrade_expired_trials: { Args: never; Returns: undefined }
+      get_asset_relationship_count: {
+        Args: { asset_id: string; asset_type: string }
+        Returns: number
+      }
+      get_asset_suite_id: {
+        Args: { asset_id: string; asset_type: string }
+        Returns: string
+      }
+      get_linked_assets: {
+        Args: { p_asset_id: string; p_asset_type: string }
+        Returns: {
+          asset_id: string
+          asset_title: string
+          asset_type: string
+          created_at: string
+          direction: string
+          relationship_id: string
+          relationship_type: string
+        }[]
+      }
+      get_suite_relationship_stats: {
+        Args: { p_suite_id: string }
+        Returns: {
+          count: number
+          relationship_type: string
+        }[]
+      }
       handle_new_user_registration: {
         Args: {
           org_industry?: string

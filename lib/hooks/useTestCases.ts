@@ -136,11 +136,22 @@ export function useTestCaseStats(suiteId: string) {
     queryKey: ['test-case-stats', suiteId],
     queryFn: async () => {
       const supabase = createClient();
+      // Add the new fields to the select
       const { data, error } = await supabase
         .from('test_cases')
-        .select('priority, status, sprint_id')
+        .select('priority, status, sprint_id, last_result, is_automated')
         .eq('suite_id', suiteId);
       if (error) throw error;
+
+      // Calculate execution statistics
+      const executedTests = data.filter(tc => tc.last_result !== null).length;
+      const passedTests = data.filter(tc => tc.last_result === 'passed').length;
+      const automatedTests = data.filter(tc => tc.is_automated === true).length;
+
+      const total = data.length;
+      const executionRate = total > 0 ? Math.round((executedTests / total) * 100) : 0;
+      const passRate = executedTests > 0 ? Math.round((passedTests / executedTests) * 100) : 0;
+      const automationRate = total > 0 ? Math.round((automatedTests / total) * 100) : 0;
 
       return {
         total: data.length,
@@ -160,6 +171,16 @@ export function useTestCaseStats(suiteId: string) {
           acc[sprintId] = (acc[sprintId] || 0) + 1;
           return acc;
         }, {} as Record<string, number>),
+        // NEW: Execution metrics
+        execution_rate: executionRate,
+        pass_rate: passRate,
+        automation_rate: automationRate,
+        by_result: {
+          passed: passedTests,
+          failed: data.filter(tc => tc.last_result === 'failed').length,
+          blocked: data.filter(tc => tc.last_result === 'blocked').length,
+          not_executed: data.filter(tc => !tc.last_result).length,
+        },
       };
     },
     enabled: !!suiteId,
