@@ -1017,6 +1017,100 @@ export type Database = {
           },
         ]
       }
+      suggestions: {
+        Row: {
+          assigned_to: string | null
+          attachments: string[] | null
+          category: string
+          created_at: string | null
+          created_by: string
+          description: string
+          discussion_notes: string | null
+          downvotes: number | null
+          effort_estimate: string | null
+          id: string
+          impact: string
+          implemented_at: string | null
+          priority: string
+          rationale: string | null
+          status: string
+          suite_id: string
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+          upvotes: number | null
+          votes: Json | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachments?: string[] | null
+          category: string
+          created_at?: string | null
+          created_by: string
+          description: string
+          discussion_notes?: string | null
+          downvotes?: number | null
+          effort_estimate?: string | null
+          id?: string
+          impact: string
+          implemented_at?: string | null
+          priority: string
+          rationale?: string | null
+          status?: string
+          suite_id: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+          upvotes?: number | null
+          votes?: Json | null
+        }
+        Update: {
+          assigned_to?: string | null
+          attachments?: string[] | null
+          category?: string
+          created_at?: string | null
+          created_by?: string
+          description?: string
+          discussion_notes?: string | null
+          downvotes?: number | null
+          effort_estimate?: string | null
+          id?: string
+          impact?: string
+          implemented_at?: string | null
+          priority?: string
+          rationale?: string | null
+          status?: string
+          suite_id?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+          upvotes?: number | null
+          votes?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggestions_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestions_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suite_members: {
         Row: {
           accepted_at: string | null

@@ -17,7 +17,8 @@ interface SuiteSwitcherProps {
 export function SuiteSwitcher({ currentSuiteId }: SuiteSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
-  const { data: suites, isLoading } = useTestSuites();
+  const { suites, isLoading } = useTestSuites();
+
 
   const currentSuite = suites?.find(s => s.id === currentSuiteId);
 
@@ -104,7 +105,7 @@ export function SuiteSwitcher({ currentSuiteId }: SuiteSwitcherProps) {
                 </div>
                 <div className="border-t border-gray-200 dark:border-gray-700 p-2">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     className="w-full justify-start"
                     onClick={() => {
                       setIsOpen(false);
