@@ -1,6 +1,3 @@
-// ============================================
-// FILE: components/dashboard/stats/SuggestionsMetrics.tsx
-// ============================================
 'use client';
 
 import React from 'react';
@@ -8,18 +5,14 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { Lightbulb, CheckCircle, XCircle, Clock, TrendingUp } from 'lucide-react';
+import { useSuggestions } from '@/lib/hooks/useSuggestions';
 
 interface SuggestionsMetricsProps {
   suiteId: string;
 }
 
 export function SuggestionsMetrics({ suiteId }: SuggestionsMetricsProps) {
-  // TODO: Create useSuggestions hook
-  const isLoading = false;
-  const totalSuggestions = 67;
-  const implemented = 32;
-  const pending = 28;
-  const rejected = 7;
+  const { suggestions, isLoading } = useSuggestions(suiteId);
 
   if (isLoading) {
     return (
@@ -28,6 +21,56 @@ export function SuggestionsMetrics({ suiteId }: SuggestionsMetricsProps) {
       </div>
     );
   }
+
+  // Calculate metrics
+  const totalSuggestions = suggestions.length;
+  const implemented = suggestions.filter(s => s.status === 'implemented').length;
+  const pending = suggestions.filter(s => s.status === 'pending').length;
+  const underReview = suggestions.filter(s => s.status === 'under_review').length;
+  const accepted = suggestions.filter(s => s.status === 'accepted').length;
+  const rejected = suggestions.filter(s => s.status === 'rejected').length;
+  
+  const pendingTotal = pending + underReview + accepted;
+  const implementationRate = totalSuggestions > 0 ? Math.round((implemented / totalSuggestions) * 100) : 0;
+  const rejectionRate = totalSuggestions > 0 ? Math.round((rejected / totalSuggestions) * 100) : 0;
+
+  // Category distribution
+  const categoryMap = suggestions.reduce((acc, suggestion) => {
+    const category = suggestion.category;
+    acc[category] = (acc[category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const categoryData = Object.entries(categoryMap)
+    .map(([category, count]) => ({
+      category: formatCategoryName(category),
+      count,
+      percentage: totalSuggestions > 0 ? (count / totalSuggestions) * 100 : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
+
+  // Helper function to format category names
+  function formatCategoryName(category: string): string {
+    const nameMap: Record<string, string> = {
+      'feature': 'New Features',
+      'improvement': 'Improvements',
+      'performance': 'Performance',
+      'ui_ux': 'UI/UX',
+      'testing': 'Testing',
+      'documentation': 'Documentation',
+      'other': 'Other',
+    };
+    return nameMap[category] || category;
+  }
+
+  // Color mapping for categories
+  const categoryColors = ['bg-blue-500', 'bg-purple-500', 'bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-indigo-500', 'bg-pink-500'];
+
+  // Calculate circle progress (circumference)
+  const radius = 56;
+  const circumference = 2 * Math.PI * radius;
+  const progressOffset = circumference - (implementationRate / 100) * circumference;
 
   return (
     <div className="space-y-6">
@@ -43,10 +86,12 @@ export function SuggestionsMetrics({ suiteId }: SuggestionsMetricsProps) {
               <p className="text-2xl font-bold text-foreground">{totalSuggestions}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-xs text-green-600">
-            <TrendingUp className="w-3 h-3" />
-            <span>20% increase</span>
-          </div>
+          {totalSuggestions > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Lightbulb className="w-3 h-3" />
+              <span>Active feedback</span>
+            </div>
+          )}
         </Card>
 
         <Card className="p-6">
@@ -69,7 +114,7 @@ export function SuggestionsMetrics({ suiteId }: SuggestionsMetricsProps) {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Pending</p>
-              <p className="text-2xl font-bold text-foreground">{pending}</p>
+              <p className="text-2xl font-bold text-foreground">{pendingTotal}</p>
             </div>
           </div>
           <Badge variant="info" size="sm">In Review</Badge>
@@ -85,7 +130,7 @@ export function SuggestionsMetrics({ suiteId }: SuggestionsMetricsProps) {
               <p className="text-2xl font-bold text-foreground">{rejected}</p>
             </div>
           </div>
-          <div className="text-xs text-muted-foreground">10% rejection rate</div>
+          <div className="text-xs text-muted-foreground">{rejectionRate}% rejection rate</div>
         </Card>
       </div>
 
@@ -96,86 +141,105 @@ export function SuggestionsMetrics({ suiteId }: SuggestionsMetricsProps) {
           <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
             <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Implemented</p>
             <p className="text-2xl font-bold text-green-700 dark:text-green-300">{implemented}</p>
+            <p className="text-xs text-muted-foreground mt-1">{implementationRate}% of total</p>
           </div>
           <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
-            <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Pending</p>
-            <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{pending}</p>
+            <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Pending Review</p>
+            <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{pendingTotal}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {pending} new, {underReview} reviewing, {accepted} accepted
+            </p>
           </div>
           <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
             <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">Rejected</p>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{rejected}</p>
+            <p className="text-xs text-muted-foreground mt-1">{rejectionRate}% rejection rate</p>
           </div>
         </div>
       </Card>
 
       {/* Categories */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Suggestions by Category</h3>
-        <div className="space-y-4">
-          {[
-            { category: 'Test Coverage', count: 22, color: 'bg-blue-500', percentage: 33 },
-            { category: 'Process Improvement', count: 18, color: 'bg-purple-500', percentage: 27 },
-            { category: 'Bug Prevention', count: 15, color: 'bg-red-500', percentage: 22 },
-            { category: 'Automation', count: 12, color: 'bg-green-500', percentage: 18 },
-          ].map(({ category, count, color, percentage }) => (
-            <div key={category}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${color}`} />
-                  <span className="text-sm font-medium text-foreground">{category}</span>
+      {categoryData.length > 0 && (
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Suggestions by Category</h3>
+          <div className="space-y-4">
+            {categoryData.map(({ category, count, percentage }, index) => (
+              <div key={category}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${categoryColors[index % categoryColors.length]}`} />
+                    <span className="text-sm font-medium text-foreground">{category}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">{count}</span>
                 </div>
-                <span className="text-sm font-semibold text-foreground">{count}</span>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className={`${categoryColors[index % categoryColors.length]} h-2 rounded-full transition-all`}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div
-                  className={`${color} h-2 rounded-full transition-all`}
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Implementation Rate */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Implementation Rate</h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Acceptance Rate</p>
-            <p className="text-4xl font-bold text-foreground">{Math.round((implemented / totalSuggestions) * 100)}%</p>
-            <p className="text-xs text-muted-foreground mt-2">Of all suggestions</p>
-          </div>
-          <div className="w-32 h-32">
-            <div className="relative w-full h-full">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="56"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  fill="none"
-                  className="text-muted"
-                />
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="56"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeDasharray="167.89 351.858"
-                  className="text-green-600"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-foreground">48%</span>
+      {totalSuggestions > 0 && (
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Implementation Rate</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Acceptance Rate</p>
+              <p className="text-4xl font-bold text-foreground">{implementationRate}%</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {implemented} of {totalSuggestions} suggestions
+              </p>
+            </div>
+            <div className="w-32 h-32">
+              <div className="relative w-full h-full">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r={radius}
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    fill="none"
+                    className="text-muted opacity-30"
+                  />
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r={radius}
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    fill="none"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={progressOffset}
+                    className="text-green-600 transition-all duration-500"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-foreground">{implementationRate}%</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {totalSuggestions === 0 && (
+        <Card className="p-12 text-center">
+          <Lightbulb className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">No Suggestions Yet</h3>
+          <p className="text-sm text-muted-foreground">
+            Start collecting suggestions from your team to improve test quality and processes.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }

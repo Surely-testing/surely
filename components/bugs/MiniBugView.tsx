@@ -1,40 +1,28 @@
 // ============================================
 // components/bugs/MiniBugView.tsx
-// Developer-focused view with module, description, and console logs
-// Mobile-first responsive using your UI Table components
+// Developer-focused card view - Quick issue insight for fast resolution
+// Shows: Title, Description, Steps to Reproduce, Module, Console Log
+// Status/Severity: Subtle indicators, not the focus
 // ============================================
 'use client';
 
 import { BugWithCreator } from '@/types/bug.types';
-import { Code, Copy, Check } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import {
-  Table,
-  TableRow,
-  TableCell,
-  TableGrid,
-  TableHeaderText,
-  TableDescriptionText,
-  TableCheckbox,
-  TableSelectAll,
-} from '@/components/ui/Table';
+import { Code, Copy, Check, AlertCircle, PlayCircle, Terminal } from 'lucide-react';
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 
 interface MiniBugViewProps {
   bugs: BugWithCreator[];
   onSelect: (bug: BugWithCreator) => void;
   selectedBugs?: string[];
   onSelectionChange?: (selectedIds: string[]) => void;
+  onRefresh?: () => void | Promise<void>;
 }
 
 export function MiniBugView({ bugs, onSelect, selectedBugs = [], onSelectionChange }: MiniBugViewProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
-  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
-  const supabase = createClient();
 
-  const handleToggleSelection = (bugId: string) => {
+  const handleToggleSelection = (bugId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!onSelectionChange) return;
     
     if (selectedBugs.includes(bugId)) {
@@ -44,17 +32,8 @@ export function MiniBugView({ bugs, onSelect, selectedBugs = [], onSelectionChan
     }
   };
 
-  const handleSelectAll = () => {
-    if (!onSelectionChange) return;
-    
-    if (selectedBugs.length === bugs.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(bugs.map(bug => bug.id));
-    }
-  };
-
-  const handleCopyLog = (log: string, bugId: string) => {
+  const handleCopyLog = (log: string, bugId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     navigator.clipboard.writeText(log);
     setCopiedId(bugId);
     setTimeout(() => setCopiedId(null), 2000);
@@ -62,12 +41,10 @@ export function MiniBugView({ bugs, onSelect, selectedBugs = [], onSelectionChan
 
   // Extract console log from labels or description
   const getConsoleLog = (bug: BugWithCreator): string | null => {
-    // Check labels for console_log
     if (bug.labels && typeof bug.labels === 'object' && 'console_log' in bug.labels) {
       return bug.labels.console_log as string;
     }
     
-    // Check if description contains code blocks
     if (bug.description) {
       const codeBlockMatch = bug.description.match(/```[\s\S]*?```|`[^`]+`/);
       if (codeBlockMatch) {
@@ -78,212 +55,241 @@ export function MiniBugView({ bugs, onSelect, selectedBugs = [], onSelectionChan
     return null;
   };
 
+  const getStepsArray = (bug: BugWithCreator): string[] => {
+    if (Array.isArray(bug.steps_to_reproduce)) {
+      return bug.steps_to_reproduce.map((step: any) => 
+        typeof step === 'string' ? step : step.description || step.step || ''
+      );
+    }
+    return [];
+  };
+
   if (bugs.length === 0) {
     return (
-      <div className="text-center py-8 text-sm text-muted-foreground">
-        No bugs to display
+      <div className="text-center py-12 text-muted-foreground">
+        <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+        <p className="text-sm">No bugs to display</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {/* Select All - Only show if selection is enabled */}
-      {onSelectionChange && (
-        <div className="flex items-center justify-between">
-          <TableSelectAll
-            checked={selectedBugs.length === bugs.length && bugs.length > 0}
-            onCheckedChange={handleSelectAll}
-          />
-          {selectedBugs.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {selectedBugs.length} selected
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Table Header */}
-      <div className={`px-4 py-2 bg-muted/50 rounded-lg border border-border ${onSelectionChange ? 'pl-12' : ''}`}>
-        <TableGrid columns={3} className="gap-4 sm:gap-6">
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Module
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Description
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold hidden lg:block">
-            Console Log
-          </TableHeaderText>
-        </TableGrid>
-      </div>
-
-      {/* Table Rows */}
-      <Table className="space-y-2">
-        {bugs.map((bug) => {
-          const consoleLog = getConsoleLog(bug);
-          const isCopied = copiedId === bug.id;
-          const isSelected = selectedBugs.includes(bug.id);
-          const isUpdating = updatingStatus === bug.id;
-          const isExpanded = expandedDescriptions.has(bug.id);
-          
-          return (
-            <TableRow 
-              key={bug.id}
-              className="cursor-pointer"
-              onClick={() => onSelect(bug)}
-              selected={isSelected}
-              selectable={!!onSelectionChange}
-            >
-              {/* Checkbox - Only show if selection is enabled */}
-              {onSelectionChange && (
-                <TableCheckbox
+    <div className="space-y-4">
+      {bugs.map((bug) => {
+        const consoleLog = getConsoleLog(bug);
+        const steps = getStepsArray(bug);
+        const isCopied = copiedId === bug.id;
+        const isSelected = selectedBugs.includes(bug.id);
+        
+        return (
+          <div
+            key={bug.id}
+            onClick={() => onSelect(bug)}
+            className={`group relative border rounded-lg transition-all duration-200 cursor-pointer overflow-hidden ${
+              isSelected 
+                ? 'border-primary bg-primary/5' 
+                : 'border-border bg-card hover:border-primary/50 hover:shadow-md'
+            }`}
+          >
+            {/* Top Status Bar - Subtle */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent" />
+            
+            {/* Checkbox - Top Right Corner - Visible on hover and when selected */}
+            {onSelectionChange && (
+              <div 
+                className={`absolute top-3 right-3 z-10 transition-opacity duration-200 ${
+                  isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleSelection(bug.id, e);
+                }}
+              >
+                <input
+                  type="checkbox"
                   checked={isSelected}
-                  onCheckedChange={() => handleToggleSelection(bug.id)}
+                  onChange={() => {}}
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer"
                 />
+              </div>
+            )}
+
+            <div className="p-5">
+              {/* Header: Module + Subtle Status Indicators */}
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex-1">
+                  {/* Module Tag - Prominent */}
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg mb-3">
+                    <Code className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-semibold text-primary">
+                      {bug.module || bug.component || 'Unassigned Module'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Subtle Status Indicators - Right Side */}
+                <div className="flex flex-col gap-1.5 items-end text-xs">
+                  {bug.severity && (
+                    <span className={`px-2 py-0.5 rounded-full font-medium ${getSeverityBadge(bug.severity)}`}>
+                      {bug.severity}
+                    </span>
+                  )}
+                  {bug.status && (
+                    <span className={`px-2 py-0.5 rounded-full font-medium ${getStatusBadge(bug.status)}`}>
+                      {bug.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Main Content Grid: Title/Description Left - Steps Right */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                {/* Left Column: Title + Description */}
+                <div className="flex flex-col gap-3">
+                  {/* Title */}
+                  <h3 className="text-lg font-bold text-foreground leading-tight">
+                    {bug.title}
+                  </h3>
+                  
+                  {/* Description */}
+                  {bug.description && (
+                    <div className="flex-1 p-4 bg-muted/30 rounded-lg border-l-4 border-primary overflow-hidden">
+                      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
+                        {bug.description}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Steps to Reproduce */}
+                {steps.length > 0 && (
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2 mb-3">
+                      <PlayCircle className="w-4 h-4 text-error" />
+                      <h4 className="text-sm font-semibold text-foreground">Steps to Reproduce</h4>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <ol className="space-y-2 ml-6">
+                        {steps.map((step, index) => (
+                          <li key={index} className="text-sm text-foreground relative pl-2 break-words">
+                            <span className="absolute -left-6 flex items-center justify-center w-5 h-5 rounded-full bg-error/10 text-error text-xs font-bold flex-shrink-0">
+                              {index + 1}
+                            </span>
+                            {step}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Console Log - Code Block */}
+              {consoleLog && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-4 h-4 text-muted-foreground" />
+                      <h4 className="text-sm font-semibold text-foreground">Console Output</h4>
+                    </div>
+                    <button
+                      onClick={(e) => handleCopyLog(consoleLog, bug.id, e)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-secondary rounded-md transition-colors"
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-success" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="p-3 bg-secondary/50 rounded-lg border border-border font-mono overflow-hidden">
+                    <pre className="text-xs text-foreground overflow-x-auto whitespace-pre-wrap break-words">
+                      {consoleLog}
+                    </pre>
+                  </div>
+                </div>
               )}
 
-              <TableGrid columns={3} className="gap-4 sm:gap-6">
-                {/* Module Column */}
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm font-mono font-medium text-foreground">
-                      {bug.module || bug.component || 'N/A'}
+              {/* Footer: Environment Details - Subtle, Bottom */}
+              <div className="flex items-center justify-between pt-3 border-t border-border text-xs text-muted-foreground">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {bug.environment && (
+                    <span className="flex items-center gap-1">
+                      <span className="font-medium">Env:</span>
+                      {bug.environment}
                     </span>
-                    {bug.component && bug.module && (
-                      <TableDescriptionText>
-                        {bug.component}
-                      </TableDescriptionText>
-                    )}
-                  </div>
-
-                  {/* Show console log on mobile as expandable */}
-                  {consoleLog && (
-                    <details className="lg:hidden mt-2">
-                      <summary className="text-xs text-primary cursor-pointer flex items-center gap-1.5 font-medium">
-                        <Code className="w-3.5 h-3.5" />
-                        Console Log
-                      </summary>
-                      <div className="mt-2 p-3 bg-secondary rounded-lg border border-border">
-                        <pre className="text-xs font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-words">
-                          {consoleLog}
-                        </pre>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyLog(consoleLog, bug.id);
-                          }}
-                          className="mt-2 h-8 text-xs"
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="w-3 h-3 mr-1.5" />
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3 mr-1.5" />
-                              Copy Log
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </details>
                   )}
-                </TableCell>
-
-                {/* Description Column */}
-                <TableCell>
-                  <div className="space-y-1.5">
-                    <h3 className="text-sm font-semibold text-foreground line-clamp-2">
-                      {bug.title}
-                    </h3>
-                    {bug.description && (
-                      <TableDescriptionText className="line-clamp-2">
-                        {bug.description}
-                      </TableDescriptionText>
-                    )}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                      {bug.severity && (
-                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${getSeverityColor(bug.severity)}`}>
-                          {bug.severity}
-                        </span>
-                      )}
-                      {bug.status && (
-                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${getStatusColor(bug.status)}`}>
-                          {bug.status}
-                        </span>
-                      )}
-                      {bug.browser && (
-                        <span className="text-xs text-muted-foreground">
-                          {bug.browser}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </TableCell>
-
-                {/* Console Log Column - Desktop Only */}
-                <TableCell className="hidden lg:block">
-                  {consoleLog ? (
-                    <div className="relative group/log">
-                      <div className="p-2.5 bg-secondary rounded-lg border border-border">
-                        <pre className="text-xs font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-words max-h-20 overflow-y-auto">
-                          {consoleLog}
-                        </pre>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyLog(consoleLog, bug.id);
-                        }}
-                        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover/log:opacity-100 transition-opacity"
-                        title="Copy log"
-                      >
-                        {isCopied ? (
-                          <Check className="w-3.5 h-3.5" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </Button>
-                    </div>
-                  ) : (
-                    <TableDescriptionText className="italic">
-                      No log available
-                    </TableDescriptionText>
+                  {bug.browser && (
+                    <span className="flex items-center gap-1">
+                      <span className="font-medium">Browser:</span>
+                      {bug.browser}
+                    </span>
                   )}
-                </TableCell>
-              </TableGrid>
-            </TableRow>
-          );
-        })}
-      </Table>
+                  {bug.os && (
+                    <span className="flex items-center gap-1">
+                      <span className="font-medium">OS:</span>
+                      {bug.os}
+                    </span>
+                  )}
+                  {bug.version && (
+                    <span className="flex items-center gap-1">
+                      <span className="font-medium">Ver:</span>
+                      {bug.version}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Creator Info */}
+                {bug.creator && (
+                  <div className="flex items-center gap-2">
+                    {bug.creator.avatar_url ? (
+                      <img 
+                        src={bug.creator.avatar_url} 
+                        alt={bug.creator.name} 
+                        className="w-5 h-5 rounded-full ring-1 ring-border"
+                      />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary ring-1 ring-border">
+                        {bug.creator.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-xs">{bug.creator.name.split(' ')[0]}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// Helper functions using theme colors
-function getSeverityColor(severity: string) {
+// Helper functions using theme colors - Subtle
+function getSeverityBadge(severity: string) {
   switch (severity) {
-    case 'critical': return 'text-error bg-destructive/10';
-    case 'high': return 'text-warning bg-warning/10';
-    case 'medium': return 'text-accent bg-accent/10';
-    case 'low': return 'text-info bg-info/10';
-    default: return 'text-muted-foreground bg-muted';
+    case 'critical': return 'bg-error/10 text-error border border-error/20';
+    case 'high': return 'bg-warning/10 text-warning border border-warning/20';
+    case 'medium': return 'bg-yellow-600/10 text-yellow-600 dark:text-yellow-400 border border-yellow-600/20';
+    case 'low': return 'bg-primary/10 text-primary border border-primary/20';
+    default: return 'bg-muted text-muted-foreground border border-border';
   }
 }
 
-function getStatusColor(status: string) {
+function getStatusBadge(status: string) {
   switch (status) {
-    case 'open': return 'text-error bg-destructive/10';
-    case 'in_progress': return 'text-info bg-info/10';
-    case 'resolved': return 'text-success bg-success/10';
-    case 'closed': return 'text-muted-foreground bg-muted';
-    case 'reopened': return 'text-warning bg-warning/10';
-    default: return 'text-muted-foreground bg-muted';
+    case 'open': return 'bg-error/10 text-error border border-error/20';
+    case 'in_progress': return 'bg-primary/10 text-primary border border-primary/20';
+    case 'resolved': return 'bg-success/10 text-success border border-success/20';
+    case 'closed': return 'bg-muted text-muted-foreground border border-border';
+    case 'reopened': return 'bg-warning/10 text-warning border border-warning/20';
+    default: return 'bg-muted text-muted-foreground border border-border';
   }
 }

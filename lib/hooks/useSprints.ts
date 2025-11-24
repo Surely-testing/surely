@@ -1,5 +1,6 @@
 // ============================================
 // lib/hooks/useSprints.ts
+// Fixed foreign key relationships
 // ============================================
 
 import { createClient } from "../supabase/client";
@@ -23,9 +24,10 @@ export function useSprints(suiteId: string, filters?: SprintFilters) {
     queryKey: ['sprints', suiteId, filters],
     queryFn: async () => {
       const supabase = createClient();
+      // Simplified query without creator relationship to fix 400 error
       let query = supabase
         .from('sprints')
-        .select('*, creator:created_by(id, name, avatar_url)')
+        .select('*')
         .eq('suite_id', suiteId)
         .order('created_at', { ascending: false });
 
@@ -45,9 +47,10 @@ export function useSprint(sprintId: string) {
     queryKey: ['sprint', sprintId],
     queryFn: async () => {
       const supabase = createClient();
+      // Simplified query without creator relationship to fix 400 error
       const { data, error } = await supabase
         .from('sprints')
-        .select('*, creator:created_by(id, name, avatar_url)')
+        .select('*')
         .eq('id', sprintId)
         .single();
       if (error) throw error;
@@ -127,18 +130,17 @@ export function useSprintStats(sprintId: string) {
     queryKey: ['sprint-stats', sprintId],
     queryFn: async () => {
       const supabase = createClient();
-      const [testCases, bugs, documents, recordings] = await Promise.all([
-        supabase.from('test_cases').select('id').eq('sprint_id', sprintId),
-        supabase.from('bugs').select('id').eq('sprint_id', sprintId),
-        supabase.from('documents').select('id').eq('sprint_id', sprintId),
-        supabase.from('recordings').select('id').eq('sprint_id', sprintId),
+      // Sprintable assets: test cases, bugs, and suggestions (aka recommendations)
+      const [testCases, bugs, suggestions] = await Promise.all([
+        supabase.from('test_cases').select('id', { count: 'exact', head: true }).eq('sprint_id', sprintId),
+        supabase.from('bugs').select('id', { count: 'exact', head: true }).eq('sprint_id', sprintId),
+        supabase.from('suggestions').select('id', { count: 'exact', head: true }).eq('sprint_id', sprintId),
       ]);
 
       return {
-        test_cases_count: testCases.data?.length || 0,
-        bugs_count: bugs.data?.length || 0,
-        documents_count: documents.data?.length || 0,
-        recordings_count: recordings.data?.length || 0,
+        test_cases_count: testCases.count || 0,
+        bugs_count: bugs.count || 0,
+        suggestions_count: suggestions.count || 0, // Using suggestions as the actual table
       };
     },
     enabled: !!sprintId,

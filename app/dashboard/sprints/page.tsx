@@ -1,26 +1,72 @@
 // ============================================
-// FILE: app/(dashboard)/[suiteId]/sprints/page.tsx
+// FILE: app/dashboard/sprints/page.tsx
+// Client-side version using suite context
 // ============================================
-import { createClient } from '@/lib/supabase/server'
-import SprintsView from '@/components/sprints/SprintsView'
+'use client';
 
-interface SprintsPageProps {
-  params: { suiteId: string }
-}
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useSuiteContext } from '@/providers/SuiteContextProvider';
+import SprintsView from '@/components/sprints/SprintsView';
+import { Toaster } from 'sonner';
 
-export const metadata = {
-  title: 'Sprints',
-  description: 'Manage your sprints',
-}
+export default function SprintsPage() {
+  const { suite } = useSuiteContext();
+  const [sprints, setSprints] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export default async function SprintsPage({ params }: SprintsPageProps) {
-  const supabase = await createClient()
+  useEffect(() => {
+    if (suite?.id) {
+      fetchSprints();
+    }
+  }, [suite?.id]);
 
-  const { data: sprints } = await supabase
-    .from('sprints')
-    .select('*')
-    .eq('suite_id', params.suiteId)
-    .order('created_at', { ascending: false })
+  const fetchSprints = async () => {
+    if (!suite?.id) return;
 
-  return <SprintsView suiteId={params.suiteId} sprints={sprints || []} />
+    try {
+      setLoading(true);
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('sprints')
+        .select('*')
+        .eq('suite_id', suite.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSprints(data || []);
+    } catch (error) {
+      console.error('Error fetching sprints:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!suite) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-gray-500 dark:text-gray-400">Loading suite...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-500 dark:text-gray-400">Loading sprints...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Toaster />
+      <SprintsView suiteId={suite.id} sprints={sprints} onRefresh={fetchSprints} />
+    </>
+  );
 }

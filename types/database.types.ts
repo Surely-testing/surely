@@ -896,6 +896,7 @@ export type Database = {
           created_by: string
           description: string | null
           end_date: string | null
+          goals: string | null
           id: string
           name: string
           start_date: string | null
@@ -908,6 +909,7 @@ export type Database = {
           created_by: string
           description?: string | null
           end_date?: string | null
+          goals?: string | null
           id?: string
           name: string
           start_date?: string | null
@@ -920,6 +922,7 @@ export type Database = {
           created_by?: string
           description?: string | null
           end_date?: string | null
+          goals?: string | null
           id?: string
           name?: string
           start_date?: string | null

@@ -1,6 +1,6 @@
 // ============================================
 // components/bugs/BugTracking.tsx
-// Bug tracking with pagination, bulk actions, and proper dialogs
+// Bug tracking with filters, sorting, grouping, pagination, and bulk actions
 // Mobile-first responsive with theme colors
 // ============================================
 'use client';
@@ -8,8 +8,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BugWithCreator, BugSeverity, BugStatus } from '@/types/bug.types';
-import { Plus, Grid, List, Code, Search, Eye, AlertTriangle, X } from 'lucide-react';
-import { format } from 'date-fns';
+import { Plus, Grid, List, Code, Search, AlertTriangle, Filter, SortAsc, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { BugForm } from './BugForm';
@@ -26,6 +25,9 @@ interface BugTrackingProps {
 }
 
 type ViewMode = 'grid' | 'table' | 'mini';
+type SortField = 'created_at' | 'updated_at' | 'title' | 'severity' | 'status';
+type SortOrder = 'asc' | 'desc';
+type GroupBy = 'none' | 'status' | 'severity' | 'sprint';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -102,6 +104,14 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
   const [editingBug, setEditingBug] = useState<BugWithCreator | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedBugIds, setSelectedBugIds] = useState<string[]>([]);
+  
+  // Filters, Sorting, Grouping
+  const [filterStatus, setFilterStatus] = useState<BugStatus[]>([]);
+  const [filterSeverity, setFilterSeverity] = useState<BugSeverity[]>([]);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
+  const [showFilters, setShowFilters] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -292,7 +302,6 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           break;
           
         case 'archive':
-          // Archive by closing the bugs
           await Promise.all(
             selectedIds.map(id => supabase.from('bugs').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id))
           );
@@ -343,11 +352,99 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
     setSelectedBugIds(selectedIds);
   };
 
-  // Pagination
-  const paginatedBugs = bugs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Apply filters, sorting
+  const getFilteredAndSortedBugs = () => {
+    let filtered = [...bugs];
+
+    // Apply status filter
+    if (filterStatus.length > 0) {
+      filtered = filtered.filter(bug => filterStatus.includes(bug.status as BugStatus));
+    }
+
+    // Apply severity filter
+    if (filterSeverity.length > 0) {
+      filtered = filtered.filter(bug => filterSeverity.includes(bug.severity as BugSeverity));
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortField];
+      let bVal: any = b[sortField];
+
+      // Handle date fields
+      if (sortField === 'created_at' || sortField === 'updated_at') {
+        aVal = aVal ? new Date(aVal).getTime() : 0;
+        bVal = bVal ? new Date(bVal).getTime() : 0;
+      }
+
+      // Handle null/undefined values
+      if (aVal === null || aVal === undefined) return sortOrder === 'asc' ? 1 : -1;
+      if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
+
+      // String comparison for text fields
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortOrder === 'asc' 
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+
+      // Numeric comparison
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  };
+
+  const filteredBugs = getFilteredAndSortedBugs();
+
+  // Group bugs if needed
+  const getGroupedBugs = () => {
+    if (groupBy === 'none') {
+      return { 'All Bugs': filteredBugs };
+    }
+
+    const grouped: Record<string, BugWithCreator[]> = {};
+
+    filteredBugs.forEach(bug => {
+      let groupKey = 'Uncategorized';
+
+      switch (groupBy) {
+        case 'status':
+          groupKey = bug.status ? bug.status.replace('_', ' ').toUpperCase() : 'NO STATUS';
+          break;
+        case 'severity':
+          groupKey = bug.severity ? bug.severity.toUpperCase() : 'NO SEVERITY';
+          break;
+        case 'sprint':
+          groupKey = bug.sprint_id ? `Sprint ${bug.sprint_id.slice(-8)}` : 'NO SPRINT';
+          break;
+      }
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = [];
+      }
+      grouped[groupKey].push(bug);
+    });
+
+    return grouped;
+  };
+
+  const groupedBugs = getGroupedBugs();
+
+  // Pagination - apply to current view
+  const getPaginatedBugs = () => {
+    if (groupBy === 'none') {
+      return filteredBugs.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      );
+    }
+    return filteredBugs; // Show all when grouped
+  };
+
+  const paginatedBugs = getPaginatedBugs();
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -358,6 +455,27 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
     setItemsPerPage(items);
     setCurrentPage(1);
   };
+
+  const toggleStatusFilter = (status: BugStatus) => {
+    setFilterStatus(prev =>
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
+
+  const toggleSeverityFilter = (severity: BugSeverity) => {
+    setFilterSeverity(prev =>
+      prev.includes(severity) ? prev.filter(s => s !== severity) : [...prev, severity]
+    );
+  };
+
+  const clearFilters = () => {
+    setFilterStatus([]);
+    setFilterSeverity([]);
+    setSortField('created_at');
+    setSortOrder('desc');
+  };
+
+  const activeFiltersCount = filterStatus.length + filterSeverity.length;
 
   if (showForm) {
     return (
@@ -381,7 +499,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           <div>
             <h2 className="text-lg sm:text-xl font-semibold text-foreground">Bugs</h2>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              {bugs.length} total bugs
+              {filteredBugs.length} of {bugs.length} bugs
               {selectedBugIds.length > 0 && ` • ${selectedBugIds.length} selected`}
             </p>
           </div>
@@ -424,7 +542,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
               </button>
             </div>
 
-            <Button onClick={handleCreateBug} size="sm" className="whitespace-nowrap">
+            <Button onClick={handleCreateBug} size="sm" className="btn-primary">
               <Plus className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">New Bug</span>
               <span className="sm:hidden">New</span>
@@ -432,8 +550,9 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="flex items-center gap-3">
+        {/* Search and Filters Row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          {/* Search */}
           <div className="flex-1 relative">
             <Search className="w-4 h-4 sm:w-5 sm:h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -444,7 +563,118 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
               className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground"
             />
           </div>
+
+          {/* Filter Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="relative"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            Filter
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+          </Button>
+
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-2">
+            <select
+              value={`${sortField}-${sortOrder}`}
+              onChange={(e) => {
+                const [field, order] = e.target.value.split('-');
+                setSortField(field as SortField);
+                setSortOrder(order as SortOrder);
+              }}
+              className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground"
+            >
+              <option value="created_at-desc">Newest First</option>
+              <option value="created_at-asc">Oldest First</option>
+              <option value="updated_at-desc">Recently Updated</option>
+              <option value="title-asc">Title (A-Z)</option>
+              <option value="title-desc">Title (Z-A)</option>
+              <option value="severity-desc">Severity (High-Low)</option>
+              <option value="severity-asc">Severity (Low-High)</option>
+            </select>
+          </div>
+
+          {/* Group By Dropdown */}
+          <div className="flex items-center gap-2">
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+              className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground"
+            >
+              <option value="none">No Grouping</option>
+              <option value="status">Group by Status</option>
+              <option value="severity">Group by Severity</option>
+              <option value="sprint">Group by Sprint</option>
+            </select>
+          </div>
         </div>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className="bg-muted/30 rounded-lg p-4 border border-border space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+              {activeFiltersCount > 0 && (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear All
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Status Filter */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                  Status
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['open', 'in_progress', 'resolved', 'closed', 'reopened'] as BugStatus[]).map(status => (
+                    <button
+                      key={status}
+                      onClick={() => toggleStatusFilter(status)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                        filterStatus.includes(status)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:border-primary'
+                      }`}
+                    >
+                      {status.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Severity Filter */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                  Severity
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['low', 'medium', 'high', 'critical'] as BugSeverity[]).map(severity => (
+                    <button
+                      key={severity}
+                      onClick={() => toggleSeverityFilter(severity)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                        filterSeverity.includes(severity)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:border-primary'
+                      }`}
+                    >
+                      {severity}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (
@@ -459,47 +689,129 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             <p className="mt-4 text-sm text-muted-foreground">Loading bugs...</p>
           </div>
-        ) : bugs.length === 0 ? (
+        ) : filteredBugs.length === 0 ? (
           <div className="text-center py-12 bg-card rounded-lg border border-border">
             <p className="text-sm text-muted-foreground mb-4">
-              {searchQuery ? 'No bugs match your search' : 'No bugs found for this suite'}
+              {bugs.length === 0
+                ? searchQuery
+                  ? 'No bugs match your search'
+                  : 'No bugs found for this suite'
+                : 'No bugs match the selected filters'}
             </p>
-            <Button variant="outline" onClick={handleCreateBug}>
-              Create your first bug report
-            </Button>
+            {bugs.length === 0 ? (
+              <Button variant="outline" onClick={handleCreateBug}>
+                Create your first bug report
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={clearFilters}>
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
           <>
             {viewMode === 'mini' ? (
-              <MiniBugView
-                bugs={paginatedBugs}
-                onSelect={handleSelectBug}
-                selectedBugs={selectedBugIds}
-                onSelectionChange={handleSelectionChange}
-              />
+              groupBy === 'none' ? (
+                <MiniBugView
+                  bugs={paginatedBugs}
+                  onSelect={handleSelectBug}
+                  selectedBugs={selectedBugIds}
+                  onSelectionChange={handleSelectionChange}
+                  onRefresh={fetchBugs}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedBugs).map(([groupName, groupBugs]) => (
+                    <div key={groupName}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-sm font-semibold text-foreground uppercase">
+                          {groupName}
+                        </h3>
+                        <span className="text-xs text-muted-foreground">
+                          ({groupBugs.length})
+                        </span>
+                      </div>
+                      <MiniBugView
+                        bugs={groupBugs}
+                        onSelect={handleSelectBug}
+                        selectedBugs={selectedBugIds}
+                        onSelectionChange={handleSelectionChange}
+                        onRefresh={fetchBugs}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
             ) : viewMode === 'table' ? (
-              <BugTable
-                bugs={paginatedBugs as any}
-                onSelect={handleSelectBug}
-                selectedBugs={selectedBugIds}
-                onSelectionChange={handleSelectionChange}
-                onRefresh={fetchBugs} 
-              />
+              groupBy === 'none' ? (
+                <BugTable
+                  bugs={paginatedBugs as any}
+                  onSelect={handleSelectBug}
+                  selectedBugs={selectedBugIds}
+                  onSelectionChange={handleSelectionChange}
+                  onRefresh={fetchBugs}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedBugs).map(([groupName, groupBugs]) => (
+                    <div key={groupName}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-sm font-semibold text-foreground uppercase">
+                          {groupName}
+                        </h3>
+                        <span className="text-xs text-muted-foreground">
+                          ({groupBugs.length})
+                        </span>
+                      </div>
+                      <BugTable
+                        bugs={groupBugs as any}
+                        onSelect={handleSelectBug}
+                        selectedBugs={selectedBugIds}
+                        onSelectionChange={handleSelectionChange}
+                        onRefresh={fetchBugs}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
             ) : (
-              <BugGrid
-                bugs={paginatedBugs as any}
-                onSelect={handleSelectBug}
-              />
+              groupBy === 'none' ? (
+                <BugGrid
+                  bugs={paginatedBugs as any}
+                  onSelect={handleSelectBug}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedBugs).map(([groupName, groupBugs]) => (
+                    <div key={groupName}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-sm font-semibold text-foreground uppercase">
+                          {groupName}
+                        </h3>
+                        <span className="text-xs text-muted-foreground">
+                          ({groupBugs.length})
+                        </span>
+                      </div>
+                      <BugGrid
+                        bugs={groupBugs as any}
+                        onSelect={handleSelectBug}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
             )}
 
-            {/* Pagination */}
-            <Pagination
-              currentPage={currentPage}
-              totalItems={bugs.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={handlePageChange}
-              onItemsPerPageChange={handleItemsPerPageChange}
-            />
+            {/* Pagination - Only show when not grouped */}
+            {groupBy === 'none' && (
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredBugs.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={handlePageChange}
+                onItemsPerPageChange={handleItemsPerPageChange}
+              />
+            )}
           </>
         )}
 

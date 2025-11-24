@@ -31,10 +31,10 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<string[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
-  
+
   const [statusFilter, setStatusFilter] = useState<SuggestionStatus | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<SuggestionPriority | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<SuggestionCategory | 'all'>('all');
@@ -61,7 +61,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
       setLoading(true);
       setError(null);
       const supabase = createClient();
-      
+
       let query = supabase
         .from('suggestions')
         .select('*')
@@ -85,7 +85,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
       }
 
       const { data: suggestionsData, error: suggestionsError } = await query;
-      
+
       if (suggestionsError) {
         console.error('Error fetching suggestions:', suggestionsError);
         setError(suggestionsError.message);
@@ -103,11 +103,10 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
 
       const userIds = [...new Set([
         ...suggestionsData.map(s => s.created_by),
-        ...suggestionsData.map(s => s.assigned_to).filter(Boolean)
+        ...suggestionsData.map(s => s.assigned_to).filter((id): id is string => id !== null && id !== undefined)
       ])];
-      
       let profilesMap = new Map();
-      
+
       if (userIds.length > 0) {
         const { data: profilesData } = await supabase
           .from('profiles')
@@ -145,7 +144,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
     try {
       const supabase = createClient();
       const suggestion = suggestions.find(s => s.id === suggestionId);
-      
+
       if (!suggestion) return;
 
       const currentVote = suggestion.votes?.[currentUser.id];
@@ -166,8 +165,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
 
       const { error } = await supabase
         .from('suggestions')
-        .update({ 
-          votes: newVotes, 
+        .update({
+          votes: newVotes,
           upvotes,
           downvotes,
           updated_at: new Date().toISOString()
@@ -193,7 +192,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
     selectedOption?: ActionOption | null
   ) => {
     const supabase = createClient();
-    
+
     try {
       switch (actionId) {
         case 'delete':
@@ -203,7 +202,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
           setSuggestions(suggestions.filter(s => !selectedIds.includes(s.id)));
           toast.success(`${selectedIds.length} suggestion${selectedIds.length > 1 ? 's' : ''} deleted successfully`);
           break;
-          
+
         case 'approve':
           await Promise.all(
             selectedIds.map(id => supabase.from('suggestions').update({ status: 'accepted' }).eq('id', id))
@@ -211,7 +210,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
           fetchSuggestions();
           toast.success(`${selectedIds.length} suggestion${selectedIds.length > 1 ? 's' : ''} accepted`);
           break;
-          
+
         case 'reject':
           await Promise.all(
             selectedIds.map(id => supabase.from('suggestions').update({ status: 'rejected' }).eq('id', id))
@@ -219,7 +218,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
           fetchSuggestions();
           toast.success(`${selectedIds.length} suggestion${selectedIds.length > 1 ? 's' : ''} rejected`);
           break;
-          
+
         case 'review':
           await Promise.all(
             selectedIds.map(id => supabase.from('suggestions').update({ status: 'under_review' }).eq('id', id))
@@ -231,7 +230,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
         case 'priority':
           if (selectedOption) {
             await Promise.all(
-              selectedIds.map(id => 
+              selectedIds.map(id =>
                 supabase.from('suggestions').update({ priority: selectedOption.value }).eq('id', id)
               )
             );
@@ -249,7 +248,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
   };
 
   const filteredSuggestions = useMemo(() => suggestions, [suggestions]);
-  
+
   const paginatedSuggestions = filteredSuggestions.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -290,29 +289,27 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
             <div className="flex items-center bg-secondary rounded-lg p-1">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-md transition-colors ${
-                  viewMode === 'grid'
+                className={`p-2 rounded-md transition-colors ${viewMode === 'grid'
                     ? 'bg-background text-foreground shadow-theme-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
                 title="Grid View"
               >
                 <Grid className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('table')}
-                className={`p-2 rounded-md transition-colors ${
-                  viewMode === 'table'
+                className={`p-2 rounded-md transition-colors ${viewMode === 'table'
                     ? 'bg-background text-foreground shadow-theme-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
                 title="Table View"
               >
                 <List className="w-4 h-4" />
               </button>
             </div>
 
-            <Button onClick={() => setShowForm(true)} size="sm" className="whitespace-nowrap">
+            <Button onClick={() => setShowForm(true)} size="sm" className="btn-primary">
               <Plus className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">New Suggestion</span>
               <span className="sm:hidden">New</span>

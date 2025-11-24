@@ -1,10 +1,8 @@
-// ============================================
-// types/sprint.types.ts
-// ============================================
-
 import { Tables } from "./database.types";
 
-export type Sprint = Tables<'sprints'>;
+export type Sprint = Tables<'sprints'> & {
+  goals?: string | null;
+};
 
 export type SprintWithStats = Sprint & {
   creator?: {
@@ -28,6 +26,7 @@ export interface SprintFormData {
   start_date?: string;
   end_date?: string;
   status?: SprintStatus;
+  goals?: string;
 }
 
 export interface SprintFilters {
