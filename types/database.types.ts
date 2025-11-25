@@ -46,33 +46,78 @@ export type Database = {
       }
       ai_usage_logs: {
         Row: {
-          created_at: string | null
+          asset_ids: string[] | null
+          asset_type: string | null
+          cost: number
+          cost_breakdown: Json | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
           id: string
+          input_tokens: number | null
           metadata: Json | null
-          operation_id: string
+          model: string
+          operation_name: string | null
           operation_type: string
+          output_tokens: number | null
+          prompt_length: number | null
+          prompt_summary: string | null
+          provider: string
+          response_length: number | null
+          response_summary: string | null
           success: boolean
           suite_id: string
+          tokens_used: number
           user_id: string
         }
         Insert: {
-          created_at?: string | null
-          id?: string
+          asset_ids?: string[] | null
+          asset_type?: string | null
+          cost?: number
+          cost_breakdown?: Json | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id: string
+          input_tokens?: number | null
           metadata?: Json | null
-          operation_id: string
+          model: string
+          operation_name?: string | null
           operation_type: string
-          success: boolean
+          output_tokens?: number | null
+          prompt_length?: number | null
+          prompt_summary?: string | null
+          provider?: string
+          response_length?: number | null
+          response_summary?: string | null
+          success?: boolean
           suite_id: string
+          tokens_used?: number
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          asset_ids?: string[] | null
+          asset_type?: string | null
+          cost?: number
+          cost_breakdown?: Json | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
           id?: string
+          input_tokens?: number | null
           metadata?: Json | null
-          operation_id?: string
+          model?: string
+          operation_name?: string | null
           operation_type?: string
+          output_tokens?: number | null
+          prompt_length?: number | null
+          prompt_summary?: string | null
+          provider?: string
+          response_length?: number | null
+          response_summary?: string | null
           success?: boolean
           suite_id?: string
+          tokens_used?: number
           user_id?: string
         }
         Relationships: [
@@ -1466,6 +1511,61 @@ export type Database = {
       }
     }
     Views: {
+      ai_model_usage_stats: {
+        Row: {
+          avg_cost_per_op: number | null
+          avg_tokens_per_op: number | null
+          model: string | null
+          operation_count: number | null
+          success_rate: number | null
+          total_cost: number | null
+          total_tokens: number | null
+        }
+        Relationships: []
+      }
+      ai_usage_daily_summary: {
+        Row: {
+          avg_cost: number | null
+          avg_tokens: number | null
+          failed_operations: number | null
+          operation_count: number | null
+          operation_type: string | null
+          successful_operations: number | null
+          suite_id: string | null
+          total_cost: number | null
+          total_tokens: number | null
+          usage_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_user_summary: {
+        Row: {
+          last_operation: string | null
+          suite_id: string | null
+          total_cost: number | null
+          total_operations: number | null
+          total_tokens: number | null
+          unique_operation_types: number | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_relationships_with_details: {
         Row: {
           created_at: string | null
@@ -1570,6 +1670,10 @@ export type Database = {
         Args: { suite_id: string; user_id: string }
         Returns: boolean
       }
+      cleanup_old_ai_logs: {
+        Args: { retention_days?: number }
+        Returns: number
+      }
       downgrade_expired_trials: { Args: never; Returns: undefined }
       get_asset_relationship_count: {
         Args: { asset_id: string; asset_type: string }
@@ -1589,6 +1693,17 @@ export type Database = {
           direction: string
           relationship_id: string
           relationship_type: string
+        }[]
+      }
+      get_suite_ai_stats: {
+        Args: { p_end_date?: string; p_start_date?: string; p_suite_id: string }
+        Returns: {
+          cost_by_model: Json
+          daily_usage: Json
+          operations_by_type: Json
+          total_cost: number
+          total_operations: number
+          total_tokens: number
         }[]
       }
       get_suite_relationship_stats: {

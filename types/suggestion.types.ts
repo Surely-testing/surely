@@ -38,6 +38,7 @@ export interface Suggestion {
 }
 
 export interface SuggestionWithCreator extends Suggestion {
+  sprint_id: any;
   creator?: {
     id: string;
     name: string;

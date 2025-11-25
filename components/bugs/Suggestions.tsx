@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo, SetStateAction } from 'react';
+import { useState, useEffect, SetStateAction } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { SuggestionWithCreator, SuggestionStatus, SuggestionPriority, SuggestionCategory } from '@/types/suggestion.types';
-import { Plus, Grid, List, Search } from 'lucide-react';
+import { Plus, Grid, List, Search, Filter, SortAsc } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { SuggestionGrid } from '../suggestions/SuggestionGrid';
@@ -19,6 +19,9 @@ interface SuggestionsProps {
 }
 
 type ViewMode = 'grid' | 'table';
+type SortField = 'created_at' | 'updated_at' | 'title' | 'upvotes' | 'priority' | 'status';
+type SortOrder = 'asc' | 'desc';
+type GroupBy = 'none' | 'status' | 'priority' | 'category' | 'sprint';
 
 export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
   const [suggestions, setSuggestions] = useState<SuggestionWithCreator[]>([]);
@@ -35,16 +38,21 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
 
-  const [statusFilter, setStatusFilter] = useState<SuggestionStatus | 'all'>('all');
-  const [priorityFilter, setPriorityFilter] = useState<SuggestionPriority | 'all'>('all');
-  const [categoryFilter, setCategoryFilter] = useState<SuggestionCategory | 'all'>('all');
+  // Filters, Sorting, Grouping
+  const [filterStatus, setFilterStatus] = useState<SuggestionStatus[]>([]);
+  const [filterPriority, setFilterPriority] = useState<SuggestionPriority[]>([]);
+  const [filterCategory, setFilterCategory] = useState<SuggestionCategory[]>([]);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (suiteId) {
       fetchCurrentUser();
       fetchSuggestions();
     }
-  }, [suiteId, searchQuery, statusFilter, priorityFilter, categoryFilter]);
+  }, [suiteId, searchQuery]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -70,18 +78,6 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
 
       if (searchQuery) {
         query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
-      }
-
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      if (priorityFilter !== 'all') {
-        query = query.eq('priority', priorityFilter);
-      }
-
-      if (categoryFilter !== 'all') {
-        query = query.eq('category', categoryFilter);
       }
 
       const { data: suggestionsData, error: suggestionsError } = await query;
@@ -247,12 +243,135 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
     }
   };
 
-  const filteredSuggestions = useMemo(() => suggestions, [suggestions]);
+  // Apply filters, sorting
+  const getFilteredAndSortedSuggestions = () => {
+    let filtered = [...suggestions];
 
-  const paginatedSuggestions = filteredSuggestions.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+    // Apply status filter
+    if (filterStatus.length > 0) {
+      filtered = filtered.filter(s => filterStatus.includes(s.status as SuggestionStatus));
+    }
+
+    // Apply priority filter
+    if (filterPriority.length > 0) {
+      filtered = filtered.filter(s => filterPriority.includes(s.priority as SuggestionPriority));
+    }
+
+    // Apply category filter
+    if (filterCategory.length > 0) {
+      filtered = filtered.filter(s => filterCategory.includes(s.category as SuggestionCategory));
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortField];
+      let bVal: any = b[sortField];
+
+      // Handle date fields
+      if (sortField === 'created_at' || sortField === 'updated_at') {
+        aVal = aVal ? new Date(aVal).getTime() : 0;
+        bVal = bVal ? new Date(bVal).getTime() : 0;
+      }
+
+      // Handle null/undefined values
+      if (aVal === null || aVal === undefined) return sortOrder === 'asc' ? 1 : -1;
+      if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
+
+      // String comparison for text fields
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortOrder === 'asc'
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+
+      // Numeric comparison
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  };
+
+  const filteredSuggestions = getFilteredAndSortedSuggestions();
+
+  // Group suggestions if needed
+  const getGroupedSuggestions = () => {
+    if (groupBy === 'none') {
+      return { 'All Suggestions': filteredSuggestions };
+    }
+
+    const grouped: Record<string, SuggestionWithCreator[]> = {};
+
+    filteredSuggestions.forEach(suggestion => {
+      let groupKey = 'Uncategorized';
+
+      switch (groupBy) {
+        case 'status':
+          groupKey = suggestion.status ? suggestion.status.replace('_', ' ').toUpperCase() : 'NO STATUS';
+          break;
+        case 'priority':
+          groupKey = suggestion.priority ? suggestion.priority.toUpperCase() : 'NO PRIORITY';
+          break;
+        case 'category':
+          groupKey = suggestion.category ? suggestion.category.replace('_', ' ').toUpperCase() : 'NO CATEGORY';
+          break;
+        case 'sprint':
+          groupKey = suggestion.sprint_id ? `Sprint ${suggestion.sprint_id.slice(-8)}` : 'NO SPRINT';
+          break;
+      }
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = [];
+      }
+      grouped[groupKey].push(suggestion);
+    });
+
+    return grouped;
+  };
+
+  const groupedSuggestions = getGroupedSuggestions();
+
+  // Pagination - apply to current view
+  const getPaginatedSuggestions = () => {
+    if (groupBy === 'none') {
+      return filteredSuggestions.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      );
+    }
+    return filteredSuggestions;
+  };
+
+  const paginatedSuggestions = getPaginatedSuggestions();
+
+  const toggleStatusFilter = (status: SuggestionStatus) => {
+    setFilterStatus(prev =>
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
+
+  const togglePriorityFilter = (priority: SuggestionPriority) => {
+    setFilterPriority(prev =>
+      prev.includes(priority) ? prev.filter(p => p !== priority) : [...prev, priority]
+    );
+  };
+
+  const toggleCategoryFilter = (category: SuggestionCategory) => {
+    setFilterCategory(prev =>
+      prev.includes(category) ? prev.filter(c => c !== category) : [...prev, category]
+    );
+  };
+
+  const clearFilters = () => {
+    setFilterStatus([]);
+    setFilterPriority([]);
+    setFilterCategory([]);
+    setSortField('created_at');
+    setSortOrder('desc');
+  };
+
+  const activeFiltersCount = filterStatus.length + filterPriority.length + filterCategory.length;
 
   if (showForm) {
     return (
@@ -276,11 +395,12 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
   return (
     <>
       <div className="space-y-4 md:space-y-6 pb-24">
+        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg sm:text-xl font-semibold text-foreground">Suggestions</h2>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              {suggestions.length} total suggestions
+              {filteredSuggestions.length} of {suggestions.length} suggestions
               {selectedSuggestionIds.length > 0 && ` • ${selectedSuggestionIds.length} selected`}
             </p>
           </div>
@@ -290,8 +410,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2 rounded-md transition-colors ${viewMode === 'grid'
-                    ? 'bg-background text-foreground shadow-theme-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-theme-sm'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
                 title="Grid View"
               >
@@ -300,8 +420,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
               <button
                 onClick={() => setViewMode('table')}
                 className={`p-2 rounded-md transition-colors ${viewMode === 'table'
-                    ? 'bg-background text-foreground shadow-theme-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-theme-sm'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
                 title="Table View"
               >
@@ -309,7 +429,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
               </button>
             </div>
 
-            <Button onClick={() => setShowForm(true)} size="sm" className="btn-primary">
+            <Button onClick={() => setShowForm(true)} size="sm">
               <Plus className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">New Suggestion</span>
               <span className="sm:hidden">New</span>
@@ -317,116 +437,271 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
-              <Search className="w-4 h-4 sm:w-5 sm:h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search suggestions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
+        {/* Search and Filters Row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          {/* Search */}
+          <div className="flex-1 relative">
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search suggestions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground"
+            />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="under_review">Under Review</option>
-              <option value="accepted">Accepted</option>
-              <option value="rejected">Rejected</option>
-              <option value="implemented">Implemented</option>
-            </select>
+          {/* Filter Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="relative"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            Filter
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+          </Button>
 
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-2">
             <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value as any)}
-              className="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring"
+              value={`${sortField}-${sortOrder}`}
+              onChange={(e) => {
+                const [field, order] = e.target.value.split('-');
+                setSortField(field as SortField);
+                setSortOrder(order as SortOrder);
+              }}
+              className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground"
             >
-              <option value="all">All Priority</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
+              <option value="created_at-desc">Newest First</option>
+              <option value="created_at-asc">Oldest First</option>
+              <option value="updated_at-desc">Recently Updated</option>
+              <option value="upvotes-desc">Most Upvoted</option>
+              <option value="upvotes-asc">Least Upvoted</option>
+              <option value="title-asc">Title (A-Z)</option>
+              <option value="title-desc">Title (Z-A)</option>
             </select>
+          </div>
 
+          {/* Group By Dropdown */}
+          <div className="flex items-center gap-2">
             <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value as any)}
-              className="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring"
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+              className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground"
             >
-              <option value="all">All Categories</option>
-              <option value="feature">Feature</option>
-              <option value="improvement">Improvement</option>
-              <option value="performance">Performance</option>
-              <option value="ui_ux">UI/UX</option>
-              <option value="testing">Testing</option>
-              <option value="documentation">Documentation</option>
-              <option value="other">Other</option>
+              <option value="none">No Grouping</option>
+              <option value="status">Group by Status</option>
+              <option value="priority">Group by Priority</option>
+              <option value="category">Group by Category</option>
+              <option value="sprint">Group by Sprint</option>
             </select>
           </div>
         </div>
 
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className="bg-muted/30 rounded-lg p-4 border border-border space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+              {activeFiltersCount > 0 && (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear All
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Status Filter */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                  Status
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['pending', 'under_review', 'accepted', 'rejected', 'implemented'] as SuggestionStatus[]).map(status => (
+                    <button
+                      key={status}
+                      onClick={() => toggleStatusFilter(status)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterStatus.includes(status)
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-foreground border-border hover:border-primary'
+                        }`}
+                    >
+                      {status.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Priority Filter */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                  Priority
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['low', 'medium', 'high', 'critical'] as SuggestionPriority[]).map(priority => (
+                    <button
+                      key={priority}
+                      onClick={() => togglePriorityFilter(priority)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterPriority.includes(priority)
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-foreground border-border hover:border-primary'
+                        }`}
+                    >
+                      {priority}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category Filter */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                  Category
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['feature', 'improvement', 'performance', 'ui_ux', 'testing', 'documentation', 'other'] as SuggestionCategory[]).map(category => (
+                    <button
+                      key={category}
+                      onClick={() => toggleCategoryFilter(category)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterCategory.includes(category)
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-foreground border-border hover:border-primary'
+                        }`}
+                    >
+                      {category.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Display */}
         {error && (
           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 sm:p-4">
             <p className="text-sm text-destructive">Error: {error}</p>
           </div>
         )}
 
+        {/* Suggestions List */}
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             <p className="mt-4 text-sm text-muted-foreground">Loading suggestions...</p>
           </div>
-        ) : suggestions.length === 0 ? (
+        ) : filteredSuggestions.length === 0 ? (
           <div className="text-center py-12 bg-card rounded-lg border border-border">
             <p className="text-sm text-muted-foreground mb-4">
-              {searchQuery ? 'No suggestions match your search' : 'No suggestions yet'}
+              {suggestions.length === 0
+                ? searchQuery
+                  ? 'No suggestions match your search'
+                  : 'No suggestions yet'
+                : 'No suggestions match the selected filters'}
             </p>
-            <Button variant="outline" onClick={() => setShowForm(true)}>
-              Create your first suggestion
-            </Button>
+            {suggestions.length === 0 ? (
+              <Button variant="outline" onClick={() => setShowForm(true)}>
+                Create your first suggestion
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={clearFilters}>
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
           <>
             {viewMode === 'grid' ? (
-              <SuggestionGrid
-                suggestions={paginatedSuggestions}
-                onSelect={(suggestion: SetStateAction<SuggestionWithCreator | null>) => setSelectedSuggestion(suggestion)}
-                selectedSuggestions={selectedSuggestionIds}
-                onSelectionChange={setSelectedSuggestionIds}
-                onVote={handleVote}
-                currentUserId={currentUser?.id}
-              />
+              groupBy === 'none' ? (
+                <SuggestionGrid
+                  suggestions={paginatedSuggestions}
+                  onSelect={(suggestion: SetStateAction<SuggestionWithCreator | null>) => setSelectedSuggestion(suggestion)}
+                  selectedSuggestions={selectedSuggestionIds}
+                  onSelectionChange={setSelectedSuggestionIds}
+                  onVote={handleVote}
+                  currentUserId={currentUser?.id}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedSuggestions).map(([groupName, groupSuggestions]) => (
+                    <div key={groupName}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-sm font-semibold text-foreground uppercase">
+                          {groupName}
+                        </h3>
+                        <span className="text-xs text-muted-foreground">
+                          ({groupSuggestions.length})
+                        </span>
+                      </div>
+                      <SuggestionGrid
+                        suggestions={groupSuggestions}
+                        onSelect={(suggestion: SetStateAction<SuggestionWithCreator | null>) => setSelectedSuggestion(suggestion)}
+                        selectedSuggestions={selectedSuggestionIds}
+                        onSelectionChange={setSelectedSuggestionIds}
+                        onVote={handleVote}
+                        currentUserId={currentUser?.id}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
             ) : (
-              <SuggestionTable
-                suggestions={paginatedSuggestions}
-                onSelect={(suggestion: SetStateAction<SuggestionWithCreator | null>) => setSelectedSuggestion(suggestion)}
-                selectedSuggestions={selectedSuggestionIds}
-                onSelectionChange={setSelectedSuggestionIds}
-                onVote={handleVote}
-                currentUserId={currentUser?.id}
-                onUpdate={fetchSuggestions}
-              />
+              groupBy === 'none' ? (
+                <SuggestionTable
+                  suggestions={paginatedSuggestions}
+                  onSelect={(suggestion: SetStateAction<SuggestionWithCreator | null>) => setSelectedSuggestion(suggestion)}
+                  selectedSuggestions={selectedSuggestionIds}
+                  onSelectionChange={setSelectedSuggestionIds}
+                  onVote={handleVote}
+                  currentUserId={currentUser?.id}
+                  onUpdate={fetchSuggestions}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedSuggestions).map(([groupName, groupSuggestions]) => (
+                    <div key={groupName}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-sm font-semibold text-foreground uppercase">
+                          {groupName}
+                        </h3>
+                        <span className="text-xs text-muted-foreground">
+                          ({groupSuggestions.length})
+                        </span>
+                      </div>
+                      <SuggestionTable
+                        suggestions={groupSuggestions}
+                        onSelect={(suggestion: SetStateAction<SuggestionWithCreator | null>) => setSelectedSuggestion(suggestion)}
+                        selectedSuggestions={selectedSuggestionIds}
+                        onSelectionChange={setSelectedSuggestionIds}
+                        onVote={handleVote}
+                        currentUserId={currentUser?.id}
+                        onUpdate={fetchSuggestions}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
             )}
 
-            <Pagination
-              currentPage={currentPage}
-              totalItems={filteredSuggestions.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
-              onItemsPerPageChange={(items: SetStateAction<number>) => {
-                setItemsPerPage(items);
-                setCurrentPage(1);
-              }}
-            />
+            {/* Pagination - Only show when not grouped */}
+            {groupBy === 'none' && (
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredSuggestions.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={(items: SetStateAction<number>) => {
+                  setItemsPerPage(items);
+                  setCurrentPage(1);
+                }}
+              />
+            )}
           </>
         )}
 
