@@ -1,10 +1,11 @@
 // ============================================
-// lib/hooks/useSprints.ts
-// Fixed foreign key relationships
+// FILE: lib/hooks/useSprints.ts
+// Complete working sprints hooks - REPLACE YOUR ENTIRE FILE WITH THIS
 // ============================================
 
 import { createClient } from "../supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from 'sonner';
 
 interface SprintFilters {
   status?: string[];
@@ -17,14 +18,15 @@ interface SprintFormData {
   start_date?: string;
   end_date?: string;
   status?: string;
+  test_case_ids?: string[];
 }
 
+// Fetch all sprints for a suite
 export function useSprints(suiteId: string, filters?: SprintFilters) {
   return useQuery({
     queryKey: ['sprints', suiteId, filters],
     queryFn: async () => {
       const supabase = createClient();
-      // Simplified query without creator relationship to fix 400 error
       let query = supabase
         .from('sprints')
         .select('*')
@@ -36,30 +38,39 @@ export function useSprints(suiteId: string, filters?: SprintFilters) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      
+      // Ensure test_case_ids is always an array
+      return (data || []).map(sprint => ({
+        ...sprint,
+        test_case_ids: Array.isArray(sprint.test_case_ids) ? sprint.test_case_ids : []
+      }));
     },
     enabled: !!suiteId,
   });
 }
 
+// Fetch single sprint
 export function useSprint(sprintId: string) {
   return useQuery({
     queryKey: ['sprint', sprintId],
     queryFn: async () => {
       const supabase = createClient();
-      // Simplified query without creator relationship to fix 400 error
       const { data, error } = await supabase
         .from('sprints')
         .select('*')
         .eq('id', sprintId)
         .single();
       if (error) throw error;
-      return data;
+      return {
+        ...data,
+        test_case_ids: Array.isArray(data.test_case_ids) ? data.test_case_ids : []
+      };
     },
     enabled: !!sprintId,
   });
 }
 
+// Create sprint
 export function useCreateSprint(suiteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -78,6 +89,7 @@ export function useCreateSprint(suiteId: string) {
           start_date: data.start_date,
           end_date: data.end_date,
           status: data.status || 'planning',
+          test_case_ids: data.test_case_ids || [],
         })
         .select()
         .single();
@@ -86,10 +98,16 @@ export function useCreateSprint(suiteId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sprints', suiteId] });
+      toast.success('Sprint created successfully');
+    },
+    onError: (error: any) => {
+      console.error('Error creating sprint:', error);
+      toast.error('Failed to create sprint');
     },
   });
 }
 
+// Update sprint
 export function useUpdateSprint(suiteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -107,10 +125,16 @@ export function useUpdateSprint(suiteId: string) {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sprints', suiteId] });
       queryClient.invalidateQueries({ queryKey: ['sprint', variables.id] });
+      toast.success('Sprint updated successfully');
+    },
+    onError: (error: any) => {
+      console.error('Error updating sprint:', error);
+      toast.error('Failed to update sprint');
     },
   });
 }
 
+// Delete sprint
 export function useDeleteSprint(suiteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -121,16 +145,21 @@ export function useDeleteSprint(suiteId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sprints', suiteId] });
+      toast.success('Sprint deleted successfully');
+    },
+    onError: (error: any) => {
+      console.error('Error deleting sprint:', error);
+      toast.error('Failed to delete sprint');
     },
   });
 }
 
+// Get sprint stats
 export function useSprintStats(sprintId: string) {
   return useQuery({
     queryKey: ['sprint-stats', sprintId],
     queryFn: async () => {
       const supabase = createClient();
-      // Sprintable assets: test cases, bugs, and suggestions (aka recommendations)
       const [testCases, bugs, suggestions] = await Promise.all([
         supabase.from('test_cases').select('id', { count: 'exact', head: true }).eq('sprint_id', sprintId),
         supabase.from('bugs').select('id', { count: 'exact', head: true }).eq('sprint_id', sprintId),
@@ -140,7 +169,7 @@ export function useSprintStats(sprintId: string) {
       return {
         test_cases_count: testCases.count || 0,
         bugs_count: bugs.count || 0,
-        suggestions_count: suggestions.count || 0, // Using suggestions as the actual table
+        suggestions_count: suggestions.count || 0,
       };
     },
     enabled: !!sprintId,

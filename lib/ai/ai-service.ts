@@ -37,6 +37,7 @@ export const AI_MODELS = {
 export type ModelName = keyof typeof AI_MODELS
 
 export class AIService {
+    [x: string]: any
     private currentModel: ModelName = 'gemini-2.0-flash-lite'
 
     constructor(initialModel?: ModelName) {
@@ -409,26 +410,85 @@ Provide response in JSON:
 
     // Build system prompt for dashboard chat
     private buildDashboardSystemPrompt(context: ChatContext): string {
-        const pageName = context.currentPage.split('/').pop() || 'dashboard'
+    // Extract readable page name from URL
+    const getPageName = (url: string): string => {
+        const segments = url.split('/').filter(Boolean)
+        const page = segments[segments.length - 1] || 'dashboard'
 
-        return `You are an AI assistant embedded in a project management platform.
+        const pageNames: Record<string, string> = {
+            'dashboard': 'Dashboard Overview',
+            'test-cases': 'Test Cases Management',
+            'bugs': 'Bug Reports',
+            'test-runs': 'Test Execution',
+            'analytics': 'Analytics & Reports',
+            'team': 'Team Management',
+            'settings': 'Settings'
+        }
+
+        return pageNames[page] || page.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    }
+
+    const pageName = getPageName(context.currentPage)
+
+    // Build data section if available
+    let dataSection = ''
+    if (context.pageData && Object.keys(context.pageData).length > 2) {
+        dataSection = `
+
+REAL-TIME DATA FROM DATABASE:
+${JSON.stringify(context.pageData, null, 2)}
+
+IMPORTANT: Use this actual data to provide specific insights. Don't ask for information you already have!`
+    }
+
+    return `You are an AI assistant for SURELY, a QA/Test Management platform helping QA engineers and testers.
 
 CURRENT CONTEXT:
-- Page: ${context.currentPage}
-- Suite: ${context.suiteName || 'No suite selected'}
-- User ID: ${context.userId}
+- Current Page: ${pageName}
+- Test Suite: ${context.suiteName || 'No suite selected'}
+- User: ${context.userId}
+${dataSection}
 
-CAPABILITIES:
-1. Projects - Create and manage projects
-2. Tasks - Task management with priorities
-3. Test Cases - QA test case generation
-4. Bug Reports - Detailed bug tracking
-5. Team - Team collaboration
-6. Calendar - Event scheduling
-7. Analytics - Insights and reports
+YOUR ROLE:
+Help users with QA and testing tasks including:
+1. Test Case Management - Generate, analyze, and optimize test cases
+2. Bug Tracking - Document bugs, analyze patterns, suggest fixes
+3. Test Execution - Track test runs, analyze results, identify failures
+4. Quality Metrics - Provide insights on coverage, defect density, pass rates
+5. Documentation - Generate test plans, reports, release notes
+6. Automation - Identify automation opportunities, suggest frameworks
 
-Provide concise, actionable responses. Reference specific features. Guide users through workflows.`
-    }
+CRITICAL GUIDELINES:
+${context.pageData && Object.keys(context.pageData).length > 2 ? `
+- ✅ USE THE ACTUAL DATA PROVIDED ABOVE - Don't ask users for data you already have
+- ✅ Be SPECIFIC - Reference actual numbers, bug titles, test results from the data
+- ✅ Be PROACTIVE - If you see critical issues in the data, mention them
+- ✅ Give ACTIONABLE advice based on real numbers
+` : `
+- User has not provided specific data yet
+- Ask clarifying questions or suggest navigating to relevant pages
+`}
+
+RESPONSE FORMAT:
+- Use clean formatting with headers (#), lists (-), and paragraphs
+- Be conversational and helpful
+- Provide specific, actionable advice
+- Keep responses concise but informative
+
+Examples of GOOD responses when data is available:
+- "I can see you have 3 critical bugs in your suite. The most urgent is '[actual bug title]'. Let me help you prioritize..."
+- "Your test suite has a 75% pass rate with 5 failing tests. The main issue areas are..."
+- "Based on your 12 open bugs, I recommend..."
+
+Examples of BAD responses (avoid):
+- "Can you tell me about your bugs?" (when bug data is already provided)
+- "What's your current status?" (when status is in the data)
+
+CURRENT PAGE: ${pageName}
+${context.suiteName ? `Working on suite: ${context.suiteName}` : 'No test suite selected'}
+
+Engage naturally with the user's questions and help them accomplish their QA tasks efficiently.`
+}
 }
 
 // Export singleton instance

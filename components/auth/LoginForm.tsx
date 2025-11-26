@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/auth/LoginForm.tsx (ENHANCED WITH ANIMATIONS)
+// FILE: components/auth/LoginForm.tsx (FIXED REDIRECT)
 // ============================================
 'use client'
 
@@ -45,10 +45,25 @@ const LoginForm = () => {
       if (signInError) throw signInError
 
       if (data.user) {
-        toast.success('Welcome back!', {
-          description: 'Redirecting to your dashboard...',
-        })
-        router.push(`/`);
+        // ✅ Simple redirect - let middleware and dashboard layout handle the rest
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('registration_completed')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profile && !profile.registration_completed) {
+          toast.success('Welcome! Let\'s complete your setup', {
+            description: 'Just a few steps to get started...',
+          })
+          router.push('/onboarding')
+        } else {
+          toast.success('Welcome back!', {
+            description: 'Redirecting to your dashboard...',
+          })
+          router.push('/dashboard')
+        }
+        
         router.refresh()
       }
     } catch (err: any) {
@@ -195,7 +210,7 @@ const LoginForm = () => {
           </Link>
         </div>
 
-        {/* Animated Button - Same as Registration */}
+        {/* Animated Button */}
         <div className="mt-8">
           <div className="relative flex justify-center">
             <button

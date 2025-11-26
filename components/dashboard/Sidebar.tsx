@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/dashboard/Sidebar.tsx
+// FILE: components/dashboard/Sidebar.tsx (UPDATED)
 // ============================================
 'use client'
 
@@ -11,21 +11,24 @@ import { cn } from '@/lib/utils/cn'
 import { suiteNavigation, globalNavigation } from '@/config/navigation'
 import Image from 'next/image'
 import { setCurrentSuite } from '@/lib/suites/session'
+import { CreateSuitePortal } from '@/components/suites/CreateSuitePortal'
 import type { Suite } from '@/types/dashboard.types'
 
 interface SidebarProps {
   suites: Suite[]
   currentSuiteId: string | null
+  userId: string // Add userId prop
   isOpen: boolean
   onToggle: () => void
 }
 
-export function Sidebar({ suites, currentSuiteId, isOpen, onToggle }: SidebarProps) {
+export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [suiteSwitcherOpen, setSuiteSwitcherOpen] = React.useState(false)
   const [isSwitching, setIsSwitching] = React.useState(false)
   const [isCollapsed, setIsCollapsed] = React.useState(false)
+  const [isCreatePortalOpen, setIsCreatePortalOpen] = React.useState(false)
 
   const currentSuite = suites.find(s => s.id === currentSuiteId)
 
@@ -58,6 +61,14 @@ export function Sidebar({ suites, currentSuiteId, isOpen, onToggle }: SidebarPro
     setIsCollapsed(!isCollapsed)
     if (!isCollapsed) {
       setSuiteSwitcherOpen(false)
+    }
+  }
+
+  const handleCreateSuite = () => {
+    setSuiteSwitcherOpen(false)
+    setIsCreatePortalOpen(true)
+    if (window.innerWidth < 1024) {
+      onToggle()
     }
   }
 
@@ -182,17 +193,16 @@ export function Sidebar({ suites, currentSuiteId, isOpen, onToggle }: SidebarPro
                     </button>
                   ))}
                 </div>
-                <Link
-                  href="/create-suite"
-                  onClick={handleNavClick}
+                <button
+                  onClick={handleCreateSuite}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                    "w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                     "text-primary hover:bg-primary/5 active:scale-[0.98] border border-dashed border-primary/30 hover:border-primary/50"
                   )}
                 >
                   <Plus className="h-4 w-4 shrink-0" />
                   <span>New Suite</span>
-                </Link>
+                </button>
               </div>
             )}
           </div>
@@ -316,6 +326,17 @@ export function Sidebar({ suites, currentSuiteId, isOpen, onToggle }: SidebarPro
           ))}
         </nav>
       </aside>
+
+      {/* Create Suite Portal */}
+      <CreateSuitePortal
+        userId={userId}
+        isOpen={isCreatePortalOpen}
+        onClose={() => setIsCreatePortalOpen(false)}
+        onSuccess={(suiteId) => {
+          // Switch to the new suite
+          handleSwitchSuite(suiteId)
+        }}
+      />
     </>
   )
 }

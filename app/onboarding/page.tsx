@@ -1,5 +1,5 @@
 // ============================================
-// FILE: app/onboarding/page.tsx
+// FILE: app/onboarding/page.tsx (FIXED - Proper Flow)
 // ============================================
 'use client'
 
@@ -9,7 +9,7 @@ import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { 
   Building2, Globe, Users, Loader2, CheckCircle2, 
-  ArrowRight, Sparkles, Folder, Mail, X, Plus, Check, ChevronDown
+  ArrowRight, Sparkles, Folder, X, Plus
 } from 'lucide-react'
 
 export default function OnboardingPage() {
@@ -52,12 +52,26 @@ export default function OnboardingPage() {
 
       setProfile(profileData)
 
+      // ✅ If already completed onboarding, redirect to dashboard
+      if (profileData.registration_completed) {
+        console.log('✅ Onboarding already complete, redirecting to dashboard')
+        router.push('/dashboard')
+        return
+      }
+
       // Pre-fill data if exists
       if (profileData.organization_website) {
         setFormData(prev => ({
           ...prev,
           organizationWebsite: profileData.organization_website || '',
         }))
+      }
+
+      // ✅ Set correct starting step based on account type
+      if (profileData.account_type === 'individual') {
+        setCurrentStep(1) // Start at suite creation for individuals
+      } else {
+        setCurrentStep(1) // Start at org details for organizations
       }
 
     } catch (error) {
@@ -95,13 +109,8 @@ export default function OnboardingPage() {
     }))
   }
 
-  const handleSkipInvites = () => {
-    if (profile?.account_type === 'organization') {
-      setCurrentStep(3) // Skip to test suite creation
-    }
-  }
-
-  const handleStep1Submit = async () => {
+  // ✅ ORGANIZATION STEP 1: Save org details
+  const handleOrgDetailsSubmit = async () => {
     if (!formData.organizationWebsite && !formData.organizationDescription) {
       toast.error('Please provide at least website or description')
       return
@@ -112,14 +121,12 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Update profile with additional details
       const updateData: any = {}
       
       if (formData.organizationWebsite) {
         updateData.organization_website = formData.organizationWebsite
       }
       
-      // Store description in profile metadata since organizations table doesn't have description field
       if (formData.organizationDescription) {
         updateData.metadata = {
           organization_description: formData.organizationDescription
@@ -134,7 +141,7 @@ export default function OnboardingPage() {
       if (profileError) throw profileError
 
       toast.success('Organization details saved!')
-      setCurrentStep(2)
+      setCurrentStep(2) // Move to invitations
     } catch (error: any) {
       toast.error(error.message || 'Failed to save details')
     } finally {
@@ -142,18 +149,17 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleStep2Submit = async () => {
+  // ✅ ORGANIZATION STEP 2: Send invitations
+  const handleInvitationsSubmit = async () => {
     try {
       setSaving(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Filter valid emails
       const validEmails = formData.inviteEmails.filter(email => 
         email && /\S+@\S+\.\S+/.test(email)
       )
 
-      // Send invitations
       if (validEmails.length > 0 && profile?.organization_id) {
         const invitations = validEmails.map(email => ({
           type: 'organization',
@@ -177,8 +183,7 @@ export default function OnboardingPage() {
         }
       }
 
-      // Move to test suite creation
-      setCurrentStep(3)
+      setCurrentStep(3) // Move to suite creation
     } catch (error: any) {
       toast.error(error.message || 'Failed to send invitations')
     } finally {
@@ -186,7 +191,8 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleStep3Submit = async () => {
+  // ✅ FINAL STEP: Create test suite and complete onboarding
+  const handleSuiteCreation = async () => {
     if (!formData.suiteName.trim()) {
       toast.error('Test suite name is required')
       return
@@ -204,7 +210,9 @@ export default function OnboardingPage() {
 
       // Determine owner type and ID
       const ownerType = profile?.account_type === 'organization' ? 'organization' : 'individual'
-      const ownerId = ownerType === 'organization' ? profile.organization_id : user.id
+      const ownerId = ownerType === 'organization' 
+        ? (profile.organization_id || user.id)
+        : user.id
 
       // Create test suite
       const { data: suiteData, error: suiteError } = await supabase
@@ -222,11 +230,13 @@ export default function OnboardingPage() {
 
       if (suiteError) throw suiteError
 
-      // Mark onboarding complete
-      await supabase
+      // ✅ Mark onboarding as complete
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({ registration_completed: true })
         .eq('id', user.id)
+
+      if (updateError) throw updateError
 
       // Log activity
       await supabase.from('activity_logs').insert({
@@ -240,9 +250,15 @@ export default function OnboardingPage() {
         },
       })
 
-      toast.success('Welcome to Surely! 🎉')
+      toast.success('Welcome to Surely! 🎉', {
+        description: 'Your workspace is ready!'
+      })
+
+      // ✅ Redirect to dashboard
       router.push('/dashboard')
+      router.refresh()
     } catch (error: any) {
+      console.error('Suite creation error:', error)
       toast.error(error.message || 'Failed to create test suite')
     } finally {
       setSaving(false)
@@ -258,7 +274,7 @@ export default function OnboardingPage() {
   }
 
   const isOrganization = profile?.account_type === 'organization'
-  const totalSteps = isOrganization ? 3 : 2
+  const totalSteps = isOrganization ? 3 : 1
   const userEmail = profile?.email || ''
   const orgDomain = userEmail.split('@')[1] || ''
 
@@ -274,7 +290,7 @@ export default function OnboardingPage() {
             Welcome to Surely! 🎉
           </h1>
           <p className="text-muted-foreground text-lg">
-            {isOrganization ? "Let's set up your organization" : "Let's set up your account"}
+            {isOrganization ? "Let's set up your organization" : "Let's create your first test suite"}
           </p>
         </div>
 
@@ -296,7 +312,7 @@ export default function OnboardingPage() {
 
         {/* Card */}
         <div className="bg-card rounded-2xl shadow-xl border border-border p-6 sm:p-8">
-          {/* Step 1: Organization Details (Organizations only) */}
+          {/* ORG STEP 1: Organization Details */}
           {currentStep === 1 && isOrganization && (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -349,7 +365,7 @@ export default function OnboardingPage() {
                   Skip for now
                 </button>
                 <button
-                  onClick={handleStep1Submit}
+                  onClick={handleOrgDetailsSubmit}
                   disabled={saving}
                   className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
@@ -366,7 +382,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 2: Team Invitations (Organizations only) */}
+          {/* ORG STEP 2: Team Invitations */}
           {currentStep === 2 && isOrganization && (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -436,14 +452,14 @@ export default function OnboardingPage() {
 
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={handleSkipInvites}
+                  onClick={() => setCurrentStep(3)}
                   disabled={saving}
                   className="flex-1 px-6 py-3 border border-border rounded-lg font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
                 >
                   Skip for now
                 </button>
                 <button
-                  onClick={handleStep2Submit}
+                  onClick={handleInvitationsSubmit}
                   disabled={saving}
                   className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
@@ -460,7 +476,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 3: Create Test Suite (Required for all) */}
+          {/* FINAL STEP: Create Test Suite (Both Individual & Organization) */}
           {((currentStep === 3 && isOrganization) || (currentStep === 1 && !isOrganization)) && (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -469,7 +485,7 @@ export default function OnboardingPage() {
                   Create Your First Test Suite
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Required to access your dashboard
+                  A test suite organizes your test cases
                 </p>
               </div>
 
@@ -517,14 +533,14 @@ export default function OnboardingPage() {
 
               <div className="pt-4">
                 <button
-                  onClick={handleStep3Submit}
+                  onClick={handleSuiteCreation}
                   disabled={saving}
                   className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {saving ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Creating...</span>
+                      <span>Creating your workspace...</span>
                     </>
                   ) : (
                     <>

@@ -43,7 +43,7 @@ export type ActionGroup = {
     actions: BulkAction[];
 };
 
-export type AssetType = 'testCases' | 'bugs' | 'recordings' | 'recommendations' | 'sprints' | 'archive' | 'trash';
+export type AssetType = 'testCases' | 'bugs' | 'recordings' | 'recommendations' | 'sprints' | 'archive' | 'testRuns' | 'trash' | 'testData';
 
 export interface BulkActionsBarProps {
     selectedItems?: string[];
@@ -171,7 +171,7 @@ const Tooltip: React.FC<TooltipProps> = ({ children, text, disabled = false }) =
         >
             {children}
             {isVisible && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1.5 text-xs text-primary-foreground bg-foreground rounded-lg whitespace-nowrap z-50 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1.5 text-xs text-gray-800 bg-foreground rounded-lg whitespace-nowrap z-50 animate-in fade-in slide-in-from-bottom-1 duration-150">
                     {text}
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-foreground" />
                 </div>
@@ -472,6 +472,24 @@ const generateAssetActionConfig = (
             ]
         },
 
+        testData: {
+            groups: [
+                {
+                    name: 'actions',
+                    actions: [
+                        {
+                            id: 'delete',
+                            label: 'Delete',
+                            icon: 'Trash2',
+                            destructive: true,
+                            requiresConfirm: true,
+                            confirmMessage: 'Are you sure you want to delete the selected test data? This action cannot be undone.'
+                        }
+                    ]
+                }
+            ]
+        },
+
         recommendations: {
             groups: [
                 {
@@ -555,6 +573,121 @@ const generateAssetActionConfig = (
                     name: 'actions',
                     actions: [
                         { id: 'permanent-delete', label: 'Delete Forever', icon: 'Trash2', destructive: true, confirmMessage: 'Permanently delete selected items? This cannot be undone.' }
+                    ]
+                }
+            ]
+        },
+        testRuns: {
+            groups: [
+                {
+                    name: 'execution',
+                    actions: [
+                        {
+                            id: 'execute',
+                            label: 'Start Execution',
+                            icon: 'Play'
+                        },
+                        {
+                            id: 'complete',
+                            label: 'Mark Complete',
+                            icon: 'CheckCircle'
+                        },
+                        {
+                            id: 'abort',
+                            label: 'Abort',
+                            icon: 'XCircle',
+                            requiresConfirm: true,
+                            confirmMessage: 'Abort selected test runs?'
+                        }
+                    ]
+                },
+                {
+                    name: 'status',
+                    actions: [
+                        {
+                            id: 'set-status',
+                            label: 'Set Status',
+                            icon: 'Flag',
+                            type: 'select' as const,
+                            options: [
+                                { id: 'pending', value: 'pending', label: 'Pending' },
+                                { id: 'in-progress', value: 'in-progress', label: 'In Progress' },
+                                { id: 'passed', value: 'passed', label: 'Passed' },
+                                { id: 'failed', value: 'failed', label: 'Failed' },
+                                { id: 'blocked', value: 'blocked', label: 'Blocked' },
+                                { id: 'skipped', value: 'skipped', label: 'Skipped' }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'assignment',
+                    actions: [
+                        ...(userOptions.length > 0 ? [{
+                            id: 'assign',
+                            label: 'Assign',
+                            icon: 'Users',
+                            type: 'select' as const,
+                            options: userOptions
+                        }] : [])
+                    ]
+                },
+                {
+                    name: 'organization',
+                    actions: [
+                        ...(sprintOptions.length > 0 ? [{
+                            id: 'add-to-sprint',
+                            label: 'Add to Sprint',
+                            icon: 'Target',
+                            type: 'select' as const,
+                            options: sprintOptions
+                        }] : []),
+                        {
+                            id: 'set-environment',
+                            label: 'Set Environment',
+                            icon: 'Settings',
+                            type: 'select' as const,
+                            options: [
+                                { id: 'dev', value: 'development', label: 'Development' },
+                                { id: 'staging', value: 'staging', label: 'Staging' },
+                                { id: 'qa', value: 'qa', label: 'QA' },
+                                { id: 'prod', value: 'production', label: 'Production' }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'data',
+                    actions: [
+                        {
+                            id: 'export',
+                            label: 'Export Results',
+                            icon: 'Download'
+                        },
+                        {
+                            id: 'generate-report',
+                            label: 'Generate Report',
+                            icon: 'FileText'
+                        }
+                    ]
+                },
+                {
+                    name: 'actions',
+                    actions: [
+                        {
+                            id: 'archive',
+                            label: 'Archive',
+                            icon: 'Archive',
+                            requiresConfirm: true,
+                            confirmMessage: 'Archive selected test runs?'
+                        },
+                        {
+                            id: 'delete',
+                            label: 'Delete',
+                            icon: 'Trash2',
+                            destructive: true,
+                            confirmMessage: 'Delete selected test runs? This will also delete all test results.'
+                        }
                     ]
                 }
             ]

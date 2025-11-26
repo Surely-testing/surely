@@ -947,6 +947,7 @@ export type Database = {
           start_date: string | null
           status: string | null
           suite_id: string
+          test_case_ids: string[] | null
           updated_at: string | null
         }
         Insert: {
@@ -960,6 +961,7 @@ export type Database = {
           start_date?: string | null
           status?: string | null
           suite_id: string
+          test_case_ids?: string[] | null
           updated_at?: string | null
         }
         Update: {
@@ -973,6 +975,7 @@ export type Database = {
           start_date?: string | null
           status?: string | null
           suite_id?: string
+          test_case_ids?: string[] | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1397,6 +1400,346 @@ export type Database = {
           },
         ]
       }
+      test_data_items: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          metadata: Json | null
+          suite_id: string
+          type_id: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          metadata?: Json | null
+          suite_id: string
+          type_id: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          metadata?: Json | null
+          suite_id?: string
+          type_id?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_data_items_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_data_items_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "test_data_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_data_types: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          suite_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          suite_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          suite_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_data_types_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_execution_history: {
+        Row: {
+          duration_minutes: number | null
+          executed_at: string | null
+          executed_by: string | null
+          id: string
+          notes: string | null
+          sprint_id: string | null
+          status: string
+          test_case_id: string
+          test_run_id: string
+        }
+        Insert: {
+          duration_minutes?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          sprint_id?: string | null
+          status: string
+          test_case_id: string
+          test_run_id: string
+        }
+        Update: {
+          duration_minutes?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          sprint_id?: string | null
+          status?: string
+          test_case_id?: string
+          test_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_execution_history_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_run_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_run_results: {
+        Row: {
+          actual_result: string | null
+          bug_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          executed_at: string | null
+          executed_by: string | null
+          id: string
+          notes: string | null
+          screenshots: Json | null
+          sprint_id: string | null
+          status: string | null
+          test_case_id: string
+          test_run_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_result?: string | null
+          bug_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          screenshots?: Json | null
+          sprint_id?: string | null
+          status?: string | null
+          test_case_id: string
+          test_run_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_result?: string | null
+          bug_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          screenshots?: Json | null
+          sprint_id?: string | null
+          status?: string | null
+          test_case_id?: string
+          test_run_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_run_results_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_run_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_runs: {
+        Row: {
+          additional_case_ids: string[] | null
+          assigned_to: string | null
+          attachments: Json | null
+          blocked_count: number | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          environment: string
+          executed_at: string | null
+          failed_count: number | null
+          id: string
+          name: string
+          notes: string | null
+          passed_count: number | null
+          scheduled_date: string | null
+          skipped_count: number | null
+          sprint_ids: string[] | null
+          status: string | null
+          suite_id: string
+          test_case_ids: string[] | null
+          test_type: string | null
+          total_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          additional_case_ids?: string[] | null
+          assigned_to?: string | null
+          attachments?: Json | null
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          environment: string
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          passed_count?: number | null
+          scheduled_date?: string | null
+          skipped_count?: number | null
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id: string
+          test_case_ids?: string[] | null
+          test_type?: string | null
+          total_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          additional_case_ids?: string[] | null
+          assigned_to?: string | null
+          attachments?: Json | null
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          environment?: string
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          passed_count?: number | null
+          scheduled_date?: string | null
+          skipped_count?: number | null
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id?: string
+          test_case_ids?: string[] | null
+          test_type?: string | null
+          total_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_runs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_suites: {
         Row: {
           admins: string[] | null
@@ -1652,6 +1995,128 @@ export type Database = {
           },
         ]
       }
+      test_case_execution_history: {
+        Row: {
+          duration_minutes: number | null
+          executed_at: string | null
+          executed_by: string | null
+          notes: string | null
+          sprint_id: string | null
+          sprint_name: string | null
+          status: string | null
+          test_case_id: string | null
+          test_case_title: string | null
+          test_run_id: string | null
+          test_run_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_execution_history_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_run_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_run_analytics: {
+        Row: {
+          additional_case_count: number | null
+          blocked_count: number | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          duration_seconds: number | null
+          environment: string | null
+          executed_at: string | null
+          failed_count: number | null
+          id: string | null
+          name: string | null
+          pass_rate: number | null
+          passed_count: number | null
+          skipped_count: number | null
+          sprint_count: number | null
+          sprint_ids: string[] | null
+          status: string | null
+          suite_id: string | null
+          test_type: string | null
+          total_count: number | null
+        }
+        Insert: {
+          additional_case_count?: never
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_seconds?: never
+          environment?: string | null
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string | null
+          name?: string | null
+          pass_rate?: never
+          passed_count?: number | null
+          skipped_count?: number | null
+          sprint_count?: never
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id?: string | null
+          test_type?: string | null
+          total_count?: number | null
+        }
+        Update: {
+          additional_case_count?: never
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_seconds?: never
+          environment?: string | null
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string | null
+          name?: string | null
+          pass_rate?: never
+          passed_count?: number | null
+          skipped_count?: number | null
+          sprint_count?: never
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id?: string | null
+          test_type?: string | null
+          total_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_runs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_access_asset: {
@@ -1711,6 +2176,19 @@ export type Database = {
         Returns: {
           count: number
           relationship_type: string
+        }[]
+      }
+      get_test_case_history: {
+        Args: { p_limit?: number; p_test_case_id: string }
+        Returns: {
+          duration_minutes: number
+          executed_at: string
+          notes: string
+          sprint_id: string
+          sprint_name: string
+          status: string
+          test_run_id: string
+          test_run_name: string
         }[]
       }
       handle_new_user_registration: {

@@ -58,11 +58,16 @@ export interface AIResponse {
 
 export interface ChatContext {
   currentPage: string
-  suiteId?: string | null
-  suiteName?: string | null
+  suiteId: string | null
+  suiteName: string | null
   userId: string
-  conversationHistory: Array<{ role: string; content: string }>
-  pageData?: any
+  userRole?: string
+  recentActions: string[]
+  conversationHistory: Array<{
+    role: 'user' | 'assistant' | 'system'
+    content: string
+  }>
+  pageData?: Record<string, any>
 }
 
 export interface AIUsageLogInput {

@@ -1,5 +1,6 @@
 // ============================================
 // components/relationships/LinkAssetModal.tsx
+// Fixed version without suite_id requirement
 // ============================================
 'use client'
 import React, {useState, useEffect } from 'react';
@@ -12,6 +13,7 @@ import { relationshipsApi } from '@/lib/api/relationships';
 import { X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { toast } from 'sonner';
 
 interface LinkAssetModalProps {
   sourceType: AssetType;
@@ -28,6 +30,7 @@ export default function LinkAssetModal({ sourceType, sourceId, suiteId, onClose,
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [availableAssets, setAvailableAssets] = useState<any[]>([]);
+  const [fetchingAssets, setFetchingAssets] = useState(false);
 
   useEffect(() => {
     fetchAvailableAssets();
@@ -41,46 +44,103 @@ export default function LinkAssetModal({ sourceType, sourceId, suiteId, onClose,
       document: 'documents',
       recommendation: 'recommendations',
       sprint: 'sprints',
-      test_data: 'test_data' // Note: singular, not plural
+      test_data: 'test_data'
     };
     return tableMap[assetType];
   };
 
+  const getTitleColumn = (assetType: AssetType): string => {
+    const columnMap: Record<AssetType, string> = {
+      test_case: 'title',
+      bug: 'title',
+      recording: 'title',
+      document: 'title',
+      recommendation: 'title',
+      sprint: 'name',
+      test_data: 'name'
+    };
+    return columnMap[assetType];
+  };
+
   const fetchAvailableAssets = async () => {
     try {
+      setFetchingAssets(true);
       const supabase = createClient();
       const tableName = getTableName(targetType);
+      const titleColumn = getTitleColumn(targetType);
       
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from(tableName as any)
-        .select('id, title, name')
+        .select(`id, ${titleColumn}`)
         .eq('suite_id', suiteId)
-        .limit(20);
+        .order(titleColumn, { ascending: true })
+        .limit(100);
       
-      setAvailableAssets(data || []);
+      if (error) {
+        console.error('Error fetching assets:', error);
+        toast.error('Failed to load assets');
+        setAvailableAssets([]);
+        return;
+      }
+
+      const normalizedData = (data || []).map((item: any) => ({
+        id: item.id,
+        displayName: item[titleColumn] || 'Untitled'
+      }));
+      
+      setAvailableAssets(normalizedData);
     } catch (error) {
       console.error('Error fetching assets:', error);
+      toast.error('Failed to load assets');
+      setAvailableAssets([]);
+    } finally {
+      setFetchingAssets(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetId) return;
+    if (!targetId) {
+      toast.error('Please select an asset to link');
+      return;
+    }
 
     try {
       setLoading(true);
+      
+      // Get current user
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error('You must be logged in to create links');
+        return;
+      }
+
       await relationshipsApi.create({
         source_type: sourceType,
         source_id: sourceId,
         target_type: targetType,
         target_id: targetId,
         relationship_type: relationshipType,
-        notes: notes || undefined
+        notes: notes || undefined,
+        created_by: user.id,
+        suite_id: suiteId
       });
+      
+      toast.success('Asset linked successfully');
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating relationship:', error);
-      alert('Failed to link asset');
+      
+      // Handle specific error types
+      if (error?.code === '42501') {
+        toast.error('Permission denied. You may need to add the suite_id column to asset_relationships table.');
+      } else if (error?.message) {
+        toast.error(`Failed to link asset: ${error.message}`);
+      } else {
+        toast.error('Failed to link asset. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -95,7 +155,7 @@ export default function LinkAssetModal({ sourceType, sourceId, suiteId, onClose,
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
           >
             <X className="w-5 h-5" />
           </button>
@@ -108,8 +168,12 @@ export default function LinkAssetModal({ sourceType, sourceId, suiteId, onClose,
             </label>
             <select
               value={targetType}
-              onChange={(e) => setTargetType(e.target.value as AssetType)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+              onChange={(e) => {
+                setTargetType(e.target.value as AssetType);
+                setTargetId('');
+              }}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              disabled={loading}
             >
               <option value="test_case">Test Case</option>
               <option value="bug">Bug</option>
@@ -128,16 +192,24 @@ export default function LinkAssetModal({ sourceType, sourceId, suiteId, onClose,
             <select
               value={targetId}
               onChange={(e) => setTargetId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               required
+              disabled={loading || fetchingAssets}
             >
-              <option value="">Choose an asset...</option>
+              <option value="">
+                {fetchingAssets ? 'Loading...' : 'Choose an asset...'}
+              </option>
               {availableAssets.map((asset) => (
                 <option key={asset.id} value={asset.id}>
-                  {asset.title || asset.name}
+                  {asset.displayName}
                 </option>
               ))}
             </select>
+            {!fetchingAssets && availableAssets.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                No {targetType.replace('_', ' ')}s found in this suite
+              </p>
+            )}
           </div>
 
           <div>
@@ -147,7 +219,8 @@ export default function LinkAssetModal({ sourceType, sourceId, suiteId, onClose,
             <select
               value={relationshipType}
               onChange={(e) => setRelationshipType(e.target.value as RelationshipType)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              disabled={loading}
             >
               <option value="related_to">Related to</option>
               <option value="reproduces">Reproduces</option>
@@ -171,16 +244,17 @@ export default function LinkAssetModal({ sourceType, sourceId, suiteId, onClose,
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               placeholder="Add any additional context..."
+              disabled={loading}
             />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !targetId}>
+            <Button type="submit" disabled={loading || !targetId || fetchingAssets}>
               {loading ? 'Linking...' : 'Link Asset'}
             </Button>
           </div>

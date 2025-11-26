@@ -61,4 +61,6 @@ export interface CreateRelationshipData {
   target_id: string;
   relationship_type: RelationshipType;
   notes?: string;
+  suite_id: string;      // Added
+  created_by: string; 
 }
