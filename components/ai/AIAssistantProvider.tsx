@@ -1,6 +1,3 @@
-// ============================================
-// FILE: components/ai/AIAssistantProvider.tsx
-// ============================================
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
@@ -12,6 +9,14 @@ type Message = {
   content: string
   timestamp: Date
   metadata?: Record<string, any>
+}
+
+type AIGeneratedContent = {
+  id: string
+  type: 'bug_report' | 'test_case' | 'test_cases' | 'report' | 'document'
+  status: 'draft' | 'reviewed' | 'saved'
+  data: any
+  createdAt: Date
 }
 
 type AIContextType = {
@@ -30,6 +35,12 @@ type AIContextType = {
   detectAutomation: (testCases: any[]) => Promise<any>
   generateReport: (data: any, type?: string) => Promise<any>
   generateDocumentation: (content: any, type?: string) => Promise<any>
+
+  // Content Management
+  generatedContent: AIGeneratedContent[]
+  reviewContent: (contentId: string) => Promise<void>
+  saveContent: (contentId: string, editedData?: any) => Promise<void>
+  discardContent: (contentId: string) => Promise<void>
 
   // Context Management
   context: DashboardContext
@@ -124,6 +135,9 @@ export function AIAssistantProvider({
   const [currentModel, setCurrentModel] = useState('gemini-1.5-flash')
   const [availableModels, setAvailableModels] = useState<any[]>([])
 
+  // Content State
+  const [generatedContent, setGeneratedContent] = useState<AIGeneratedContent[]>([])
+
   // Suggestions State
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
 
@@ -168,7 +182,52 @@ export function AIAssistantProvider({
     setContext(prev => ({ ...prev, ...updates }))
   }, [])
 
-  // Send chat message
+  // Detect generation intent from message
+  const detectGenerationIntent = useCallback((message: string): string | null => {
+    const lowerMessage = message.toLowerCase()
+    
+    if (lowerMessage.includes('generate bug') || lowerMessage.includes('create bug') || lowerMessage.includes('bug report')) {
+      return 'bug_report'
+    }
+    if (lowerMessage.includes('generate test case') && !lowerMessage.includes('test cases')) {
+      return 'test_case'
+    }
+    if (lowerMessage.includes('generate test cases') || lowerMessage.includes('create test cases')) {
+      return 'test_cases'
+    }
+    if (lowerMessage.includes('generate report') || lowerMessage.includes('create report')) {
+      return 'report'
+    }
+    if (lowerMessage.includes('generate document') || lowerMessage.includes('create document')) {
+      return 'document'
+    }
+    
+    return null
+  }, [])
+
+  // Handle generated content
+  const handleGeneratedContent = useCallback((response: any, intent: string) => {
+    try {
+      // Extract JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return
+
+      const parsed = JSON.parse(jsonMatch[0])
+      
+      const content: AIGeneratedContent = {
+        id: `gen_${Date.now()}`,
+        type: intent as AIGeneratedContent['type'],
+        status: 'draft',
+        data: intent === 'test_cases' ? parsed.testCases : parsed,
+        createdAt: new Date()
+      }
+
+      setGeneratedContent(prev => [...prev, content])
+    } catch (e) {
+      console.error('Failed to parse generated content:', e)
+    }
+  }, [])
+
   // Send chat message
   const sendMessage = useCallback(async (message: string) => {
     const userMessage: Message = {
@@ -180,21 +239,17 @@ export function AIAssistantProvider({
     setIsLoading(true)
     setError(null)
 
+    // Detect if user wants to generate something
+    const intent = detectGenerationIntent(message)
+
     try {
-      // Get page-specific data to send with context
+      // Get page-specific data
       const pageData: Record<string, any> = {}
 
-      // You can extract this from your page's state/props
-      // For now, this is a placeholder - you'll need to pass actual data
       if (pathname.includes('/bugs')) {
         pageData.pageName = 'Bug Reports'
-        // Add actual bug stats when available
-        // pageData.totalBugs = yourBugStats.total
-        // pageData.openBugs = yourBugStats.open
-        // pageData.resolvedBugs = yourBugStats.resolved
       } else if (pathname.includes('/test-cases')) {
         pageData.pageName = 'Test Cases'
-        // Add actual test case stats when available
       } else if (pathname.includes('/test-runs')) {
         pageData.pageName = 'Test Runs'
       } else if (pathname.includes('/analytics')) {
@@ -203,20 +258,53 @@ export function AIAssistantProvider({
         pageData.pageName = 'Dashboard'
       }
 
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message,
-          context: {
-            ...context,
-            pageData // ADD THIS
-          },
-          conversationHistory: messages.slice(-10)
-        })
-      })
+      let response, data
 
-      const data = await response.json()
+      // Route to appropriate generation endpoint
+      if (intent === 'bug_report') {
+        response = await fetch('/api/ai/bug-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            prompt: message, 
+            suiteId: context.suiteId 
+          })
+        })
+        data = await response.json()
+        
+        if (data.success && data.data.bugReport) {
+          handleGeneratedContent(JSON.stringify(data.data.bugReport), 'bug_report')
+        }
+      } else if (intent === 'test_case' || intent === 'test_cases') {
+        response = await fetch('/api/ai/test-cases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            prompt: message, 
+            suiteId: context.suiteId 
+          })
+        })
+        data = await response.json()
+        
+        if (data.success && data.data.testCases) {
+          handleGeneratedContent(JSON.stringify({ testCases: data.data.testCases }), 'test_cases')
+        }
+      } else {
+        // Regular chat
+        response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            context: {
+              ...context,
+              pageData
+            },
+            conversationHistory: messages.slice(-10)
+          })
+        })
+        data = await response.json()
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to get AI response')
@@ -224,7 +312,7 @@ export function AIAssistantProvider({
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data.response,
+        content: data.response || 'Content generated! Review it above and click "Save to Database" when ready.',
         timestamp: new Date(),
         metadata: data.metadata
       }
@@ -256,7 +344,129 @@ export function AIAssistantProvider({
     } finally {
       setIsLoading(false)
     }
-  }, [context, messages, pathname]) // ADD pathname to dependencies
+  }, [context, messages, pathname, detectGenerationIntent, handleGeneratedContent])
+
+  // Review content
+  const reviewContent = useCallback(async (contentId: string) => {
+    setGeneratedContent(prev => prev.map(c => 
+      c.id === contentId ? { ...c, status: 'reviewed' } : c
+    ))
+  }, [])
+
+  // Save content to database
+  const saveContent = useCallback(async (contentId: string, editedData?: any) => {
+    const content = generatedContent.find(c => c.id === contentId)
+    if (!content) return
+
+    setIsLoading(true)
+    try {
+      let endpoint = ''
+      let payload: any = {
+        suiteId: context.suiteId,
+        createdBy: context.userId
+      }
+
+      switch (content.type) {
+        case 'bug_report':
+          endpoint = '/api/bugs/create'
+          payload = {
+            ...payload,
+            ...(editedData || content.data),
+            stepsToReproduce: (editedData || content.data).stepsToReproduce,
+            expectedBehavior: (editedData || content.data).expectedBehavior,
+            actualBehavior: (editedData || content.data).actualBehavior,
+            possibleCause: (editedData || content.data).possibleCause,
+            suggestedFix: (editedData || content.data).suggestedFix
+          }
+          break
+          
+        case 'test_case':
+          endpoint = '/api/test-cases/create'
+          payload = {
+            ...payload,
+            ...(editedData || content.data)
+          }
+          break
+          
+        case 'test_cases':
+          endpoint = '/api/test-cases/create/bulk'
+          payload = {
+            suiteId: context.suiteId,
+            testCases: editedData || content.data
+          }
+          break
+          
+        case 'report':
+          endpoint = '/api/reports/create'
+          payload = {
+            ...payload,
+            ...(editedData || content.data)
+          }
+          break
+          
+        case 'document':
+          endpoint = '/api/documents/create'
+          payload = {
+            ...payload,
+            ...(editedData || content.data)
+          }
+          break
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save')
+      }
+
+      // Update status and remove from generated content
+      setGeneratedContent(prev => prev.filter(c => c.id !== contentId))
+      
+      // Add success message
+      const successMessage: Message = {
+        role: 'assistant',
+        content: `✅ Successfully saved ${content.type.replace('_', ' ')} to the database!`,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, successMessage])
+
+      // Trigger page refresh if needed
+      window.dispatchEvent(new CustomEvent('ai-content-saved', { 
+        detail: { type: content.type } 
+      }))
+
+    } catch (err: any) {
+      console.error('Save error:', err)
+      setError(err.message)
+      
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `❌ Failed to save: ${err.message}`,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [generatedContent, context])
+
+  // Discard content
+  const discardContent = useCallback(async (contentId: string) => {
+    setGeneratedContent(prev => prev.filter(c => c.id !== contentId))
+    
+    const message: Message = {
+      role: 'assistant',
+      content: 'Content discarded. Let me know if you need anything else!',
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, message])
+  }, [])
 
   // Generate test cases
   const generateTestCases = useCallback(async (prompt: string, config?: any) => {
@@ -371,7 +581,7 @@ export function AIAssistantProvider({
     }
   }, [])
 
-  // Other AI operations (using direct service calls)
+  // Detect automation opportunities
   const detectAutomation = useCallback(async (testCases: any[]) => {
     setIsLoading(true)
     try {
@@ -381,6 +591,7 @@ export function AIAssistantProvider({
     }
   }, [])
 
+  // Generate report
   const generateReport = useCallback(async (data: any, type?: string) => {
     setIsLoading(true)
     try {
@@ -390,6 +601,7 @@ export function AIAssistantProvider({
     }
   }, [])
 
+  // Generate documentation
   const generateDocumentation = useCallback(async (content: any, type?: string) => {
     setIsLoading(true)
     try {
@@ -412,7 +624,6 @@ export function AIAssistantProvider({
     }
   }, [])
 
-  // Generate contextual suggestions
   // Generate contextual suggestions
   const generateContextualSuggestions = useCallback((path: string, suiteId: string | null) => {
     const newSuggestions: Suggestion[] = []
@@ -472,7 +683,7 @@ export function AIAssistantProvider({
     }
 
     setSuggestions(newSuggestions)
-  }, [sendMessage])
+  }, [])
 
   const dismissSuggestion = useCallback((id: string) => {
     setSuggestions(prev => prev.map(s =>
@@ -491,6 +702,10 @@ export function AIAssistantProvider({
     detectAutomation,
     generateReport,
     generateDocumentation,
+    generatedContent,
+    reviewContent,
+    saveContent,
+    discardContent,
     context,
     updateContext,
     suggestions: suggestions.filter(s => !s.dismissed),

@@ -697,10 +697,13 @@ export type Database = {
         Row: {
           account_type: string
           avatar_url: string | null
+          bio: string | null
+          company: string | null
           created_at: string | null
           created_by: string | null
           email: string
           id: string
+          location: string | null
           metadata: Json | null
           name: string
           organization_id: string | null
@@ -709,17 +712,24 @@ export type Database = {
           organization_size: string | null
           organization_website: string | null
           registration_completed: boolean | null
+          role: string | null
           status: string | null
           terms_accepted: boolean | null
+          theme: string | null
+          timezone: string | null
           updated_at: string | null
+          website: string | null
         }
         Insert: {
           account_type: string
           avatar_url?: string | null
+          bio?: string | null
+          company?: string | null
           created_at?: string | null
           created_by?: string | null
           email: string
           id: string
+          location?: string | null
           metadata?: Json | null
           name: string
           organization_id?: string | null
@@ -728,17 +738,24 @@ export type Database = {
           organization_size?: string | null
           organization_website?: string | null
           registration_completed?: boolean | null
+          role?: string | null
           status?: string | null
           terms_accepted?: boolean | null
+          theme?: string | null
+          timezone?: string | null
           updated_at?: string | null
+          website?: string | null
         }
         Update: {
           account_type?: string
           avatar_url?: string | null
+          bio?: string | null
+          company?: string | null
           created_at?: string | null
           created_by?: string | null
           email?: string
           id?: string
+          location?: string | null
           metadata?: Json | null
           name?: string
           organization_id?: string | null
@@ -747,9 +764,13 @@ export type Database = {
           organization_size?: string | null
           organization_website?: string | null
           registration_completed?: boolean | null
+          role?: string | null
           status?: string | null
           terms_accepted?: boolean | null
+          theme?: string | null
+          timezone?: string | null
           updated_at?: string | null
+          website?: string | null
         }
         Relationships: []
       }
@@ -1468,6 +1489,7 @@ export type Database = {
           created_at: string | null
           created_by: string
           description: string | null
+          generator_type: string | null
           icon: string | null
           id: string
           name: string
@@ -1479,6 +1501,7 @@ export type Database = {
           created_at?: string | null
           created_by: string
           description?: string | null
+          generator_type?: string | null
           icon?: string | null
           id?: string
           name: string
@@ -1490,6 +1513,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           description?: string | null
+          generator_type?: string | null
           icon?: string | null
           id?: string
           name?: string

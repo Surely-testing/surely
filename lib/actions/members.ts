@@ -2,8 +2,10 @@
 // lib/actions/members.ts
 // ============================================
 
+'use server'
+
 import type { InviteMemberFormData } from '@/types/member.types';
-import { createClient } from '../supabase/client';
+import { createClient } from '../supabase/server';
 import { revalidatePath } from 'next/cache';
 
 export async function inviteSuiteMember(suiteId: string, data: InviteMemberFormData) {

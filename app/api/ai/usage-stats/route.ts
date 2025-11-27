@@ -6,10 +6,6 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { aiLogger } from '@/lib/ai/ai-logger'
 
-
-// ============================================
-// FILE: app/api/ai/usage-stats/route.ts
-// ============================================
 export async function GET(request: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
