@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/Textarea'
 import { useCreateTestDataType } from '@/lib/hooks/useTestData'
 import { AVAILABLE_ICONS, AVAILABLE_COLORS } from '@/lib/constants/test-data-constants'
+import { testDataGenerators } from '@/lib/utils/test-data-generators'
 import { cn } from '@/lib/utils/cn'
 
 interface CreateTestDataTypeFormProps {
@@ -23,6 +24,15 @@ interface FormData {
   description: string
   icon: string
   color: string
+  generatorType: string
+}
+
+// Get available generator types from the testDataGenerators
+const getAvailableGeneratorTypes = () => {
+  return Object.keys(testDataGenerators).filter(key => key !== 'generic').map(key => ({
+    value: key,
+    label: key.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  }))
 }
 
 export default function CreateTestDataTypeForm({
@@ -30,16 +40,18 @@ export default function CreateTestDataTypeForm({
   onCancel,
   onSuccess
 }: CreateTestDataTypeFormProps) {
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
     defaultValues: {
       name: '',
       description: '',
       icon: 'Database',
-      color: 'blue'
+      color: 'blue',
+      generatorType: 'names'
     }
   })
 
   const createType = useCreateTestDataType(suiteId)
+  const selectedGenerator = watch('generatorType')
 
   const onSubmit = async (data: FormData) => {
     const result = await createType.mutateAsync({
@@ -48,6 +60,7 @@ export default function CreateTestDataTypeForm({
         description: data.description || undefined,
         icon: data.icon,
         color: data.color,
+        generator_type: data.generatorType, // Store the generator type
         created_by: ''
     })
 
@@ -55,6 +68,18 @@ export default function CreateTestDataTypeForm({
       onSuccess()
     }
   }
+
+  // Generate preview data
+  const previewData = React.useMemo(() => {
+    if (selectedGenerator && testDataGenerators[selectedGenerator as keyof typeof testDataGenerators]) {
+      try {
+        return testDataGenerators[selectedGenerator as keyof typeof testDataGenerators]()
+      } catch (error) {
+        return ['Preview unavailable']
+      }
+    }
+    return ['No preview available']
+  }, [selectedGenerator])
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -105,6 +130,42 @@ export default function CreateTestDataTypeForm({
               placeholder="Brief description of this test data type..."
               rows={3}
             />
+          </div>
+
+          {/* Generator Type */}
+          <div className="space-y-2">
+            <Label htmlFor="generatorType">
+              Data Generator <span className="text-red-500">*</span>
+            </Label>
+            <select
+              id="generatorType"
+              {...register('generatorType', { required: 'Generator type is required' })}
+              className="w-full border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+            >
+              {getAvailableGeneratorTypes().map(generator => (
+                <option key={generator.value} value={generator.value}>
+                  {generator.label}
+                </option>
+              ))}
+            </select>
+            {errors.generatorType && (
+              <p className="text-sm text-red-500">{errors.generatorType.message}</p>
+            )}
+          </div>
+
+          {/* Preview */}
+          <div className="space-y-2">
+            <Label>Preview</Label>
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              {previewData.map((item, index) => (
+                <div key={index} className="text-sm font-mono text-foreground/80">
+                  {item}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Sample data that will be generated using this type
+            </p>
           </div>
 
           {/* Icon and Color */}

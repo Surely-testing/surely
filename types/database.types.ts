@@ -180,6 +180,7 @@ export type Database = {
           relationship_type: string
           source_id: string
           source_type: string
+          suite_id: string | null
           target_id: string
           target_type: string
           updated_at: string | null
@@ -192,6 +193,7 @@ export type Database = {
           relationship_type: string
           source_id: string
           source_type: string
+          suite_id?: string | null
           target_id: string
           target_type: string
           updated_at?: string | null
@@ -204,11 +206,20 @@ export type Database = {
           relationship_type?: string
           source_id?: string
           source_type?: string
+          suite_id?: string | null
           target_id?: string
           target_type?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "asset_relationships_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bug_attachments: {
         Row: {
@@ -690,6 +701,7 @@ export type Database = {
           created_by: string | null
           email: string
           id: string
+          metadata: Json | null
           name: string
           organization_id: string | null
           organization_industry: string | null
@@ -708,6 +720,7 @@ export type Database = {
           created_by?: string | null
           email: string
           id: string
+          metadata?: Json | null
           name: string
           organization_id?: string | null
           organization_industry?: string | null
@@ -726,6 +739,7 @@ export type Database = {
           created_by?: string | null
           email?: string
           id?: string
+          metadata?: Json | null
           name?: string
           organization_id?: string | null
           organization_industry?: string | null

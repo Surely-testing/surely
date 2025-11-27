@@ -41,6 +41,7 @@ export function DashboardShell({ user, profile, suites, children }: DashboardShe
         <Sidebar
           suites={suites}
           currentSuiteId={currentSuite.id}
+          userId={user.id}
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
         />

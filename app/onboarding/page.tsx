@@ -1,26 +1,27 @@
 // ============================================
-// FILE: app/onboarding/page.tsx (FIXED - Proper Flow)
+// FILE: app/onboarding/page.tsx (FIXED - Correct Routing)
 // ============================================
 'use client'
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
+import { setCurrentSuite } from '@/lib/suites/session' // Import suite session helper
 import { toast } from 'sonner'
-import { 
-  Building2, Globe, Users, Loader2, CheckCircle2, 
+import {
+  Building2, Globe, Users, Loader2, CheckCircle2,
   ArrowRight, Sparkles, Folder, X, Plus
 } from 'lucide-react'
 
 export default function OnboardingPage() {
   const router = useRouter()
   const { supabase } = useSupabase()
-  
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [profile, setProfile] = useState<any>(null)
   const [currentStep, setCurrentStep] = useState(1)
-  
+
   const [formData, setFormData] = useState({
     organizationWebsite: '',
     organizationDescription: '',
@@ -36,7 +37,7 @@ export default function OnboardingPage() {
   const loadProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      
+
       if (!user) {
         router.push('/login')
         return
@@ -103,7 +104,7 @@ export default function OnboardingPage() {
   const handleEmailChange = (index: number, value: string) => {
     setFormData(prev => ({
       ...prev,
-      inviteEmails: prev.inviteEmails.map((email, i) => 
+      inviteEmails: prev.inviteEmails.map((email, i) =>
         i === index ? value : email
       ),
     }))
@@ -122,11 +123,11 @@ export default function OnboardingPage() {
       if (!user) return
 
       const updateData: any = {}
-      
+
       if (formData.organizationWebsite) {
         updateData.organization_website = formData.organizationWebsite
       }
-      
+
       if (formData.organizationDescription) {
         updateData.metadata = {
           organization_description: formData.organizationDescription
@@ -156,7 +157,7 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const validEmails = formData.inviteEmails.filter(email => 
+      const validEmails = formData.inviteEmails.filter(email =>
         email && /\S+@\S+\.\S+/.test(email)
       )
 
@@ -210,25 +211,45 @@ export default function OnboardingPage() {
 
       // Determine owner type and ID
       const ownerType = profile?.account_type === 'organization' ? 'organization' : 'individual'
-      const ownerId = ownerType === 'organization' 
+      const ownerId = ownerType === 'organization'
         ? (profile.organization_id || user.id)
         : user.id
 
+      console.log('Creating suite with:', { ownerType, ownerId, userId: user.id })
+
+      // ✅ Include admins and members for organization suites
+      const suiteData: any = {
+        name: formData.suiteName.trim(),
+        description: formData.suiteDescription.trim() || '',
+        owner_type: ownerType,
+        owner_id: ownerId,
+        created_by: user.id,
+        status: 'active',
+      }
+
+      // ✅ Add creator as admin and member for organization suites
+      if (ownerType === 'organization') {
+        suiteData.admins = [user.id]
+        suiteData.members = [user.id]
+      }
+
       // Create test suite
-      const { data: suiteData, error: suiteError } = await supabase
+      const { data: suite, error: suiteError } = await supabase
         .from('test_suites')
-        .insert({
-          name: formData.suiteName.trim(),
-          description: formData.suiteDescription.trim() || '',
-          owner_type: ownerType,
-          owner_id: ownerId,
-          created_by: user.id,
-          status: 'active',
-        })
+        .insert(suiteData)
         .select()
         .single()
 
-      if (suiteError) throw suiteError
+      if (suiteError) {
+        console.error('Suite creation error:', suiteError)
+        throw suiteError
+      }
+
+      console.log('✅ Suite created successfully:', suite)
+
+      // ✅ CRITICAL: Set this suite as the current suite in session
+      await setCurrentSuite(suite.id)
+      console.log('✅ Set current suite in session:', suite.id)
 
       // ✅ Mark onboarding as complete
       const { error: updateError } = await supabase
@@ -236,14 +257,17 @@ export default function OnboardingPage() {
         .update({ registration_completed: true })
         .eq('id', user.id)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('Profile update error:', updateError)
+        throw updateError
+      }
 
       // Log activity
       await supabase.from('activity_logs').insert({
         user_id: user.id,
         action: 'onboarding_completed',
         resource_type: 'test_suite',
-        resource_id: suiteData.id,
+        resource_id: suite.id,
         metadata: {
           suite_name: formData.suiteName,
           account_type: profile.account_type,
@@ -254,7 +278,8 @@ export default function OnboardingPage() {
         description: 'Your workspace is ready!'
       })
 
-      // ✅ Redirect to dashboard
+      // ✅ FIXED: Redirect to /dashboard (not /dashboard/${suiteId})
+      // The DashboardShell will automatically detect and use the current suite from context
       router.push('/dashboard')
       router.refresh()
     } catch (error: any) {
@@ -299,13 +324,12 @@ export default function OnboardingPage() {
           {Array.from({ length: totalSteps }).map((_, index) => (
             <div
               key={index}
-              className={`w-3 h-3 rounded-full transition-all ${
-                currentStep > index + 1 
-                  ? 'bg-success scale-125' 
-                  : currentStep === index + 1 
-                  ? 'bg-primary scale-125' 
-                  : 'bg-border'
-              }`}
+              className={`w-3 h-3 rounded-full transition-all ${currentStep > index + 1
+                  ? 'bg-success scale-125'
+                  : currentStep === index + 1
+                    ? 'bg-primary scale-125'
+                    : 'bg-border'
+                }`}
             />
           ))}
         </div>
@@ -409,9 +433,8 @@ export default function OnboardingPage() {
                       {email && email.includes('@') && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
                           <div
-                            className={`w-2 h-2 rounded-full ${
-                              email.endsWith(`@${orgDomain}`) ? 'bg-success' : 'bg-warning'
-                            }`}
+                            className={`w-2 h-2 rounded-full ${email.endsWith(`@${orgDomain}`) ? 'bg-success' : 'bg-warning'
+                              }`}
                             title={email.endsWith(`@${orgDomain}`) ? 'Internal' : 'External'}
                           />
                         </div>

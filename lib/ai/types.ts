@@ -3,7 +3,7 @@
 // TypeScript types for the AI system
 // ============================================
 
-export type ModelName = 'gemini-2.0-flash-lite' | 'gemini-1.5-pro' | 'gemini-pro'
+export type ModelName = 'gemini-2.0-flash-lite' | 'gemini-1.5-flash-latest' | 'gemini-1.5-pro-latest'
 
 export interface ModelConfig {
   name: string
@@ -46,8 +46,13 @@ interface BugReportResponseData extends BaseAIResponseData {
   bugReport: BugReport
 }
 
+// Extended response data for test data generation
+interface TestDataResponseData extends BaseAIResponseData {
+  testData: string[]
+}
+
 // Union type for all possible response data shapes
-export type AIResponseData = BaseAIResponseData | TestCasesResponseData | BugReportResponseData
+export type AIResponseData = BaseAIResponseData | TestCasesResponseData | BugReportResponseData | TestDataResponseData
 
 export interface AIResponse {
   success: boolean
@@ -58,16 +63,11 @@ export interface AIResponse {
 
 export interface ChatContext {
   currentPage: string
-  suiteId: string | null
-  suiteName: string | null
+  suiteId?: string | null
+  suiteName?: string | null
   userId: string
-  userRole?: string
-  recentActions: string[]
-  conversationHistory: Array<{
-    role: 'user' | 'assistant' | 'system'
-    content: string
-  }>
-  pageData?: Record<string, any>
+  conversationHistory: Array<{ role: string; content: string }>
+  pageData?: any
 }
 
 export interface AIUsageLogInput {
@@ -150,6 +150,10 @@ export function isBugReportResponse(data: AIResponseData): data is BugReportResp
   return 'bugReport' in data
 }
 
+export function isTestDataResponse(data: AIResponseData): data is TestDataResponseData {
+  return 'testData' in data
+}
+
 export function isBaseResponse(data: AIResponseData): data is BaseAIResponseData {
-  return 'content' in data && !('testCases' in data) && !('bugReport' in data)
+  return 'content' in data && !('testCases' in data) && !('bugReport' in data) && !('testData' in data)
 }

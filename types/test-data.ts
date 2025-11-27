@@ -1,15 +1,14 @@
-// types/test-data.ts (at root level, not in lib/)
-
 export interface TestDataType {
     id: string
     suite_id: string
     name: string
     description: string | null
-    icon: string | null;
-    color: string | null;
-    created_by: string;
-    created_at: string | null;
-    updated_at: string | null;
+    generator_type: string | null // Generator type field
+    icon: string | null
+    color: string | null
+    created_by: string
+    created_at: string | null
+    updated_at: string | null
     item_count?: number
 }
 
@@ -20,24 +19,26 @@ export interface TestDataItem {
     value: string
     metadata?: Record<string, any>
     created_by: string
-    created_at: string | null;
-    updated_at: string | null;
+    created_at: string | null
+    updated_at: string | null
 }
 
 export interface CreateTestDataTypeInput {
     suite_id: string
     name: string
-    description?: string | null;
-    icon?: string | null;
-    color?: string | null;
-    created_by: string;
+    description?: string | null
+    generator_type?: string | null // ADD THIS LINE
+    icon?: string | null
+    color?: string | null
+    created_by: string
 }
 
 export interface UpdateTestDataTypeInput {
     name?: string
-    description?: string | null;
-    icon?: string | null;
-    color?: string | null;
+    description?: string | null
+    generator_type?: string | null // ADD THIS LINE TOO
+    icon?: string | null
+    color?: string | null
 }
 
 export interface CreateTestDataItemInput {

@@ -191,7 +191,7 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
       />
 
       {/* Portal Content */}
-      <div className="relative w-full max-w-sm animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+      <div className="relative w-full max-w-md animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
         <div className="bg-card border border-border rounded-2xl shadow-theme-xl overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
@@ -294,7 +294,7 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
                   <button
                     type="submit"
                     disabled={isLoading || !formData.name.trim()}
-                    className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2.5 btn-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                   >
                     {isLoading ? (
                       <>
@@ -304,7 +304,7 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
                     ) : (
                       <>
                         <FolderPlus className="w-4 h-4" />
-                        <span>Create Suite</span>
+                        <span>Create</span>
                       </>
                     )}
                   </button>

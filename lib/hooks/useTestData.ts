@@ -3,8 +3,9 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase/client'
 import {
+  getTestDataTypes,
+  getTestDataItems,
   createTestDataType,
   updateTestDataType,
   deleteTestDataTypes,
@@ -25,14 +26,11 @@ export function useTestDataTypes(suiteId: string) {
   return useQuery({
     queryKey: ['test-data-types', suiteId],
     queryFn: async () => {
-      const supabase = await createClient()
-      const { data, error } = await supabase
-        .from('test_data_types')
-        .select('*')
-        .eq('suite_id', suiteId)
-      
-      if (error) throw new Error(error.message)
-      return data
+      const result = await getTestDataTypes(suiteId)
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch test data types')
+      }
+      return result.data
     },
     enabled: !!suiteId
   })
@@ -96,19 +94,19 @@ export function useDeleteTestDataTypes(suiteId: string) {
   })
 }
 
+// ============================================
+// TEST DATA ITEMS HOOKS
+// ============================================
 export function useTestDataItems(typeId: string | null) {
   return useQuery({
     queryKey: ['test-data-items', typeId],
     queryFn: async () => {
       if (!typeId) return []
-      const supabase = await createClient()
-      const { data, error } = await supabase
-        .from('test_data_items')
-        .select('*')
-        .eq('type_id', typeId)
-      
-      if (error) throw new Error(error.message)
-      return data
+      const result = await getTestDataItems(typeId)
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch test data items')
+      }
+      return result.data
     },
     enabled: !!typeId
   })
@@ -121,7 +119,9 @@ export function useCreateTestDataItems(typeId: string) {
     mutationFn: (items: CreateTestDataItemInput[]) => createTestDataItems(items),
     onSuccess: (result) => {
       if (result.success) {
+        // Invalidate both items and types (to update item count)
         queryClient.invalidateQueries({ queryKey: ['test-data-items', typeId] })
+        queryClient.invalidateQueries({ queryKey: ['test-data-types'] })
         toast.success(`${result.data?.length || 0} items generated successfully`)
       } else {
         toast.error(result.error || 'Failed to create test data items')
@@ -140,7 +140,9 @@ export function useDeleteTestDataItems(typeId: string) {
     mutationFn: (ids: string[]) => deleteTestDataItems(ids),
     onSuccess: (result) => {
       if (result.success) {
+        // Invalidate both items and types (to update item count)
         queryClient.invalidateQueries({ queryKey: ['test-data-items', typeId] })
+        queryClient.invalidateQueries({ queryKey: ['test-data-types'] })
         toast.success('Test data items deleted successfully')
       } else {
         toast.error(result.error || 'Failed to delete test data items')

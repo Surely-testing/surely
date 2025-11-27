@@ -4,13 +4,13 @@
 import React, { useState } from 'react'
 import { TestDataItem } from '@/types/test-data'
 import { Copy, Check } from 'lucide-react'
-import { cn } from '@/lib/utils/cn'
+import { TableRow, TableGrid, TableCell, TableCheckbox } from '@/components/ui/Table'
 
 interface TestDataItemRowProps {
   item: TestDataItem
   isSelected: boolean
   onSelect: (id: string) => void
-  isLast: boolean
+  isLast?: boolean
 }
 
 export default function TestDataItemRow({
@@ -32,39 +32,49 @@ export default function TestDataItemRow({
   }
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2 sm:gap-4 py-2 sm:py-3 hover:bg-muted transition-colors",
-        !isLast && "border-b border-border"
-      )}
+    <TableRow
+      selected={isSelected}
+      selectable
+      className="cursor-default"
     >
-      <input
-        type="checkbox"
+      <TableCheckbox
         checked={isSelected}
-        onChange={() => onSelect(item.id)}
-        className="w-4 h-4 rounded border-input text-primary focus:ring-primary flex-shrink-0"
+        onCheckedChange={() => onSelect(item.id)}
       />
-      
-      <div className="flex-1 font-mono text-sm text-foreground truncate pr-2">
-        {item.value || '<empty>'}
+
+      <div className="flex items-center justify-between gap-4">
+        <TableGrid columns={2}>
+          {/* Value */}
+          <TableCell className="col-span-1">
+            <code className="font-mono text-sm text-foreground break-all">
+              {item.value || '<empty>'}
+            </code>
+          </TableCell>
+
+          {/* Copy Button */}
+          <TableCell className="col-span-1 flex justify-end">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                copyToClipboard(item.value)
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors min-w-[75px] justify-center"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3 h-3 text-green-600" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3" />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+          </TableCell>
+        </TableGrid>
       </div>
-      
-      <button
-        onClick={() => copyToClipboard(item.value)}
-        className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium text-foreground bg-card border border-border rounded hover:bg-muted transition-colors w-auto sm:min-w-[75px] flex-shrink-0"
-      >
-        {copied ? (
-          <>
-            <Check className="w-3 h-3" />
-            Copied!
-          </>
-        ) : (
-          <>
-            <Copy className="w-3 h-3" />
-            Copy
-          </>
-        )}
-      </button>
-    </div>
+    </TableRow>
   )
 }
