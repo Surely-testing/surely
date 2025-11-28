@@ -11,7 +11,7 @@ import Link from 'next/link'
 
 export default function SuitesView({ ownedSuites, memberSuites, userId }: any) {
   const getUserRole = (suite: any) => {
-    if (suite.owner_id === userId) return 'owner'
+    if (suite.created_by === userId) return 'owner'
     if (suite.admins?.includes(userId)) return 'admin'
     return 'member'
   }
@@ -33,20 +33,10 @@ export default function SuitesView({ ownedSuites, memberSuites, userId }: any) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Your Test Suites</CardTitle>
-              <CardDescription>
-                Test suites you own or are a member of
-              </CardDescription>
-            </div>
-            <Link href="/dashboard">
-              <Button>
-                <LayoutGrid className="h-4 w-4 mr-2" />
-                View All Suites
-              </Button>
-            </Link>
-          </div>
+          <CardTitle>Your Test Suites</CardTitle>
+          <CardDescription>
+            Test suites you own or are a member of
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {allSuites.length === 0 ? (
@@ -56,7 +46,7 @@ export default function SuitesView({ ownedSuites, memberSuites, userId }: any) {
                 You don't have any test suites yet
               </p>
               <Link href="/dashboard">
-                <Button>Create Your First Suite</Button>
+                <Button>Go to Dashboard</Button>
               </Link>
             </div>
           ) : (
@@ -84,7 +74,7 @@ export default function SuitesView({ ownedSuites, memberSuites, userId }: any) {
                         </div>
                       </div>
                       <Link href={`/${suite.id}`}>
-                        <Button variant="outline">Open Suite</Button>
+                        <Button variant="outline">View Details</Button>
                       </Link>
                     </CardContent>
                   </Card>

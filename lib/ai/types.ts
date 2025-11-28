@@ -55,6 +55,7 @@ interface TestDataResponseData extends BaseAIResponseData {
 export type AIResponseData = BaseAIResponseData | TestCasesResponseData | BugReportResponseData | TestDataResponseData
 
 export interface AIResponse {
+  [x: string]: any
   success: boolean
   data?: AIResponseData
   error?: string

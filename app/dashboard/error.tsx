@@ -47,7 +47,7 @@ export default function DashboardError({
             Try again
           </Button>
           <Button 
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/dashboard')}
             variant="outline"
           >
             Go home

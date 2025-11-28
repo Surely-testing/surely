@@ -1,73 +1,33 @@
 // ============================================
-// FILE: app/api/ai/bug-report/route.ts
+// FILE: app/api/ai/bug-report/route.ts (FIXED WITH VALIDATION)
 // ============================================
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/server'
 import { aiService } from '@/lib/ai/ai-service'
-import { aiLogger } from '@/lib/ai/ai-logger'
-import { AIUsageLogInput, isBugReportResponse } from '@/lib/ai/types'
-import type { Database } from '@/types/database.types'
 
-// Request body type
-interface BugReportRequestBody {
-  prompt: string
-  suiteId: string
-  consoleError?: string
-  additionalContext?: string
-}
-
-export async function POST(request: NextRequest) {
-  const startTime = Date.now()
-
+export async function POST(req: NextRequest) {
   try {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore })
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Unauthorized' 
+      }, { status: 401 })
     }
 
-    const body: BugReportRequestBody = await request.json()
+    const body = await req.json()
     const { prompt, suiteId, consoleError, additionalContext } = body
 
     if (!prompt || !suiteId) {
-      return NextResponse.json(
-        { error: 'Prompt and suiteId are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ 
+        success: false, 
+        error: 'prompt and suiteId are required' 
+      }, { status: 400 })
     }
 
-    // Verify access
-    const { data: suite, error: suiteError } = await supabase
-      .from('test_suites')
-      .select('id, created_by, admins, members')
-      .eq('id', suiteId)
-      .single()
-
-    if (suiteError || !suite) {
-      return NextResponse.json({ error: 'Test suite not found' }, { status: 404 })
-    }
-
-    // Type assertion to handle the suite data structure
-    const suiteData = suite as {
-      id: string
-      created_by: string
-      admins: string[] | null
-      members: string[] | null
-    }
-
-    const hasAccess = 
-      suiteData.created_by === user.id ||
-      suiteData.admins?.includes(user.id) ||
-      suiteData.members?.includes(user.id)
-
-    if (!hasAccess) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
-
-    // Generate bug report
+    // Generate bug report using AI
     const result = await aiService.generateBugReport(
       prompt,
       consoleError,
@@ -75,52 +35,70 @@ export async function POST(request: NextRequest) {
     )
 
     if (!result.success || !result.data) {
-      return NextResponse.json({
-        success: false,
-        error: result.error,
-        userMessage: result.userMessage
+      return NextResponse.json({ 
+        success: false, 
+        error: result.error || 'Failed to generate bug report' 
       }, { status: 500 })
     }
 
-    const duration = Date.now() - startTime
-
-    // Extract bug report with proper typing using type guard
-    const bugReport = isBugReportResponse(result.data) ? result.data.bugReport : undefined
-
-    // Log to Supabase
-    const logData: AIUsageLogInput = {
-      user_id: user.id,
-      suite_id: suiteId,
-      operation_type: 'bug_report',
-      operation_name: 'Generate Bug Report',
-      asset_type: 'bugs',
-      provider: 'gemini',
-      model: result.data.model || 'unknown',
-      tokens_used: result.data.tokensUsed || 0,
-      input_tokens: result.data.inputTokens ?? 0,
-      output_tokens: result.data.outputTokens ?? 0,
-      cost: result.data.cost ?? 0,
-      cost_breakdown: result.data.costBreakdown,
-      success: true,
-      prompt_summary: prompt.substring(0, 200),
-      prompt_length: prompt.length,
-      duration_ms: duration,
-      metadata: {
-        hadConsoleError: !!consoleError,
-        severity: bugReport?.severity
-      }
+    // ✅ CRITICAL: Validate and normalize the AI response
+    // Handle both direct bugReport and nested structure
+    const rawBugReport = (result.data as any).bugReport || result.data
+    
+    const normalizedBugReport = {
+      title: rawBugReport.title || rawBugReport.name || 'AI Generated Bug Report',
+      description: rawBugReport.description || rawBugReport.details || 'No description provided',
+      severity: rawBugReport.severity || 'medium',
+      priority: rawBugReport.priority || 'medium',
+      status: rawBugReport.status || 'open',
+      stepsToReproduce: Array.isArray(rawBugReport.stepsToReproduce)
+        ? rawBugReport.stepsToReproduce
+        : (Array.isArray(rawBugReport.steps_to_reproduce)
+          ? rawBugReport.steps_to_reproduce
+          : (Array.isArray(rawBugReport.steps)
+            ? rawBugReport.steps
+            : ['No steps provided'])),
+      expectedBehavior: rawBugReport.expectedBehavior || 
+                       rawBugReport.expected_behavior || 
+                       rawBugReport.expectedResult ||
+                       'Not specified',
+      actualBehavior: rawBugReport.actualBehavior || 
+                     rawBugReport.actual_behavior || 
+                     rawBugReport.actualResult ||
+                     'Not specified',
+      environment: typeof rawBugReport.environment === 'object'
+        ? rawBugReport.environment
+        : (rawBugReport.environment 
+          ? { info: rawBugReport.environment }
+          : {}),
+      possibleCause: rawBugReport.possibleCause || 
+                    rawBugReport.possible_cause || 
+                    rawBugReport.cause ||
+                    '',
+      suggestedFix: rawBugReport.suggestedFix || 
+                   rawBugReport.suggested_fix || 
+                   rawBugReport.fix ||
+                   ''
     }
 
-    aiLogger.logUsage(logData)
-      .catch(err => console.error('Failed to log:', err))
+    console.log('✅ Normalized bug report:', normalizedBugReport)
 
-    return NextResponse.json(result)
+    return NextResponse.json({ 
+      success: true, 
+      data: {
+        bugReport: normalizedBugReport,
+        tokensUsed: result.metadata?.tokensUsed || 0,
+        cost: result.metadata?.cost || 0
+      },
+      response: `I've generated a bug report. Review the details and click "Save to Database" when ready.`
+    })
 
   } catch (error: any) {
-    console.error('Bug Report API Error:', error)
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+    console.error('Bug report generation error:', error)
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message || 'Internal server error',
+      details: error.details || error.hint
+    }, { status: 500 })
   }
 }

@@ -6,7 +6,6 @@ import type { AICallOptions, AIResponse, ChatContext, TestCase, BugReport } from
 
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!)
 
-// Model configurations with pricing
 export const AI_MODELS = {
   'gemini-2.0-flash-lite': {
     name: 'gemini-2.0-flash-lite',
@@ -45,7 +44,6 @@ export class AIService {
     }
   }
 
-  // ============= CORE AI CALL =============
   async callAI(prompt: string, options: AICallOptions = {}): Promise<AIResponse> {
     try {
       const modelName = options.model || this.currentModel
@@ -62,15 +60,19 @@ export class AIService {
 
       const result = await model.generateContent(prompt)
       const response = result.response
-      const text = response.text()
+      let text = response.text()
 
-      // Calculate usage and cost - with proper type handling
+      // Clean markdown from chat responses
+      if (options.type === 'dashboard_chat') {
+        text = text.replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#{1,6}\s+/gm, '').replace(/^\* /gm, '• ').replace(/^- /gm, '• ')
+      }
+
       const usage = response.usageMetadata as {
         promptTokenCount?: number
         candidatesTokenCount?: number
         totalTokenCount?: number
       } | undefined
-      
+
       const inputTokens = usage?.promptTokenCount || 0
       const outputTokens = usage?.candidatesTokenCount || 0
       const totalTokens = usage?.totalTokenCount || 0
@@ -101,10 +103,9 @@ export class AIService {
     }
   }
 
-  // ============= DASHBOARD CHAT =============
   async chatWithContext(message: string, context: ChatContext): Promise<AIResponse> {
     const systemPrompt = this.buildDashboardSystemPrompt(context)
-    
+
     const conversationContext = context.conversationHistory
       .slice(-5)
       .map(msg => `${msg.role}: ${msg.content}`)
@@ -117,7 +118,7 @@ ${conversationContext}
 
 USER: ${message}
 
-Provide a helpful, actionable response specific to the user's current context.`
+Respond naturally and professionally without markdown formatting. Use the data provided above to answer.`
 
     return this.callAI(fullPrompt, {
       type: 'dashboard_chat',
@@ -126,7 +127,60 @@ Provide a helpful, actionable response specific to the user's current context.`
     })
   }
 
-  // ============= TEST CASES GENERATION =============
+  private buildDashboardSystemPrompt(context: ChatContext): string {
+    const pageData = context.pageData || {}
+
+    // Extract clean page name
+    const pathSegments = context.currentPage.split('/').filter(Boolean)
+    const rawPageName = pathSegments[pathSegments.length - 1] || 'dashboard'
+    const cleanPageName = rawPageName
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+
+    let dataSection = ''
+    let hasData = false
+
+    if (pageData.bugs && Array.isArray(pageData.bugs) && pageData.bugs.length > 0) {
+      hasData = true
+      const stats = pageData.bugStats
+      dataSection += `\n\nBUG DATA FROM DATABASE:
+Total: ${pageData.bugs.length} bugs
+Severity: ${stats?.bySeverity.critical || 0} critical, ${stats?.bySeverity.high || 0} high, ${stats?.bySeverity.medium || 0} medium, ${stats?.bySeverity.low || 0} low
+Status: ${stats?.byStatus.open || 0} open, ${stats?.byStatus.inProgress || 0} in progress, ${stats?.byStatus.resolved || 0} resolved, ${stats?.byStatus.closed || 0} closed
+
+Top bugs:
+${pageData.bugs.slice(0, 5).map((b: any, i: number) => `${i + 1}. [${b.severity}] ${b.title} (${b.status})`).join('\n')}`
+    }
+
+    if (pageData.testCases && Array.isArray(pageData.testCases) && pageData.testCases.length > 0) {
+      hasData = true
+      const stats = pageData.testCaseStats
+      dataSection += `\n\nTEST CASE DATA FROM DATABASE:
+Total: ${pageData.testCases.length} test cases
+Status: ${stats?.byStatus.passed || 0} passed, ${stats?.byStatus.failed || 0} failed, ${stats?.byStatus.pending || 0} pending`
+    }
+
+    if (pageData.testRuns && Array.isArray(pageData.testRuns) && pageData.testRuns.length > 0) {
+      hasData = true
+      const latest = pageData.latestRunStats
+      dataSection += `\n\nTEST RUN DATA FROM DATABASE:
+Latest run: ${latest?.passRate || 0}% pass rate (${latest?.passed || 0}/${latest?.total || 0} passed)`
+    }
+
+    return `You are an AI assistant for SURELY QA platform.
+
+Current page: ${cleanPageName}
+Suite: ${context.suiteName}
+${dataSection}
+
+${hasData
+        ? 'IMPORTANT: Use the exact numbers and data above to answer questions. Do NOT say you don\'t have the data or that no data is available.'
+        : 'Note: No data has been loaded yet for this page. The user may not have created any items yet, or they may be on a page that doesn\'t have data. Ask what they need help with.'}
+
+Respond naturally without markdown formatting (no **, *, or #). Never mention page routes like "/dashboard/bugs" - just say "Bugs page" or use the page name.`
+  }
+
   async generateTestCases(prompt: string, templateConfig: any = {}): Promise<AIResponse> {
     const systemInstruction = `You are an expert QA engineer. Generate comprehensive test cases in JSON format.
 
@@ -165,7 +219,6 @@ REQUIRED FORMAT:
 
     if (result.success && result.data) {
       try {
-        // Parse JSON from response
         const jsonMatch = result.data.content.match(/\{[\s\S]*\}/)?.[0]
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch)
@@ -185,7 +238,6 @@ REQUIRED FORMAT:
     return result
   }
 
-  // ============= BUG REPORT GENERATION =============
   async generateBugReport(
     prompt: string,
     consoleError?: string,
@@ -246,198 +298,88 @@ REQUIRED FORMAT:
     return result
   }
 
-      // ============= TEST DATA GENERATION =============
-    async generateTestData(prompt: string, dataType: string, count: number = 3): Promise<AIResponse> {
-        // Check if this is a user persona or profile request
-        const isPersonaRequest = dataType.toLowerCase().includes('persona') || 
-                                  dataType.toLowerCase().includes('profile') ||
-                                  dataType.toLowerCase().includes('user') ||
-                                  prompt.toLowerCase().includes('persona') ||
-                                  prompt.toLowerCase().includes('profile')
+  async generateTestData(prompt: string, dataType: string, count: number = 3): Promise<AIResponse> {
+    const isPersonaRequest = dataType.toLowerCase().includes('persona') ||
+      dataType.toLowerCase().includes('profile') ||
+      dataType.toLowerCase().includes('user') ||
+      prompt.toLowerCase().includes('persona') ||
+      prompt.toLowerCase().includes('profile')
 
-        const systemInstruction = isPersonaRequest 
-            ? `You are a test data generation expert. Generate realistic user personas in a clean, readable format.
+    const systemInstruction = isPersonaRequest
+      ? `Generate realistic user personas. Return ONLY a JSON array of formatted strings.`
+      : `Generate realistic test data. Return ONLY a JSON array of strings.`
 
-IMPORTANT: Return ONLY a JSON array of formatted strings. Each persona should be a single string with line breaks (\\n).
+    const fullPrompt = `Generate ${count} ${dataType} values. Return ONLY JSON array, no markdown.`
 
-Format each persona as:
-"Name: [Full Name]\\nAge: [Age]\\nOccupation: [Job Title]\\nInterests: [comma-separated list]\\nGoals: [comma-separated list]\\nPain Points: [comma-separated list]"
+    const result = await this.callAI(fullPrompt, {
+      type: 'test_data_generation',
+      temperature: 0.8,
+      maxTokens: 1000,
+      systemInstruction
+    })
 
-Example:
-["Name: Alice Johnson\\nAge: 32\\nOccupation: Software Engineer\\nInterests: Coding, hiking, reading\\nGoals: Career advancement, financial stability\\nPain Points: Work-life balance, lack of time", ...]`
-            : `You are a test data generation expert. Generate realistic test data based on the request.
+    if (result.success && result.data) {
+      try {
+        let content = result.data.content.trim()
+        content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '')
 
-IMPORTANT: Return ONLY a JSON array of strings. No markdown, no code blocks, no explanation.
-
-Format:
-["value1", "value2", "value3"]
-
-Examples:
-- For emails: ["john.doe@example.com", "jane.smith@test.com", "user123@gmail.com"]
-- For names: ["John Smith", "Jane Doe", "Michael Johnson"]
-- For phone numbers: ["+1-555-123-4567", "+1-555-987-6543", "+1-555-456-7890"]`
-
-        const fullPrompt = isPersonaRequest
-            ? `Generate ${count} realistic user personas for testing.
-            
-User request: ${prompt}
-
-Return ONLY the JSON array of ${count} formatted persona strings, nothing else.`
-            : `Generate ${count} realistic ${dataType} test data values.
-        
-User request: ${prompt}
-
-Return ONLY the JSON array of ${count} values, nothing else.`
-
-        const result = await this.callAI(fullPrompt, {
-            type: 'test_data_generation',
-            temperature: 0.8,
-            maxTokens: 1000,
-            systemInstruction
-        })
-
-        if (result.success && result.data) {
-            try {
-                // Try to extract JSON array from the response
-                let content = result.data.content.trim()
-                
-                // Remove markdown code blocks if present
-                content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-                
-                // Try to find JSON array
-                const arrayMatch = content.match(/\[[\s\S]*\]/)
-                if (arrayMatch) {
-                    const parsed = JSON.parse(arrayMatch[0])
-                    if (Array.isArray(parsed)) {
-                        return {
-                            ...result,
-                            data: {
-                                ...result.data,
-                                testData: parsed
-                            }
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to parse test data:', e)
+        const arrayMatch = content.match(/\[[\s\S]*\]/)
+        if (arrayMatch) {
+          const parsed = JSON.parse(arrayMatch[0])
+          if (Array.isArray(parsed)) {
+            return {
+              ...result,
+              data: {
+                ...result.data,
+                testData: parsed
+              }
             }
+          }
         }
-
-        return result
-    }
-
-    // ============= GRAMMAR CHECK =============
-  async checkGrammar(text: string, options: { style?: string } = {}): Promise<AIResponse> {
-    const systemInstruction = `You are a professional editor. Check grammar, spelling, and style. Provide corrections in JSON format:
-
-{
-  "correctedText": "Fully corrected version",
-  "corrections": [
-    {
-      "original": "Original text",
-      "corrected": "Corrected text",
-      "type": "grammar|spelling|style",
-      "explanation": "Why this change was made"
-    }
-  ],
-  "overallScore": 0-100,
-  "suggestions": ["Overall writing improvement suggestions"]
-}`
-
-    const prompt = `Check and improve this text:\n\n${text}\n\nStyle preference: ${options.style || 'professional'}`
-
-    return this.callAI(prompt, {
-      type: 'grammar_check',
-      temperature: 0.3,
-      systemInstruction
-    })
-  }
-
-  // ============= AUTOMATION OPPORTUNITIES =============
-  async detectAutomationOpportunities(testCases: TestCase[]): Promise<AIResponse> {
-    const systemInstruction = `You are a test automation expert. Analyze test cases and identify automation opportunities.
-
-Provide response in JSON:
-{
-  "automationScore": 0-100,
-  "recommendations": [
-    {
-      "testCaseId": "TC001",
-      "automationPotential": "high|medium|low",
-      "reasoning": "Why automate or not",
-      "estimatedEffort": "hours",
-      "tools": ["Suggested tools"],
-      "complexity": "low|medium|high"
-    }
-  ],
-  "summary": "Overall automation strategy"
-}`
-
-    const prompt = `Analyze these test cases for automation potential:\n\n${JSON.stringify(testCases, null, 2)}`
-
-    return this.callAI(prompt, {
-      type: 'automation_analysis',
-      temperature: 0.6,
-      systemInstruction
-    })
-  }
-
-  // ============= QA REPORT GENERATION =============
-  async generateQAReport(reportData: any, reportType: string = 'sprint'): Promise<AIResponse> {
-    const systemInstruction = `You are a QA manager. Generate comprehensive QA reports with insights and recommendations.`
-
-    const prompt = `Generate a ${reportType} QA report based on this data:\n\n${JSON.stringify(reportData, null, 2)}\n\nInclude: executive summary, key metrics, quality trends, risk areas, and actionable recommendations.`
-
-    return this.callAI(prompt, {
-      type: 'qa_report',
-      temperature: 0.5,
-      maxTokens: 3000,
-      systemInstruction
-    })
-  }
-
-  // ============= DOCUMENTATION GENERATION =============
-  async generateDocumentation(content: any, docType: string = 'test_plan'): Promise<AIResponse> {
-    const systemInstruction = `You are a technical writer. Generate clear, comprehensive documentation.`
-
-    const prompt = `Generate ${docType} documentation for:\n\n${JSON.stringify(content, null, 2)}\n\nMake it professional, clear, and actionable.`
-
-    return this.callAI(prompt, {
-      type: 'documentation',
-      temperature: 0.6,
-      maxTokens: 3000,
-      systemInstruction
-    })
-  }
-
-  // ============= TEAM IMPROVEMENTS =============
-  async generateTeamImprovements(teamData: any): Promise<AIResponse> {
-    const systemInstruction = `You are an agile coach. Analyze team performance and provide actionable improvement suggestions.`
-
-    const prompt = `Analyze this team data and provide improvement recommendations:\n\n${JSON.stringify(teamData, null, 2)}`
-
-    return this.callAI(prompt, {
-      type: 'team_improvement',
-      temperature: 0.7,
-      systemInstruction
-    })
-  }
-
-  // ============= UTILITY METHODS =============
-  switchModel(modelName: ModelName) {
-    if (!AI_MODELS[modelName]) {
-      return {
-        success: false,
-        error: `Invalid model: ${modelName}`
+      } catch (e) {
+        console.error('Failed to parse test data:', e)
       }
     }
 
-    this.currentModel = modelName
-    return {
-      success: true,
-      currentModel: this.currentModel,
-      modelInfo: AI_MODELS[modelName]
+    return result
+  }
+
+  async checkGrammar(text: string, options: { style?: string } = {}): Promise<AIResponse> {
+    const systemInstruction = `You are a professional editor. Check grammar, spelling, and style.`
+    const prompt = `Check and improve this text:\n\n${text}`
+    return this.callAI(prompt, { type: 'grammar_check', temperature: 0.3, systemInstruction })
+  }
+
+  async detectAutomationOpportunities(testCases: TestCase[]): Promise<AIResponse> {
+    const systemInstruction = `You are a test automation expert. Analyze test cases.`
+    const prompt = `Analyze these test cases:\n\n${JSON.stringify(testCases, null, 2)}`
+    return this.callAI(prompt, { type: 'automation_analysis', temperature: 0.6, systemInstruction })
+  }
+
+  async generateQAReport(reportData: any, reportType: string = 'sprint'): Promise<AIResponse> {
+    const systemInstruction = `You are a QA manager. Generate QA reports.`
+    const prompt = `Generate a ${reportType} report:\n\n${JSON.stringify(reportData, null, 2)}`
+    return this.callAI(prompt, { type: 'qa_report', temperature: 0.5, maxTokens: 3000, systemInstruction })
+  }
+
+  async generateDocumentation(content: any, docType: string = 'test_plan'): Promise<AIResponse> {
+    const systemInstruction = `You are a technical writer.`
+    const prompt = `Generate ${docType} documentation:\n\n${JSON.stringify(content, null, 2)}`
+    return this.callAI(prompt, { type: 'documentation', temperature: 0.6, maxTokens: 3000, systemInstruction })
+  }
+
+  async generateTeamImprovements(teamData: any): Promise<AIResponse> {
+    const systemInstruction = `You are an agile coach.`
+    const prompt = `Analyze this team data:\n\n${JSON.stringify(teamData, null, 2)}`
+    return this.callAI(prompt, { type: 'team_improvement', temperature: 0.7, systemInstruction })
+  }
+
+  switchModel(modelName: ModelName) {
+    if (!AI_MODELS[modelName]) {
+      return { success: false, error: `Invalid model: ${modelName}` }
     }
+    this.currentModel = modelName
+    return { success: true, currentModel: this.currentModel, modelInfo: AI_MODELS[modelName] }
   }
 
   getCurrentModelInfo() {
@@ -457,49 +399,12 @@ Provide response in JSON:
 
   async testConnection() {
     try {
-      const result = await this.callAI('Respond with: OK', {
-        type: 'health_check',
-        maxTokens: 10
-      })
-
-      return {
-        success: result.success,
-        healthy: result.success,
-        model: this.currentModel,
-        error: result.error
-      }
+      const result = await this.callAI('Respond with: OK', { type: 'health_check', maxTokens: 10 })
+      return { success: result.success, healthy: result.success, model: this.currentModel, error: result.error }
     } catch (error: any) {
-      return {
-        success: false,
-        healthy: false,
-        error: error.message
-      }
+      return { success: false, healthy: false, error: error.message }
     }
-  }
-
-  // Build system prompt for dashboard chat
-  private buildDashboardSystemPrompt(context: ChatContext): string {
-    const pageName = context.currentPage.split('/').pop() || 'dashboard'
-    
-    return `You are an AI assistant embedded in a project management platform.
-
-CURRENT CONTEXT:
-- Page: ${context.currentPage}
-- Suite: ${context.suiteName || 'No suite selected'}
-- User ID: ${context.userId}
-
-CAPABILITIES:
-1. Projects - Create and manage projects
-2. Tasks - Task management with priorities
-3. Test Cases - QA test case generation
-4. Bug Reports - Detailed bug tracking
-5. Team - Team collaboration
-6. Calendar - Event scheduling
-7. Analytics - Insights and reports
-
-Provide concise, actionable responses. Reference specific features. Guide users through workflows.`
   }
 }
 
-// Export singleton instance
 export const aiService = new AIService()

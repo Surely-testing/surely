@@ -1,3 +1,7 @@
+// ============================================
+// FILE: components/ai/AIAssistantProvider.tsx
+// COMPLETE FIXED VERSION
+// ============================================
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
@@ -20,48 +24,31 @@ type AIGeneratedContent = {
 }
 
 type AIContextType = {
-  // UI State
   isOpen: boolean
   setIsOpen: (open: boolean) => void
   messages: Message[]
-
-  // Core Functions
   sendMessage: (message: string) => Promise<void>
-
-  // AI Operations
   generateTestCases: (prompt: string, config?: any) => Promise<any>
   generateBugReport: (prompt: string, consoleError?: string, context?: any) => Promise<any>
   checkGrammar: (text: string, options?: any) => Promise<any>
   detectAutomation: (testCases: any[]) => Promise<any>
   generateReport: (data: any, type?: string) => Promise<any>
   generateDocumentation: (content: any, type?: string) => Promise<any>
-
-  // Content Management
   generatedContent: AIGeneratedContent[]
   reviewContent: (contentId: string) => Promise<void>
   saveContent: (contentId: string, editedData?: any) => Promise<void>
   discardContent: (contentId: string) => Promise<void>
-
-  // Context Management
   context: DashboardContext
   updateContext: (updates: Partial<DashboardContext>) => void
-
-  // Suggestions
   suggestions: Suggestion[]
   dismissSuggestion: (id: string) => void
-
-  // Model Management
   currentModel: string
   availableModels: any[]
   switchModel: (modelName: string) => Promise<void>
-
-  // Status
   isInitialized: boolean
   isHealthy: boolean
   isLoading: boolean
   error: string | null
-
-  // Stats
   sessionStats: {
     operations: number
     tokens: number
@@ -86,7 +73,7 @@ type Suggestion = {
   description: string
   action?: {
     label: string
-    handler: string | (() => void)
+    handler: () => void
   }
   priority: 'low' | 'medium' | 'high'
   dismissed: boolean
@@ -107,17 +94,15 @@ export function AIAssistantProvider({
 }) {
   const pathname = usePathname()
 
-  // UI State
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm your AI assistant for SURELY. I can help you generate test cases, analyze bugs, create reports, and provide insights on your testing activities. What would you like to do?",
+      content: "Hi! I'm your AI assistant for SURELY. I can help you generate test cases, analyze bugs, create reports, and provide insights. What would you like to do?",
       timestamp: new Date()
     }
   ])
 
-  // Context State
   const [context, setContext] = useState<DashboardContext>({
     currentPage: pathname,
     suiteId,
@@ -127,21 +112,14 @@ export function AIAssistantProvider({
     pageData: {}
   })
 
-  // AI State
   const [isInitialized, setIsInitialized] = useState(false)
   const [isHealthy, setIsHealthy] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentModel, setCurrentModel] = useState('gemini-1.5-flash')
+  const [currentModel, setCurrentModel] = useState('gemini-2.0-flash-lite')
   const [availableModels, setAvailableModels] = useState<any[]>([])
-
-  // Content State
   const [generatedContent, setGeneratedContent] = useState<AIGeneratedContent[]>([])
-
-  // Suggestions State
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-
-  // Session Stats
   const [sessionStats, setSessionStats] = useState({
     operations: 0,
     tokens: 0,
@@ -174,18 +152,150 @@ export function AIAssistantProvider({
 
   // Update context when route changes
   useEffect(() => {
-    updateContext({ currentPage: pathname })
-    generateContextualSuggestions(pathname, suiteId)
-  }, [pathname, suiteId])
+    setContext(prev => ({ ...prev, currentPage: pathname }))
+  }, [pathname])
+
+  // ✅ FETCH ACTUAL PAGE DATA
+  // ✅ FETCH ACTUAL PAGE DATA
+  useEffect(() => {
+    const fetchPageData = async () => {
+      if (!suiteId) {
+        console.log('⚠️ No suiteId, skipping data fetch')
+        return
+      }
+
+      console.log('🔄 Fetching page data for:', pathname, 'Suite:', suiteName)
+
+      try {
+        const pageData: Record<string, any> = {
+          pageName: pathname.split('/').pop() || 'dashboard',
+          suiteId,
+          suiteName
+        }
+
+        // Fetch based on current page
+        if (pathname.includes('/bugs')) {
+          console.log('📡 Fetching bugs for suite:', suiteId)
+          const response = await fetch(`/api/bugs?suiteId=${suiteId}`)
+
+          if (!response.ok) {
+            console.error('❌ Bugs API failed:', response.status, response.statusText)
+            return
+          }
+
+          const result = await response.json()
+          console.log('📥 Bugs API response:', result)
+
+          if (result.success && result.data && Array.isArray(result.data)) {
+            const bugs = result.data
+            console.log(`✅ Found ${bugs.length} bugs`)
+
+            pageData.bugs = bugs
+            pageData.bugStats = {
+              total: bugs.length,
+              bySeverity: {
+                critical: bugs.filter((b: any) => b.severity === 'critical').length,
+                high: bugs.filter((b: any) => b.severity === 'high').length,
+                medium: bugs.filter((b: any) => b.severity === 'medium').length,
+                low: bugs.filter((b: any) => b.severity === 'low').length
+              },
+              byStatus: {
+                open: bugs.filter((b: any) => b.status === 'open').length,
+                inProgress: bugs.filter((b: any) => b.status === 'in_progress').length,
+                resolved: bugs.filter((b: any) => b.status === 'resolved').length,
+                closed: bugs.filter((b: any) => b.status === 'closed').length
+              }
+            }
+            console.log('✅ Bug stats:', pageData.bugStats)
+          } else {
+            console.log('⚠️ No bugs found or invalid response')
+          }
+        }
+
+        if (pathname.includes('/test-cases')) {
+          console.log('📡 Fetching test cases for suite:', suiteId)
+          const response = await fetch(`/api/test-cases?suiteId=${suiteId}`)
+
+          if (!response.ok) {
+            console.error('❌ Test cases API failed:', response.status)
+            return
+          }
+
+          const result = await response.json()
+          console.log('📥 Test cases API response:', result)
+
+          if (result.success && result.data && Array.isArray(result.data)) {
+            const testCases = result.data
+            console.log(`✅ Found ${testCases.length} test cases`)
+
+            pageData.testCases = testCases
+            pageData.testCaseStats = {
+              total: testCases.length,
+              byStatus: {
+                passed: testCases.filter((tc: any) => tc.status === 'passed').length,
+                failed: testCases.filter((tc: any) => tc.status === 'failed').length,
+                pending: testCases.filter((tc: any) => tc.status === 'pending').length,
+                skipped: testCases.filter((tc: any) => tc.status === 'skipped').length
+              }
+            }
+            console.log('✅ Test case stats:', pageData.testCaseStats)
+          }
+        }
+
+        if (pathname.includes('/test-runs')) {
+          console.log('📡 Fetching test runs for suite:', suiteId)
+          const response = await fetch(`/api/test-runs?suiteId=${suiteId}`)
+
+          if (!response.ok) {
+            console.error('❌ Test runs API failed:', response.status)
+            return
+          }
+
+          const result = await response.json()
+          console.log('📥 Test runs API response:', result)
+
+          if (result.success && result.data && Array.isArray(result.data)) {
+            const testRuns = result.data
+            pageData.testRuns = testRuns.slice(0, 10)
+            if (testRuns.length > 0) {
+              const latestRun = testRuns[0]
+              pageData.latestRunStats = {
+                passed: latestRun.passed,
+                failed: latestRun.failed,
+                total: latestRun.total,
+                passRate: Math.round((latestRun.passed / latestRun.total) * 100)
+              }
+            }
+            console.log('✅ Test run stats:', pageData.latestRunStats)
+          }
+        }
+
+        console.log('✅ Final pageData being set:', pageData)
+        console.log('Has bugs?', !!pageData.bugs, 'Count:', pageData.bugs?.length)
+        setContext(prev => {
+          console.log('🔄 Updating context with pageData')
+          return { ...prev, pageData }
+        })
+      } catch (error) {
+        console.error('❌ Error fetching page data:', error)
+      }
+    }
+
+    // Add a small delay to ensure the component is mounted
+    const timeoutId = setTimeout(() => {
+      fetchPageData()
+    }, 100)
+
+    return () => clearTimeout(timeoutId)
+  }, [pathname, suiteId, suiteName])
 
   const updateContext = useCallback((updates: Partial<DashboardContext>) => {
     setContext(prev => ({ ...prev, ...updates }))
   }, [])
 
-  // Detect generation intent from message
   const detectGenerationIntent = useCallback((message: string): string | null => {
     const lowerMessage = message.toLowerCase()
-    
+
     if (lowerMessage.includes('generate bug') || lowerMessage.includes('create bug') || lowerMessage.includes('bug report')) {
       return 'bug_report'
     }
@@ -201,34 +311,78 @@ export function AIAssistantProvider({
     if (lowerMessage.includes('generate document') || lowerMessage.includes('create document')) {
       return 'document'
     }
-    
+
     return null
   }, [])
 
-  // Handle generated content
   const handleGeneratedContent = useCallback((response: any, intent: string) => {
     try {
-      // Extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) return
+      let parsed: any = null
 
-      const parsed = JSON.parse(jsonMatch[0])
-      
+      if (typeof response === 'string') {
+        const jsonMatch = response.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0])
+        }
+      } else if (response && typeof response === 'object') {
+        parsed = response
+      }
+
+      if (!parsed) {
+        console.error('Could not parse generated content:', response)
+        return
+      }
+
+      let contentData: any
+
+      if (intent === 'bug_report') {
+        contentData = {
+          title: parsed.title || 'Untitled Bug Report',
+          description: parsed.description || 'No description provided',
+          severity: parsed.severity || 'medium',
+          priority: parsed.priority || 'medium',
+          status: parsed.status || 'open',
+          stepsToReproduce: Array.isArray(parsed.stepsToReproduce)
+            ? parsed.stepsToReproduce
+            : (Array.isArray(parsed.steps_to_reproduce)
+              ? parsed.steps_to_reproduce
+              : ['No steps provided']),
+          expectedBehavior: parsed.expectedBehavior || parsed.expected_behavior || 'Not specified',
+          actualBehavior: parsed.actualBehavior || parsed.actual_behavior || 'Not specified',
+          environment: parsed.environment || {},
+          possibleCause: parsed.possibleCause || parsed.possible_cause || '',
+          suggestedFix: parsed.suggestedFix || parsed.suggested_fix || ''
+        }
+      } else if (intent === 'test_cases') {
+        contentData = parsed.testCases || [parsed]
+      } else if (intent === 'test_case') {
+        contentData = {
+          title: parsed.title || 'Untitled Test Case',
+          description: parsed.description || 'No description provided',
+          steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+          expectedResult: parsed.expectedResult || parsed.expected_result || 'Not specified',
+          priority: parsed.priority || 'medium',
+          type: parsed.type || 'functional'
+        }
+      } else {
+        contentData = parsed
+      }
+
       const content: AIGeneratedContent = {
         id: `gen_${Date.now()}`,
         type: intent as AIGeneratedContent['type'],
         status: 'draft',
-        data: intent === 'test_cases' ? parsed.testCases : parsed,
+        data: contentData,
         createdAt: new Date()
       }
 
+      console.log('✅ Generated content added:', content)
       setGeneratedContent(prev => [...prev, content])
     } catch (e) {
-      console.error('Failed to parse generated content:', e)
+      console.error('❌ Failed to parse generated content:', e)
     }
   }, [])
 
-  // Send chat message
   const sendMessage = useCallback(async (message: string) => {
     const userMessage: Message = {
       role: 'user',
@@ -239,71 +393,39 @@ export function AIAssistantProvider({
     setIsLoading(true)
     setError(null)
 
-    // Detect if user wants to generate something
+    // 🔍 DEBUG LOGGING
+    console.log('===========================================')
+    console.log('📤 SENDING TO API')
+    console.log('Context object:', context)
+    console.log('Context.pageData:', context.pageData)
+    console.log('Has bugs?:', context.pageData?.bugs)
+    console.log('Bugs length:', context.pageData?.bugs?.length)
+    console.log('===========================================')
+
     const intent = detectGenerationIntent(message)
 
     try {
-      // Get page-specific data
-      const pageData: Record<string, any> = {}
-
-      if (pathname.includes('/bugs')) {
-        pageData.pageName = 'Bug Reports'
-      } else if (pathname.includes('/test-cases')) {
-        pageData.pageName = 'Test Cases'
-      } else if (pathname.includes('/test-runs')) {
-        pageData.pageName = 'Test Runs'
-      } else if (pathname.includes('/analytics')) {
-        pageData.pageName = 'Analytics'
-      } else {
-        pageData.pageName = 'Dashboard'
-      }
-
       let response, data
 
-      // Route to appropriate generation endpoint
-      if (intent === 'bug_report') {
-        response = await fetch('/api/ai/bug-report', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            prompt: message, 
-            suiteId: context.suiteId 
-          })
+      response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          context: context,
+          conversationHistory: messages.slice(-10)
         })
-        data = await response.json()
-        
-        if (data.success && data.data.bugReport) {
-          handleGeneratedContent(JSON.stringify(data.data.bugReport), 'bug_report')
+      })
+      data = await response.json()
+
+      console.log('📥 RESPONSE FROM API:', data)
+
+      if (data.success && data.data) {
+        if (data.data.bugReport) {
+          handleGeneratedContent(data.data.bugReport, 'bug_report')
+        } else if (data.data.testCases) {
+          handleGeneratedContent({ testCases: data.data.testCases }, 'test_cases')
         }
-      } else if (intent === 'test_case' || intent === 'test_cases') {
-        response = await fetch('/api/ai/test-cases', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            prompt: message, 
-            suiteId: context.suiteId 
-          })
-        })
-        data = await response.json()
-        
-        if (data.success && data.data.testCases) {
-          handleGeneratedContent(JSON.stringify({ testCases: data.data.testCases }), 'test_cases')
-        }
-      } else {
-        // Regular chat
-        response = await fetch('/api/ai/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message,
-            context: {
-              ...context,
-              pageData
-            },
-            conversationHistory: messages.slice(-10)
-          })
-        })
-        data = await response.json()
       }
 
       if (!response.ok) {
@@ -318,7 +440,6 @@ export function AIAssistantProvider({
       }
       setMessages(prev => [...prev, assistantMessage])
 
-      // Update session stats
       if (data.metadata) {
         setSessionStats(prev => ({
           operations: prev.operations + 1,
@@ -327,12 +448,11 @@ export function AIAssistantProvider({
         }))
       }
 
-      // Add suggestions
       if (data.suggestions && data.suggestions.length > 0) {
         setSuggestions(prev => [...prev, ...data.suggestions])
       }
     } catch (err: any) {
-      console.error('Chat error:', err)
+      console.error('❌ Chat error:', err)
       setError(err.message)
 
       const errorMessage: Message = {
@@ -344,16 +464,14 @@ export function AIAssistantProvider({
     } finally {
       setIsLoading(false)
     }
-  }, [context, messages, pathname, detectGenerationIntent, handleGeneratedContent])
+  }, [context, messages, detectGenerationIntent, handleGeneratedContent])
 
-  // Review content
   const reviewContent = useCallback(async (contentId: string) => {
-    setGeneratedContent(prev => prev.map(c => 
+    setGeneratedContent(prev => prev.map(c =>
       c.id === contentId ? { ...c, status: 'reviewed' } : c
     ))
   }, [])
 
-  // Save content to database
   const saveContent = useCallback(async (contentId: string, editedData?: any) => {
     const content = generatedContent.find(c => c.id === contentId)
     if (!content) return
@@ -361,57 +479,62 @@ export function AIAssistantProvider({
     setIsLoading(true)
     try {
       let endpoint = ''
-      let payload: any = {
-        suiteId: context.suiteId,
-        createdBy: context.userId
-      }
+      let payload: any = {}
 
       switch (content.type) {
         case 'bug_report':
-          endpoint = '/api/bugs/create'
+          endpoint = '/api/bugs'
+          const bugData = editedData || content.data
           payload = {
-            ...payload,
-            ...(editedData || content.data),
-            stepsToReproduce: (editedData || content.data).stepsToReproduce,
-            expectedBehavior: (editedData || content.data).expectedBehavior,
-            actualBehavior: (editedData || content.data).actualBehavior,
-            possibleCause: (editedData || content.data).possibleCause,
-            suggestedFix: (editedData || content.data).suggestedFix
+            suiteId: context.suiteId,
+            title: bugData.title,
+            description: bugData.description,
+            severity: bugData.severity,
+            priority: bugData.priority,
+            status: bugData.status,
+            stepsToReproduce: bugData.stepsToReproduce,
+            expectedBehavior: bugData.expectedBehavior,
+            actualBehavior: bugData.actualBehavior,
+            environment: bugData.environment,
+            possibleCause: bugData.possibleCause,
+            suggestedFix: bugData.suggestedFix
           }
           break
-          
+
         case 'test_case':
-          endpoint = '/api/test-cases/create'
+          endpoint = '/api/test-cases'
           payload = {
-            ...payload,
+            suiteId: context.suiteId,
             ...(editedData || content.data)
           }
           break
-          
+
         case 'test_cases':
-          endpoint = '/api/test-cases/create/bulk'
+          endpoint = '/api/test-cases'
           payload = {
             suiteId: context.suiteId,
             testCases: editedData || content.data
           }
           break
-          
+
         case 'report':
-          endpoint = '/api/reports/create'
+          endpoint = '/api/reports'
           payload = {
-            ...payload,
+            suiteId: context.suiteId,
             ...(editedData || content.data)
           }
           break
-          
+
         case 'document':
-          endpoint = '/api/documents/create'
+          endpoint = '/api/documents'
           payload = {
-            ...payload,
+            suiteId: context.suiteId,
             ...(editedData || content.data)
           }
           break
       }
+
+      console.log('💾 Saving to:', endpoint, payload)
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -425,10 +548,8 @@ export function AIAssistantProvider({
         throw new Error(result.error || 'Failed to save')
       }
 
-      // Update status and remove from generated content
       setGeneratedContent(prev => prev.filter(c => c.id !== contentId))
-      
-      // Add success message
+
       const successMessage: Message = {
         role: 'assistant',
         content: `✅ Successfully saved ${content.type.replace('_', ' ')} to the database!`,
@@ -436,15 +557,14 @@ export function AIAssistantProvider({
       }
       setMessages(prev => [...prev, successMessage])
 
-      // Trigger page refresh if needed
-      window.dispatchEvent(new CustomEvent('ai-content-saved', { 
-        detail: { type: content.type } 
+      window.dispatchEvent(new CustomEvent('ai-content-saved', {
+        detail: { type: content.type }
       }))
 
     } catch (err: any) {
-      console.error('Save error:', err)
+      console.error('❌ Save error:', err)
       setError(err.message)
-      
+
       const errorMessage: Message = {
         role: 'assistant',
         content: `❌ Failed to save: ${err.message}`,
@@ -456,10 +576,9 @@ export function AIAssistantProvider({
     }
   }, [generatedContent, context])
 
-  // Discard content
   const discardContent = useCallback(async (contentId: string) => {
     setGeneratedContent(prev => prev.filter(c => c.id !== contentId))
-    
+
     const message: Message = {
       role: 'assistant',
       content: 'Content discarded. Let me know if you need anything else!',
@@ -468,12 +587,8 @@ export function AIAssistantProvider({
     setMessages(prev => [...prev, message])
   }, [])
 
-  // Generate test cases
   const generateTestCases = useCallback(async (prompt: string, config?: any) => {
-    if (!suiteId) {
-      return { success: false, error: 'No suite selected' }
-    }
-
+    if (!suiteId) return { success: false, error: 'No suite selected' }
     setIsLoading(true)
     setError(null)
 
@@ -485,12 +600,8 @@ export function AIAssistantProvider({
       })
 
       const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Failed to generate test cases')
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate test cases')
-      }
-
-      // Update stats
       if (data.data?.tokensUsed) {
         setSessionStats(prev => ({
           operations: prev.operations + 1,
@@ -509,16 +620,12 @@ export function AIAssistantProvider({
     }
   }, [suiteId])
 
-  // Generate bug report
   const generateBugReport = useCallback(async (
     prompt: string,
     consoleError?: string,
     additionalContext?: any
   ) => {
-    if (!suiteId) {
-      return { success: false, error: 'No suite selected' }
-    }
-
+    if (!suiteId) return { success: false, error: 'No suite selected' }
     setIsLoading(true)
     setError(null)
 
@@ -530,10 +637,7 @@ export function AIAssistantProvider({
       })
 
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate bug report')
-      }
+      if (!response.ok) throw new Error(data.error || 'Failed to generate bug report')
 
       if (data.data?.tokensUsed) {
         setSessionStats(prev => ({
@@ -553,7 +657,6 @@ export function AIAssistantProvider({
     }
   }, [suiteId])
 
-  // Check grammar
   const checkGrammar = useCallback(async (text: string, options?: any) => {
     setIsLoading(true)
     setError(null)
@@ -566,10 +669,7 @@ export function AIAssistantProvider({
       })
 
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to check grammar')
-      }
+      if (!response.ok) throw new Error(data.error || 'Failed to check grammar')
 
       return data
     } catch (err: any) {
@@ -581,7 +681,6 @@ export function AIAssistantProvider({
     }
   }, [])
 
-  // Detect automation opportunities
   const detectAutomation = useCallback(async (testCases: any[]) => {
     setIsLoading(true)
     try {
@@ -591,7 +690,6 @@ export function AIAssistantProvider({
     }
   }, [])
 
-  // Generate report
   const generateReport = useCallback(async (data: any, type?: string) => {
     setIsLoading(true)
     try {
@@ -601,7 +699,6 @@ export function AIAssistantProvider({
     }
   }, [])
 
-  // Generate documentation
   const generateDocumentation = useCallback(async (content: any, type?: string) => {
     setIsLoading(true)
     try {
@@ -611,7 +708,6 @@ export function AIAssistantProvider({
     }
   }, [])
 
-  // Switch model
   const switchModel = useCallback(async (modelName: string) => {
     try {
       const result = aiService.switchModel(modelName as any)
@@ -622,67 +718,6 @@ export function AIAssistantProvider({
     } catch (err: any) {
       setError(err.message)
     }
-  }, [])
-
-  // Generate contextual suggestions
-  const generateContextualSuggestions = useCallback((path: string, suiteId: string | null) => {
-    const newSuggestions: Suggestion[] = []
-
-    if (path.includes('/test-cases') && suiteId) {
-      newSuggestions.push({
-        id: 'testcase-tips-1',
-        type: 'tip',
-        title: 'Generate More Test Cases',
-        description: 'I can help you create comprehensive test cases for your features.',
-        action: {
-          label: 'Generate Now',
-          handler: () => {
-            setIsOpen(true)
-            sendMessage('Help me generate test cases for my current feature')
-          }
-        },
-        priority: 'high',
-        dismissed: false
-      })
-    }
-
-    if (path.includes('/bugs')) {
-      newSuggestions.push({
-        id: 'bug-tips-1',
-        type: 'insight',
-        title: 'Bug Analysis Available',
-        description: 'Let me analyze your bug patterns and suggest improvements.',
-        action: {
-          label: 'Analyze Bugs',
-          handler: () => {
-            setIsOpen(true)
-            sendMessage('Analyze my current bugs and give me insights')
-          }
-        },
-        priority: 'medium',
-        dismissed: false
-      })
-    }
-
-    if (path.includes('/test-runs')) {
-      newSuggestions.push({
-        id: 'testrun-tips-1',
-        type: 'action',
-        title: 'Test Execution Insights',
-        description: 'I can help you understand test run results and identify issues.',
-        action: {
-          label: 'Get Insights',
-          handler: () => {
-            setIsOpen(true)
-            sendMessage('Give me insights on my recent test runs')
-          }
-        },
-        priority: 'high',
-        dismissed: false
-      })
-    }
-
-    setSuggestions(newSuggestions)
   }, [])
 
   const dismissSuggestion = useCallback((id: string) => {

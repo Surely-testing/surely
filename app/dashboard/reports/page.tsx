@@ -1,26 +1,30 @@
 // ============================================
-// FILE: app/(dashboard)/[suiteId]/reports/page.tsx
+// app/dashboard/reports/page.tsx
+// Reports page with suite context
 // ============================================
-import { createClient } from '@/lib/supabase/server'
-import ReportsView from '@/components/reports/ReportsView'
+'use client';
 
-interface ReportsPageProps {
-  params: { suiteId: string }
-}
+import { ReportsView } from "@/components/reports/ReportsView";
+import { useSuiteContext } from "@/providers/SuiteContextProvider";
+import { Toaster } from "sonner";
 
-export const metadata = {
-  title: 'Reports',
-  description: 'View and generate reports',
-}
+export default function ReportsPage() {
+  const { suite } = useSuiteContext();
 
-export default async function ReportsPage({ params }: ReportsPageProps) {
-  const supabase = await createClient()
+  if (!suite) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-muted-foreground">Loading suite...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const { data: reports } = await supabase
-    .from('reports')
-    .select('*')
-    .eq('suite_id', params.suiteId)
-    .order('created_at', { ascending: false })
-
-  return <ReportsView suiteId={params.suiteId} reports={reports || []} />
+  return (
+    <>
+      <Toaster />
+      <ReportsView suiteId={suite.id} />
+    </>
+  );
 }

@@ -14,7 +14,9 @@ import {
   Lock,
   CreditCard,
   LayoutGrid,
+  ArrowLeft,
 } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 
 interface SettingsSidebarProps {
   accountType: 'individual' | 'organization' | 'organization-admin'
@@ -59,7 +61,13 @@ export default function SettingsSidebar({ accountType }: SettingsSidebarProps) {
 
   return (
     <aside className="w-64 border-r bg-muted/30 p-4">
-      <div className="mb-6">
+      <div className="mb-6 space-y-4">
+        <Link href="/dashboard">
+          <Button variant="outline" className="w-full justify-start">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </Link>
         <h2 className="text-lg font-semibold px-2">Settings</h2>
       </div>
       <nav className="space-y-1">

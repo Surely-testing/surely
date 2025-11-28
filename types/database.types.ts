@@ -888,6 +888,7 @@ export type Database = {
       report_schedules: {
         Row: {
           created_at: string | null
+          emails: string[] | null
           frequency: string
           id: string
           is_active: boolean | null
@@ -899,6 +900,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          emails?: string[] | null
           frequency: string
           id?: string
           is_active?: boolean | null
@@ -910,6 +912,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          emails?: string[] | null
           frequency?: string
           id?: string
           is_active?: boolean | null
@@ -929,6 +932,27 @@ export type Database = {
           },
         ]
       }
+      report_types: {
+        Row: {
+          default_metrics: Json | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          default_metrics?: Json | null
+          description?: string | null
+          id: string
+          name: string
+        }
+        Update: {
+          default_metrics?: Json | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           created_at: string | null
@@ -936,6 +960,7 @@ export type Database = {
           data: Json | null
           id: string
           name: string
+          sprint_id: string | null
           suite_id: string
           type: string
           updated_at: string | null
@@ -946,6 +971,7 @@ export type Database = {
           data?: Json | null
           id?: string
           name: string
+          sprint_id?: string | null
           suite_id: string
           type: string
           updated_at?: string | null
@@ -956,11 +982,19 @@ export type Database = {
           data?: Json | null
           id?: string
           name?: string
+          sprint_id?: string | null
           suite_id?: string
           type?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "reports_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reports_suite_id_fkey"
             columns: ["suite_id"]

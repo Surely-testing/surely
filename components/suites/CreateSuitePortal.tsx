@@ -127,6 +127,7 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
         ? (organizationId || userId) 
         : userId
 
+      // FIXED: Add the creator to the admins array
       const { data: suite, error: suiteError } = await supabase
         .from('test_suites')
         .insert({
@@ -136,12 +137,15 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
           owner_id: ownerId,
           created_by: userId,
           status: 'active',
+          admins: [userId], // Add creator as admin
+          members: [], // Initialize empty members array
         })
         .select()
         .single()
 
       if (suiteError) throw suiteError
 
+      // Log the activity
       await supabase.from('activity_logs').insert({
         user_id: userId,
         action: 'test_suite_created',
