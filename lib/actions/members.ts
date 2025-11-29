@@ -1,198 +1,164 @@
 // ============================================
-// lib/actions/members.ts
+// FILE 1: lib/actions/members.ts
 // ============================================
-
 'use server'
 
-import type { InviteMemberFormData } from '@/types/member.types';
-import { createClient } from '../supabase/server';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
 
-export async function inviteSuiteMember(suiteId: string, data: InviteMemberFormData) {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
+export async function inviteOrgMember(
+  organizationId: string,
+  data: { email: string; role: 'admin' | 'manager' | 'member' }
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Not authenticated' }
   }
 
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', organizationId)
+    .eq('user_id', user.id)
+    .single()
 
-  const { data: invitation, error } = await supabase
+  if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    return { error: 'You do not have permission to invite members' }
+  }
+
+  const { data: existingInvite } = await supabase
     .from('invitations')
-    .insert({
-      type: 'testSuite',
-      suite_id: suiteId,
-      invitee_email: data.email,
-      invited_by: user.id,
-      role: data.role as 'admin' | 'member',
-      expires_at: expiresAt.toISOString(),
-    })
-    .select()
-    .single();
+    .select('id')
+    .eq('type', 'organization')
+    .eq('organization_id', organizationId)
+    .eq('invitee_email', data.email)
+    .eq('status', 'pending')
+    .single()
+
+  if (existingInvite) {
+    return { error: 'An invitation has already been sent to this email' }
+  }
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', data.email)
+    .single()
+
+  if (profiles) {
+    const { data: existingMember } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', profiles.id)
+      .single()
+
+    if (existingMember) {
+      return { error: 'This user is already a member of the organization' }
+    }
+  }
+
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 7)
+
+  const { error } = await supabase.from('invitations').insert({
+    type: 'organization',
+    organization_id: organizationId,
+    invitee_email: data.email,
+    invited_by: user.id,
+    role: data.role,
+    expires_at: expiresAt.toISOString(),
+    status: 'pending',
+  })
 
   if (error) {
-    return { error: error.message };
+    return { error: error.message }
   }
 
-  revalidatePath(`/[suiteId]/members`);
-  return { data: invitation };
+  revalidatePath(`/settings/organization`)
+  return { success: true }
 }
 
-export async function removeSuiteMember(suiteId: string, userId: string) {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
+export async function updateOrgMemberRole(
+  organizationId: string,
+  userId: string,
+  role: 'admin' | 'manager' | 'member'
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Not authenticated' }
   }
 
-  // Get current suite
-  const { data: suite, error: fetchError } = await supabase
-    .from('test_suites')
-    .select('members, admins')
-    .eq('id', suiteId)
-    .single();
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', organizationId)
+    .eq('user_id', user.id)
+    .single()
 
-  if (fetchError) {
-    return { error: fetchError.message };
-  }
-
-  // Remove from both arrays
-  const newMembers = (suite.members || []).filter(id => id !== userId);
-  const newAdmins = (suite.admins || []).filter(id => id !== userId);
-
-  const { error } = await supabase
-    .from('test_suites')
-    .update({ members: newMembers, admins: newAdmins })
-    .eq('id', suiteId);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  revalidatePath(`/[suiteId]/members`);
-  return { success: true };
-}
-
-export async function updateSuiteMemberRole(suiteId: string, userId: string, role: 'admin' | 'member') {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
-  }
-
-  // Get current suite
-  const { data: suite, error: fetchError } = await supabase
-    .from('test_suites')
-    .select('members, admins')
-    .eq('id', suiteId)
-    .single();
-
-  if (fetchError) {
-    return { error: fetchError.message };
-  }
-
-  let newMembers = suite.members || [];
-  let newAdmins = suite.admins || [];
-
-  if (role === 'admin') {
-    // Move from members to admins
-    newMembers = newMembers.filter(id => id !== userId);
-    if (!newAdmins.includes(userId)) newAdmins.push(userId);
-  } else {
-    // Move from admins to members
-    newAdmins = newAdmins.filter(id => id !== userId);
-    if (!newMembers.includes(userId)) newMembers.push(userId);
+  if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    return { error: 'You do not have permission to update member roles' }
   }
 
   const { error } = await supabase
-    .from('test_suites')
-    .update({ members: newMembers, admins: newAdmins })
-    .eq('id', suiteId);
+    .from('organization_members')
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq('organization_id', organizationId)
+    .eq('user_id', userId)
 
   if (error) {
-    return { error: error.message };
+    return { error: error.message }
   }
 
-  revalidatePath(`/[suiteId]/members`);
-  return { success: true };
+  revalidatePath(`/settings/organization`)
+  return { success: true }
 }
 
-export async function inviteOrgMember(orgId: string, data: InviteMemberFormData) {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
+export async function removeOrgMember(organizationId: string, userId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Not authenticated' }
   }
 
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', organizationId)
+    .eq('user_id', user.id)
+    .single()
 
-  const { data: invitation, error } = await supabase
-    .from('invitations')
-    .insert({
-      type: 'organization',
-      organization_id: orgId,
-      invitee_email: data.email,
-      invited_by: user.id,
-      role: data.role as 'admin' | 'manager' | 'member',
-      expires_at: expiresAt.toISOString(),
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return { error: error.message };
+  if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    return { error: 'You do not have permission to remove members' }
   }
 
-  revalidatePath(`/organizations/[orgId]`);
-  return { data: invitation };
-}
+  const { data: targetMember } = await supabase
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', organizationId)
+    .eq('user_id', userId)
+    .single()
 
-export async function removeOrgMember(orgId: string, userId: string) {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
+  if (targetMember?.role === 'owner') {
+    return { error: 'Cannot remove the organization owner' }
   }
 
   const { error } = await supabase
     .from('organization_members')
     .delete()
-    .eq('organization_id', orgId)
-    .eq('user_id', userId);
+    .eq('organization_id', organizationId)
+    .eq('user_id', userId)
 
   if (error) {
-    return { error: error.message };
+    return { error: error.message }
   }
 
-  revalidatePath(`/organizations/[orgId]`);
-  return { success: true };
+  revalidatePath(`/settings/organization`)
+  return { success: true }
 }
 
-export async function updateOrgMemberRole(orgId: string, userId: string, role: 'admin' | 'manager' | 'member') {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
-  }
-
-  const { error } = await supabase
-    .from('organization_members')
-    .update({ role })
-    .eq('organization_id', orgId)
-    .eq('user_id', userId);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  revalidatePath(`/organizations/[orgId]`);
-  return { success: true };
-}

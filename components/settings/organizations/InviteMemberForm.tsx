@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/settings/organizations/InviteMemberForm.tsx
+// FILE 4: components/settings/organizations/InviteMemberForm.tsx
 // ============================================
 'use client'
 
@@ -80,33 +80,34 @@ export default function InviteMemberForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Invite Team Member</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Invite Team Member</DialogTitle>
+          <DialogDescription className="text-sm">
             Send an invitation to join your organization
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
             <FormField
               control={form.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email Address</FormLabel>
+                  <FormLabel className="text-sm sm:text-base">Email Address</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="colleague@example.com"
                       type="email"
+                      className="h-10 sm:h-11"
                       {...field}
                     />
                   </FormControl>
-                  <FormDescription>
+                  <FormDescription className="text-xs sm:text-sm">
                     They'll receive an email invitation to join
                   </FormDescription>
-                  <FormMessage />
+                  <FormMessage className="text-xs sm:text-sm" />
                 </FormItem>
               )}
             />
@@ -116,7 +117,7 @@ export default function InviteMemberForm({
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Role</FormLabel>
+                  <FormLabel className="text-sm sm:text-base">Role</FormLabel>
                   <FormControl>
                     <RoleSelector
                       value={field.value}
@@ -124,23 +125,28 @@ export default function InviteMemberForm({
                       type="organization"
                     />
                   </FormControl>
-                  <FormDescription>
+                  <FormDescription className="text-xs sm:text-sm">
                     Select the access level for this member
                   </FormDescription>
-                  <FormMessage />
+                  <FormMessage className="text-xs sm:text-sm" />
                 </FormItem>
               )}
             />
 
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
+                className="w-full sm:w-auto order-2 sm:order-1"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                disabled={isLoading}
+                className="w-full sm:w-auto order-1 sm:order-2"
+              >
                 {isLoading ? 'Sending...' : 'Send Invitation'}
               </Button>
             </DialogFooter>

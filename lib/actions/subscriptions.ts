@@ -1,5 +1,5 @@
 // ============================================
-// FILE: lib/actions/subscriptions.ts
+// FILE 2: lib/actions/subscriptions.ts
 // ============================================
 'use server'
 
@@ -16,8 +16,13 @@ export async function createCheckoutSession(priceId: string) {
   }
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      customer_email: user.email,
+    const { data: existingSubscription } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
+    const sessionConfig: any = {
       line_items: [
         {
           price: priceId,
@@ -25,16 +30,25 @@ export async function createCheckoutSession(priceId: string) {
         },
       ],
       mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/subscription?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/subscription?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/organization?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/organization?canceled=true`,
       metadata: {
         userId: user.id,
       },
-    })
+    }
+
+    if (existingSubscription?.stripe_customer_id) {
+      sessionConfig.customer = existingSubscription.stripe_customer_id
+    } else {
+      sessionConfig.customer_email = user.email
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig)
 
     return { success: true, url: session.url }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Checkout session error:', error)
+    return { error: error.message || 'Failed to create checkout session' }
   }
 }
 
@@ -53,18 +67,19 @@ export async function createPortalSession() {
     .single()
 
   if (!subscription?.stripe_customer_id) {
-    return { error: 'No subscription found' }
+    return { error: 'No subscription found. Please subscribe first.' }
   }
 
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/subscription`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/organization`,
     })
 
     return { success: true, url: session.url }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Portal session error:', error)
+    return { error: error.message || 'Failed to create portal session' }
   }
 }
 
@@ -83,7 +98,7 @@ export async function cancelSubscription() {
     .single()
 
   if (!subscription?.stripe_subscription_id) {
-    return { error: 'No subscription found' }
+    return { error: 'No active subscription found' }
   }
 
   try {
@@ -93,16 +108,20 @@ export async function cancelSubscription() {
 
     const { error } = await supabase
       .from('subscriptions')
-      .update({ cancel_at_period_end: true })
+      .update({ 
+        cancel_at_period_end: true,
+        updated_at: new Date().toISOString()
+      })
       .eq('user_id', user.id)
 
     if (error) {
       return { error: error.message }
     }
 
-    revalidatePath('/settings/subscription')
+    revalidatePath('/settings/organization')
     return { success: true }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Cancel subscription error:', error)
+    return { error: error.message || 'Failed to cancel subscription' }
   }
 }

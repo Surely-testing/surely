@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { updatePassword } from '@/lib/actions/security'
+import { signOut } from '@/lib/actions/auth'
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function SecurityView({ user }: any) {
@@ -18,6 +19,7 @@ export default function SecurityView({ user }: any) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const handleUpdatePassword = async () => {
     if (newPassword !== confirmPassword) {
@@ -42,6 +44,16 @@ export default function SecurityView({ user }: any) {
       setConfirmPassword('')
     }
     setIsLoading(false)
+  }
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    try {
+      await signOut()
+    } catch (error) {
+      toast.error('Failed to sign out')
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -116,8 +128,13 @@ export default function SecurityView({ user }: any) {
                   {user.email} • Active now
                 </p>
               </div>
-              <Button variant="outline" size="sm">
-                Sign Out
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+              >
+                {isSigningOut ? 'Signing Out...' : 'Sign Out'}
               </Button>
             </div>
           </div>

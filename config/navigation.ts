@@ -10,11 +10,6 @@ import {
   FolderOpen,
   Users,
   Settings,
-  Building2,
-  User,
-  CreditCard,
-  Bell,
-  Shield,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -117,43 +112,9 @@ export const globalNavigation: NavSection[] = [
     items: [
       {
         title: 'Settings',
-        href: '/settings',
+        href: '/dashboard/settings',
         icon: Settings,
       },
     ],
-  },
-]
-
-// Settings navigation
-export const settingsNav: NavItem[] = [
-  {
-    title: 'Profile',
-    href: '/settings/profile',
-    icon: User,
-  },
-  {
-    title: 'Account',
-    href: '/settings/account',
-    icon: Settings,
-  },
-  {
-    title: 'Organizations',
-    href: '/settings/organizations',
-    icon: Building2,
-  },
-  {
-    title: 'Subscription',
-    href: '/settings/subscription',
-    icon: CreditCard,
-  },
-  {
-    title: 'Notifications',
-    href: '/settings/notifications',
-    icon: Bell,
-  },
-  {
-    title: 'Security',
-    href: '/settings/security',
-    icon: Shield,
   },
 ]

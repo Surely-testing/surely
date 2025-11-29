@@ -42,7 +42,7 @@ export default function VerifyEmailPage() {
         </Button>
         <Link href="/login">
           <Button 
-            variant="ghost" 
+            variant="outline" 
             className="w-full" 
             leftIcon={<ArrowLeft className="h-4 w-4" />}
           >

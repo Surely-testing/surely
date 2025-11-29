@@ -54,8 +54,7 @@ export default function OrganizationAccountView({
       <TabsContent value="billing">
         <OrgBillingSettings
           organization={organization}
-          isAdmin={isAdmin}
-        />
+          isAdmin={isAdmin} subscription={undefined}        />
       </TabsContent>
     </Tabs>
   )
