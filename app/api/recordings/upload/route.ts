@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { youtube, getYouTubeAuth } from '@/lib/youtube-client';
+import { Readable } from 'stream';
 
 /**
  * POST /api/recordings/upload
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
     // Convert File to Buffer
     const arrayBuffer = await videoFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    const stream = Readable.from(buffer)
 
     // Get user's name for video description
     const { data: profile } = await supabase
@@ -109,7 +111,7 @@ ${description ? '\n' + description : ''}`;
         },
       },
       media: {
-        body: buffer,
+        body: stream,
       },
     });
 
@@ -137,7 +139,7 @@ ${description ? '\n' + description : ''}`;
     });
 
   } catch (error) {
-    console.error('YouTube upload error:', error);
+    console.error('Upload error:', error);
 
     // Handle specific YouTube API errors
     if (error && typeof error === 'object' && 'code' in error) {
@@ -145,7 +147,7 @@ ${description ? '\n' + description : ''}`;
       
       if (err.code === 401) {
         return NextResponse.json(
-          { error: 'YouTube authentication failed. Please contact administrator.' },
+          { error: 'Authentication failed. Please contact administrator.' },
           { status: 500 }
         );
       }
@@ -159,8 +161,12 @@ ${description ? '\n' + description : ''}`;
     }
 
     return NextResponse.json(
-      { error: 'Failed to upload video to YouTube' },
+      { error: 'Failed to save recording' },
       { status: 500 }
     );
   }
 }
+
+
+
+

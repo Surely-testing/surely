@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/ui/Pagination.tsx
+// FILE: components/shared/Pagination.tsx
 // Type-safe, theme-aware pagination component
 // ============================================
 import { useMemo } from 'react';

@@ -1,7 +1,3 @@
-// ============================================
-// components/recordings/RecordingPlayer.tsx
-// ============================================
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -89,14 +85,48 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const getYouTubeEmbedUrl = (url: string) => {
-    // Convert YouTube URL to embed format
-    const videoId = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1];
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  const getVideoEmbedUrl = () => {
+    const metadata = recording.metadata as any;
+    
+    // First, try to use the embedUrl from metadata
+    if (metadata?.embedUrl) {
+      return metadata.embedUrl;
+    }
+
+    // Second, try to use videoId from metadata
+    if (metadata?.videoId) {
+      return `https://www.youtube.com/embed/${metadata.videoId}`;
+    }
+
+    // Third, try to extract video ID from the URL
+    const url = recording.url;
+    if (!url) return '';
+
+    // Handle different YouTube URL formats
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=)([^&]+)/,
+      /(?:youtu\.be\/)([^?]+)/,
+      /(?:youtube\.com\/embed\/)([^?]+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return `https://www.youtube.com/embed/${match[1]}`;
+      }
+    }
+
+    // If it's already an embed URL or direct video URL, return as is
+    if (url.includes('youtube.com/embed/') || url.includes('.mp4') || url.includes('.webm')) {
+      return url;
+    }
+
+    return '';
   };
 
   const metadata = recording.metadata as any;
   const createdAt = recording.created_at ? new Date(recording.created_at) : new Date();
+  const embedUrl = getVideoEmbedUrl();
 
   return (
     <div className="space-y-6">
@@ -146,16 +176,60 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
       <Card>
         <CardContent className="p-0">
           <div className="aspect-video bg-black">
-            <iframe
-              src={getYouTubeEmbedUrl(recording.url)}
-              title={recording.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full"
-            />
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                title={recording.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-white">
+                <div className="text-center">
+                  <p className="text-lg mb-2">Video unavailable</p>
+                  <p className="text-sm text-gray-400">
+                    The video URL is invalid or missing
+                  </p>
+                  {recording.url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      asChild
+                    >
+                      <a
+                        href={recording.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Try opening directly
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Debug info (remove in production) */}
+      {process.env.NODE_ENV === 'development' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Debug Info</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs font-mono space-y-1">
+              <div>URL: {recording.url || 'null'}</div>
+              <div>Video ID: {metadata?.videoId || 'null'}</div>
+              <div>Embed URL: {metadata?.embedUrl || 'null'}</div>
+              <div>Computed Embed: {embedUrl || 'null'}</div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Logs and Details */}
       <Tabs defaultValue="info" className="w-full">

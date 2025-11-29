@@ -366,6 +366,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bugs_linked_recording_id_fkey"
+            columns: ["linked_recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings_with_details"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bugs_linked_test_case_id_fkey"
             columns: ["linked_test_case_id"]
             isOneToOne: false
@@ -2045,6 +2052,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bugs_linked_recording_id_fkey"
+            columns: ["linked_recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings_with_details"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bugs_linked_test_case_id_fkey"
             columns: ["linked_test_case_id"]
             isOneToOne: false
@@ -2063,6 +2077,40 @@ export type Database = {
             columns: ["sprint_id"]
             isOneToOne: false
             referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recordings_with_details: {
+        Row: {
+          created_at: string | null
+          creator_email: string | null
+          creator_name: string | null
+          duration: number | null
+          id: string | null
+          metadata: Json | null
+          sprint_id: string | null
+          sprint_name: string | null
+          suite_id: string | null
+          suite_name: string | null
+          suite_owner_id: string | null
+          title: string | null
+          updated_at: string | null
+          url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_sprint"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recordings_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
             referencedColumns: ["id"]
           },
         ]
@@ -2211,6 +2259,7 @@ export type Database = {
         Args: { retention_days?: number }
         Returns: number
       }
+      cleanup_old_recording_logs: { Args: never; Returns: number }
       downgrade_expired_trials: { Args: never; Returns: undefined }
       get_asset_relationship_count: {
         Args: { asset_id: string; asset_type: string }
@@ -2230,6 +2279,15 @@ export type Database = {
           direction: string
           relationship_id: string
           relationship_type: string
+        }[]
+      }
+      get_recording_stats: {
+        Args: { p_suite_id: string }
+        Returns: {
+          recordings_this_month: number
+          total_duration: number
+          total_recordings: number
+          total_size_mb: number
         }[]
       }
       get_suite_ai_stats: {

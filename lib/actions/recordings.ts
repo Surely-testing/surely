@@ -233,42 +233,7 @@ export async function deleteRecording(
   }
 }
 
-// YouTube Upload Helper (using app-level authentication)
-export async function uploadToYouTube(
-  videoBlob: Blob,
-  title: string,
-  description: string,
-  suiteId: string
-): Promise<{ url: string | null; error: string | null }> {
-  try {
-    const formData = new FormData();
-    formData.append('video', videoBlob, 'recording.webm');
-    formData.append('title', title);
-    formData.append('description', description);
-    formData.append('suiteId', suiteId);
-
-    const response = await fetch('/api/recordings/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to upload video');
-    }
-
-    return { url: data.url, error: null };
-  } catch (error) {
-    console.error('Error uploading to YouTube:', error);
-    return {
-      url: null,
-      error: error instanceof Error ? error.message : 'Failed to upload to YouTube',
-    };
-  }
-}
-
-// Upload logs to Supabase Storage (using new API route)
+// Upload logs to Supabase Storage
 export async function uploadLogs(
   suiteId: string,
   recordingId: string,
@@ -276,26 +241,30 @@ export async function uploadLogs(
   type: 'console' | 'network'
 ): Promise<{ url: string | null; error: string | null }> {
   try {
-    const response = await fetch('/api/recordings/logs/upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        suiteId,
-        recordingId,
-        logs,
-        type,
-      }),
-    });
+    const supabase = await createClient();
 
-    const data = await response.json();
+    // Convert logs to JSON blob
+    const logsJson = JSON.stringify(logs, null, 2);
+    const logsBlob = new Blob([logsJson], { type: 'application/json' });
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to upload logs');
-    }
+    // Upload to Supabase Storage
+    const fileName = `${suiteId}/${recordingId}/${type}_logs.json`;
+    const { data, error } = await supabase.storage
+      .from('recordings')
+      .upload(fileName, logsBlob, {
+        contentType: 'application/json',
+        cacheControl: '3600',
+        upsert: false,
+      });
 
-    return { url: data.url, error: null };
+    if (error) throw error;
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('recordings')
+      .getPublicUrl(data.path);
+
+    return { url: urlData.publicUrl, error: null };
   } catch (error) {
     console.error('Error uploading logs:', error);
     return {

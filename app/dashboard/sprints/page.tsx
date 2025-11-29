@@ -52,21 +52,15 @@ export default function SprintsPage() {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading sprints...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <Toaster />
-      <SprintsView suiteId={suite.id} sprints={sprints} onRefresh={fetchSprints} />
+      <SprintsView 
+        suiteId={suite.id} 
+        sprints={sprints} 
+        onRefresh={fetchSprints}
+        isLoading={loading}
+      />
     </>
   );
 }

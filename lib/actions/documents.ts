@@ -1,85 +1,81 @@
 // ============================================
-// lib/actions/documents.ts
+// FILE: lib/actions/documents.ts
 // ============================================
+'use server'
 
-import type { DocumentFormData } from '@/types/document.types';
-import { createClient } from '../supabase/client';
+import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
-export async function createDocument(suiteId: string, data: DocumentFormData) {
-  const supabase = createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
+export async function createDocument(data: {
+  title: string
+  content: any
+  file_type: string
+  suite_id: string
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: 'Not authenticated', data: null }
+
+  try {
+    const { data: doc, error } = await supabase
+      .from('documents')
+      .insert({
+        title: data.title,
+        content: data.content,
+        file_type: data.file_type,
+        suite_id: data.suite_id,
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (error) return { error: error.message, data: null }
+
+    revalidatePath('/dashboard/documents')
+    return { data: doc, error: null }
+  } catch (err: any) {
+    return { error: err.message, data: null }
   }
-
-  const { data: document, error } = await supabase
-    .from('documents')
-    .insert({
-      suite_id: suiteId,
-      created_by: user.id,
-      title: data.title,
-      content: data.content,
-      file_url: data.file_url,
-      file_type: data.file_type,
-      sprint_id: data.sprint_id,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  revalidatePath(`/[suiteId]/documents`);
-  return { data: document };
 }
 
-export async function updateDocument(documentId: string, data: Partial<DocumentFormData>) {
-  const supabase = createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
+export async function updateDocument(
+  documentId: string,
+  updates: { title?: string; content?: any; file_type?: string }
+) {
+  const supabase = await createClient()
+
+  try {
+    const { data, error } = await supabase
+      .from('documents')
+      .update(updates)
+      .eq('id', documentId)
+      .select()
+      .single()
+
+    if (error) return { error: error.message, data: null }
+
+    revalidatePath('/dashboard/documents')
+    return { data, error: null }
+  } catch (err: any) {
+    return { error: err.message, data: null }
   }
-
-  const { data: document, error } = await supabase
-    .from('documents')
-    .update(data)
-    .eq('id', documentId)
-    .select()
-    .single();
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  revalidatePath(`/[suiteId]/documents`);
-  revalidatePath(`/[suiteId]/documents/[documentId]`);
-  return { data: document };
 }
 
 export async function deleteDocument(documentId: string) {
-  const supabase = createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return { error: 'Unauthorized' };
+  const supabase = await createClient()
+
+  try {
+    const { error } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', documentId)
+
+    if (error) return { error: error.message }
+
+    revalidatePath('/dashboard/documents')
+    return { error: null }
+  } catch (err: any) {
+    return { error: err.message }
   }
-
-  const { error } = await supabase
-    .from('documents')
-    .delete()
-    .eq('id', documentId);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  revalidatePath(`/[suiteId]/documents`);
-  return { success: true };
-}
-
-function revalidatePath(arg0: string) {
-    throw new Error('Function not implemented.');
 }

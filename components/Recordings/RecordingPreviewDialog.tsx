@@ -1,7 +1,3 @@
-// ============================================
-// components/recordings/RecordingPreviewDialog.tsx
-// ============================================
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -11,7 +7,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -20,8 +15,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/Textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Upload, } from 'lucide-react';
-import { createRecording, uploadToYouTube, uploadLogs } from '@/lib/actions/recordings';
+import { Loader2, Upload } from 'lucide-react';
+import { createRecording, uploadLogs, updateRecording } from '@/lib/actions/recordings';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +37,6 @@ export function RecordingPreviewDialog({
 }: RecordingPreviewDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -66,68 +60,99 @@ export function RecordingPreviewDialog({
       return;
     }
 
-    setIsUploading(true);
+    // Close dialog immediately
+    onClose();
+
+    // Show persistent loading toast
+    const toastId = toast.loading('Saving recording...');
 
     try {
-      // 1. Upload video to YouTube
-      toast.loading('Uploading video to YouTube...');
-      const { url: youtubeUrl, error: uploadError } = await uploadToYouTube(
-        preview.videoBlob,
-        title,
-        description,
-        suiteId
-      );
+      // 1. Upload video via API route
+      const formData = new FormData();
+      formData.append('video', preview.videoBlob, 'recording.webm');
+      formData.append('title', title);
+      formData.append('description', description || '');
+      formData.append('suiteId', suiteId);
 
-      if (uploadError || !youtubeUrl) {
-        throw new Error(uploadError || 'Failed to upload video');
+      const uploadResponse = await fetch('/api/recordings/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || 'Failed to upload video');
       }
 
-      // 2. Upload console logs
-      toast.loading('Uploading console logs...');
-      const recordingId = crypto.randomUUID();
-      const { url: consoleLogsUrl } = await uploadLogs(
-        suiteId,
-        recordingId,
-        preview.consoleLogs,
-        'console'
-      );
+      const { url: youtubeUrl, videoId, embedUrl } = await uploadResponse.json();
 
-      // 3. Upload network logs
-      toast.loading('Uploading network logs...');
-      const { url: networkLogsUrl } = await uploadLogs(
-        suiteId,
-        recordingId,
-        preview.networkLogs,
-        'network'
-      );
-
-      // 4. Create recording record
-      toast.loading('Saving recording...');
-      const { data, error } = await createRecording({
+      // 2. Create recording record first to get the ID
+      const { data: recording, error: createError } = await createRecording({
         suite_id: suiteId,
         sprint_id: sprintId,
         title,
         url: youtubeUrl,
         duration: preview.duration,
         metadata: {
-          ...preview.metadata,
-          consoleLogsUrl,
-          networkLogsUrl,
+          description: description || null,
+          videoId,
+          embedUrl,
           screenshotUrls: preview.screenshots,
+          resolution: preview.metadata.resolution,
+          timestamp: preview.metadata.timestamp,
+          browser: preview.metadata.browser,
+          os: preview.metadata.os,
         },
       });
 
-      if (error || !data) {
-        throw new Error(error || 'Failed to save recording');
+      if (createError || !recording) {
+        throw new Error(createError || 'Failed to save recording');
       }
 
-      toast.success('Recording saved successfully!');
+      // 3. Upload console logs (using the generated recording ID)
+      const { url: consoleLogsUrl } = await uploadLogs(
+        suiteId,
+        recording.id,
+        preview.consoleLogs,
+        'console'
+      );
+
+      // 4. Upload network logs
+      const { url: networkLogsUrl } = await uploadLogs(
+        suiteId,
+        recording.id,
+        preview.networkLogs,
+        'network'
+      );
+
+      // 5. Update recording with log URLs
+      const { error: updateError } = await updateRecording(recording.id, {
+        metadata: {
+          description: description || null,
+          videoId,
+          embedUrl,
+          screenshotUrls: preview.screenshots,
+          resolution: preview.metadata.resolution,
+          timestamp: preview.metadata.timestamp,
+          browser: preview.metadata.browser,
+          os: preview.metadata.os,
+          consoleLogsUrl,
+          networkLogsUrl,
+        },
+      });
+
+      if (updateError) {
+        throw new Error(updateError);
+      }
+
+      toast.success('Recording saved successfully!', { id: toastId });
       onSaved();
     } catch (error) {
       console.error('Save error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to save recording');
-    } finally {
-      setIsUploading(false);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to save recording',
+        { id: toastId }
+      );
     }
   };
 
@@ -172,21 +197,12 @@ export function RecordingPreviewDialog({
             </div>
 
             <div className="px-6 py-4 border-t bg-background flex items-center justify-between">
-              <Button variant="outline" onClick={onClose} disabled={isUploading}>
+              <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={isUploading || !title.trim()}>
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Save Recording
-                  </>
-                )}
+              <Button onClick={handleSave} disabled={!title.trim()}>
+                <Upload className="h-4 w-4 mr-2" />
+                Save Recording
               </Button>
             </div>
           </div>
@@ -249,7 +265,7 @@ export function RecordingPreviewDialog({
                         {/* Metadata */}
                         <div className="pt-4 border-t space-y-3">
                           <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                            Your metadata
+                            Metadata
                           </h4>
                           <div className="space-y-2 text-xs">
                             <div className="flex justify-between py-1.5">

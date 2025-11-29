@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/shared/BulkActionsBar.tsx
+// FILE: components/shared/BulkActionBar.tsx
 // Modern, type-safe bulk actions with theme system
 // ============================================
 'use client';

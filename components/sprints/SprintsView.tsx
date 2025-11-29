@@ -9,6 +9,7 @@ import { SprintBoard } from './SprintBoard';
 import { Pagination } from '@/components/shared/Pagination';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
 import SprintForm from './SprintForm';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Plus, RefreshCw, Search, Filter, X } from 'lucide-react';
 import { useSuiteContext } from '@/providers/SuiteContextProvider';
 import { toast } from 'sonner';
@@ -17,9 +18,10 @@ interface SprintsViewProps {
   suiteId: string;
   sprints: any[];
   onRefresh?: () => void;
+  isLoading?: boolean;
 }
 
-export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsViewProps) {
+export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = false }: SprintsViewProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingSprint, setEditingSprint] = useState<any | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -219,7 +221,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
           {onRefresh && (
             <button
               onClick={handleRefresh}
-              disabled={isRefreshing}
+              disabled={isRefreshing || isLoading}
               className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -229,7 +231,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
           {canAdmin && (
             <button
               onClick={handleCreateSprint}
-              className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold"
+              disabled={isLoading}
+              className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Sprint
@@ -250,7 +253,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
                 placeholder="Search sprints by name, description, or goals..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                disabled={isLoading}
+                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
               />
               {searchTerm && (
                 <button
@@ -269,7 +273,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isLoading}
+              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
             >
               <option value="all">All Statuses</option>
               <option value="planning">Planning</option>
@@ -286,7 +291,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'name' | 'created_at' | 'end_date')}
-              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isLoading}
+              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
             >
               <option value="created_at">Created Date</option>
               <option value="end_date">End Date</option>
@@ -294,7 +300,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
             </select>
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isLoading}
+              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
               title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
             >
               {sortOrder === 'asc' ? '↑' : '↓'}
@@ -305,7 +312,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200"
+              disabled={isLoading}
+              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
             >
               <X className="h-4 w-4 mr-2" />
               Clear
@@ -315,14 +323,68 @@ export default function SprintsView({ suiteId, sprints, onRefresh }: SprintsView
       </div>
 
       {/* Results Info */}
-      {hasActiveFilters && (
+      {!isLoading && hasActiveFilters && (
         <div className="text-sm text-muted-foreground">
           Showing {filteredAndSortedSprints.length} of {sprints.length} sprints
         </div>
       )}
 
-      {/* Sprint Board */}
-      {filteredAndSortedSprints.length === 0 ? (
+      {/* Loading Skeleton or Sprint Board */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-card rounded-lg border border-border p-6">
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-24 rounded-full" />
+                  </div>
+                  <Skeleton className="h-4 w-4 rounded" />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+
+                {/* Dates */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <div className="space-y-1">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </div>
+
+                {/* Progress */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-3 w-8" />
+                  </div>
+                  <Skeleton className="h-2 w-full rounded-full" />
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                  <div className="flex -space-x-2">
+                    <Skeleton className="h-6 w-6 rounded-full" />
+                    <Skeleton className="h-6 w-6 rounded-full" />
+                    <Skeleton className="h-6 w-6 rounded-full" />
+                  </div>
+                  <Skeleton className="h-8 w-16 rounded" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filteredAndSortedSprints.length === 0 ? (
         <div className="bg-card rounded-lg border border-border p-12 text-center">
           <p className="text-muted-foreground mb-4">
             {hasActiveFilters 

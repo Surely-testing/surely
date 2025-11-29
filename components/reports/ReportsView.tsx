@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/Button';
 import { ReportTable } from '@/components/reports/ReportsTable';
 import { ScheduleTable } from '@/components/reports/ScheduleTable';
 import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog';
-import { ScheduleReportDialog } from '.';
+import { ScheduleReportDialog } from '@/components/reports/ScheduleReportDialog';
 import { ReportDetailsDialog } from '@/components/reports/ReportDetailsDialog';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useReports } from '@/lib/hooks/useReports';
 import { useReportSchedules } from '@/lib/hooks/useReportSchedules';
 import { ReportWithCreator, ReportScheduleWithReport } from '@/types/report.types';
@@ -155,10 +156,56 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
       {/* Content */}
       <div className="min-h-[400px]">
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <RefreshCw className="w-8 h-8 text-muted-foreground animate-spin mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Loading...</p>
+          <div className="space-y-3">
+            {/* Table Header Skeleton */}
+            <div className="px-4 py-2 bg-muted/50 rounded-lg border border-border">
+              <div className="grid grid-cols-5 gap-4">
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-24" />
+                ))}
+              </div>
+            </div>
+
+            {/* Table Rows Skeleton */}
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="p-4 bg-card border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="grid grid-cols-5 gap-4 items-center">
+                    {/* Report Name Column */}
+                    <div className="space-y-2">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+
+                    {/* Type Column */}
+                    <div>
+                      <Skeleton className="h-6 w-28 rounded-full" />
+                    </div>
+
+                    {/* Creator Column */}
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+
+                    {/* Date Column */}
+                    <div className="space-y-1">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+
+                    {/* Actions Column */}
+                    <div className="flex items-center gap-1">
+                      <Skeleton className="h-8 w-8 rounded" />
+                      <Skeleton className="h-8 w-8 rounded" />
+                      <Skeleton className="h-8 w-8 rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ) : (
