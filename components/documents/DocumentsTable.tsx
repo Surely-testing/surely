@@ -1,5 +1,6 @@
 // ============================================
-// FILE: components/documents/DocumentsTable.tsx
+// FILE: components/documents/DocumentsTable.tsx (FIXED)
+// Using custom Table components with proper checkbox format
 // ============================================
 'use client'
 
@@ -9,6 +10,7 @@ import {
   TableRow,
   TableCell,
   TableGrid,
+  TableCheckbox,
   TableHeaderText,
   TableDescriptionText,
 } from '@/components/ui/Table'
@@ -45,55 +47,74 @@ interface Document {
 interface DocumentsTableProps {
   documents: Document[]
   onOpen: (doc: Document) => void
+  selectedDocIds: string[]
+  onToggleSelect: (id: string) => void
 }
 
-export function DocumentsTable({ documents, onOpen }: DocumentsTableProps) {
+export function DocumentsTable({ 
+  documents, 
+  onOpen, 
+  selectedDocIds, 
+  onToggleSelect 
+}: DocumentsTableProps) {
   return (
     <Table>
-      {documents.map((doc) => (
-        <TableRow
-          key={doc.id}
-          onClick={() => onOpen(doc)}
-          className="cursor-pointer"
-        >
-          <TableGrid columns={4}>
-            {/* Title & Type */}
-            <TableCell className="col-span-2">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl flex-shrink-0">
-                  {DOC_TYPE_ICONS[doc.file_type || 'general']}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <TableHeaderText>{doc.title}</TableHeaderText>
-                  <TableDescriptionText>
-                    {DOC_TYPE_LABELS[doc.file_type || 'general']}
-                  </TableDescriptionText>
+      {documents.map((doc) => {
+        const isSelected = selectedDocIds.includes(doc.id)
+        
+        return (
+          <TableRow
+            key={doc.id}
+            selected={isSelected}
+            selectable={true}
+            onClick={() => onOpen(doc)}
+            className="cursor-pointer"
+          >
+            {/* Checkbox using TableCheckbox component */}
+            <TableCheckbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect(doc.id)}
+            />
+
+            <TableGrid columns={4}>
+              {/* Title & Type */}
+              <TableCell className="col-span-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl flex-shrink-0">
+                    {DOC_TYPE_ICONS[doc.file_type || 'general']}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <TableHeaderText>{doc.title}</TableHeaderText>
+                    <TableDescriptionText>
+                      {DOC_TYPE_LABELS[doc.file_type || 'general']}
+                    </TableDescriptionText>
+                  </div>
                 </div>
-              </div>
-            </TableCell>
+              </TableCell>
 
-            {/* Created By */}
-            <TableCell>
-              <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6 flex-shrink-0">
-                  <AvatarImage src={doc.creator?.avatar_url || undefined} />
-                  <AvatarFallback>
-                    {doc.creator?.name?.charAt(0) || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm truncate">{doc.creator?.name || 'Unknown'}</span>
-              </div>
-            </TableCell>
+              {/* Created By */}
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-6 w-6 flex-shrink-0">
+                    <AvatarImage src={doc.creator?.avatar_url || undefined} />
+                    <AvatarFallback>
+                      {doc.creator?.name?.charAt(0) || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm truncate">{doc.creator?.name || 'Unknown'}</span>
+                </div>
+              </TableCell>
 
-            {/* Last Modified */}
-            <TableCell>
-              <span className="text-sm text-muted-foreground">
-                {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
-              </span>
-            </TableCell>
-          </TableGrid>
-        </TableRow>
-      ))}
+              {/* Last Modified */}
+              <TableCell>
+                <span className="text-sm text-muted-foreground">
+                  {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
+                </span>
+              </TableCell>
+            </TableGrid>
+          </TableRow>
+        )
+      })}
     </Table>
   )
 }

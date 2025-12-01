@@ -43,7 +43,7 @@ export type ActionGroup = {
     actions: BulkAction[];
 };
 
-export type AssetType = 'testCases' | 'bugs' | 'recordings' | 'recommendations' | 'sprints' | 'archive' | 'testRuns' | 'trash' | 'testData' | 'reports' | 'schedules';
+export type AssetType = 'testCases' | 'bugs' | 'documents' | 'recordings' | 'recommendations' | 'sprints' | 'archive' | 'testRuns' | 'trash' | 'testData' | 'reports' | 'schedules';
 
 export interface BulkActionsBarProps {
     selectedItems?: string[];
@@ -423,6 +423,106 @@ const generateAssetActionConfig = (
                     actions: [
                         { id: 'archive', label: 'Archive', icon: 'Archive', requiresConfirm: true, confirmMessage: 'Archive selected bugs?' },
                         { id: 'delete', label: 'Delete', icon: 'Trash2', destructive: true, confirmMessage: 'Delete selected bugs?' }
+                    ]
+                }
+            ]
+        },
+        documents: {
+            groups: [
+                {
+                    name: 'type',
+                    actions: [
+                        {
+                            id: 'change-type',
+                            label: 'Change Type',
+                            icon: 'FileText',
+                            type: 'select' as const,
+                            options: [
+                                { id: 'meeting_notes', value: 'meeting_notes', label: '📝 Meeting Notes' },
+                                { id: 'test_plan', value: 'test_plan', label: '📋 Test Plan' },
+                                { id: 'test_strategy', value: 'test_strategy', label: '🎯 Test Strategy' },
+                                { id: 'brainstorm', value: 'brainstorm', label: '💡 Brainstorm' },
+                                { id: 'general', value: 'general', label: '📄 General' }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'organization',
+                    actions: [
+                        ...(sprintOptions.length > 0 ? [{
+                            id: 'move-to-suite',
+                            label: 'Move to Suite',
+                            icon: 'FolderOpen',
+                            type: 'select' as const,
+                            options: sprintOptions  // Reuse for suites or create suiteOptions
+                        }] : []),
+                        {
+                            id: 'duplicate',
+                            label: 'Duplicate',
+                            icon: 'Copy'
+                        },
+                        {
+                            id: 'bookmark',
+                            label: 'Bookmark',
+                            icon: 'Bookmark'
+                        }
+                    ]
+                },
+                {
+                    name: 'sharing',
+                    actions: [
+                        {
+                            id: 'share',
+                            label: 'Share',
+                            icon: 'Link2'
+                        },
+                        {
+                            id: 'export',
+                            label: 'Export',
+                            icon: 'Download',
+                            type: 'select' as const,
+                            options: [
+                                { id: 'pdf', value: 'pdf', label: 'Export as PDF' },
+                                { id: 'markdown', value: 'markdown', label: 'Export as Markdown' },
+                                { id: 'docx', value: 'docx', label: 'Export as Word' },
+                                { id: 'html', value: 'html', label: 'Export as HTML' }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'status',
+                    actions: [
+                        {
+                            id: 'lock',
+                            label: 'Lock',
+                            icon: 'Lock'
+                        },
+                        {
+                            id: 'unlock',
+                            label: 'Unlock',
+                            icon: 'Unlock'
+                        },
+                        {
+                            id: 'archive',
+                            label: 'Archive',
+                            icon: 'Archive',
+                            requiresConfirm: true,
+                            confirmMessage: 'Archive selected documents?'
+                        }
+                    ]
+                },
+                {
+                    name: 'actions',
+                    actions: [
+                        {
+                            id: 'delete',
+                            label: 'Delete',
+                            icon: 'Trash2',
+                            destructive: true,
+                            confirmMessage: 'Delete selected documents? This action cannot be undone.'
+                        }
                     ]
                 }
             ]
