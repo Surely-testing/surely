@@ -1,13 +1,8 @@
-// ============================================
-// next.config.ts - Fixed configuration
-// ============================================
+// next.config.ts
 
-import type { NextConfig } from 'next'
-
-const nextConfig: NextConfig = {
+const nextConfig = {
   images: {
     remotePatterns: [
-      // YouTube thumbnails
       {
         protocol: 'https',
         hostname: 'img.youtube.com',
@@ -18,14 +13,11 @@ const nextConfig: NextConfig = {
         hostname: 'i.ytimg.com',
         pathname: '/**',
       },
-      // Supabase Storage
       {
         protocol: 'https',
         hostname: 'qtfzqbzapciwdwwrfsla.supabase.co',
-        port: '',
         pathname: '/storage/v1/object/public/**',
       },
-      // Optional: Google User Content for avatars
       {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
@@ -35,9 +27,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '50mb', // For large video uploads
+      bodySizeLimit: '50mb',
     },
   },
-}
+};
 
-export default nextConfig
+export default nextConfig;

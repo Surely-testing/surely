@@ -15,7 +15,6 @@ import {
   TableHeaderText,
   TableDescriptionText,
   TableCheckbox,
-  TableSelectAll,
 } from '@/components/ui/Table';
 import { AssetLinkerCompact } from '@/components/relationships/AssetLinkerCompact';
 import { useState } from 'react';
@@ -41,16 +40,6 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
       onSelectionChange(selectedBugs.filter(id => id !== bugId));
     } else {
       onSelectionChange([...selectedBugs, bugId]);
-    }
-  };
-
-  const handleSelectAll = () => {
-    if (!onSelectionChange) return;
-    
-    if (selectedBugs.length === bugs.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(bugs.map(bug => bug.id));
     }
   };
 
@@ -105,40 +94,25 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
 
   return (
     <div className="space-y-3">
-      {/* Select All */}
-      {onSelectionChange && (
-        <div className="flex items-center justify-between">
-          <TableSelectAll
-            checked={selectedBugs.length === bugs.length && bugs.length > 0}
-            onCheckedChange={handleSelectAll}
-          />
-          {selectedBugs.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {selectedBugs.length} selected
-            </span>
-          )}
-        </div>
-      )}
-
       {/* Table Header */}
       <div className={`px-4 py-2 bg-muted/50 rounded-lg border border-border ${onSelectionChange ? 'pl-12' : ''}`}>
         <TableGrid columns={6} className="gap-4">
           <TableHeaderText className="text-xs uppercase font-semibold">
             Title
           </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
+          <TableHeaderText className="text-xs uppercase font-semibold hidden md:block">
             Severity
           </TableHeaderText>
           <TableHeaderText className="text-xs uppercase font-semibold">
             Status
           </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
+          <TableHeaderText className="text-xs uppercase font-semibold hidden lg:block">
             Created By
           </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
+          <TableHeaderText className="text-xs uppercase font-semibold hidden lg:block">
             Created
           </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
+          <TableHeaderText className="text-xs uppercase font-semibold hidden xl:block">
             Linked Assets
           </TableHeaderText>
         </TableGrid>
@@ -167,7 +141,7 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
               )}
 
               <TableGrid columns={6} className="gap-4">
-                {/* Title Column */}
+                {/* Title Column - Always visible */}
                 <TableCell>
                   <div className="text-sm font-medium text-foreground">
                     {bug.title}
@@ -179,14 +153,14 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
                   )}
                 </TableCell>
 
-                {/* Severity Column */}
-                <TableCell>
+                {/* Severity Column - Hidden on mobile, visible md+ */}
+                <TableCell className="hidden md:block">
                   <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${getSeverityColor(bug.severity)}`}>
                     {bug.severity || 'N/A'}
                   </span>
                 </TableCell>
 
-                {/* Status Column - Editable Dropdown */}
+                {/* Status Column - Always visible */}
                 <TableCell>
                   <select
                     value={bug.status || 'open'}
@@ -205,8 +179,8 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
                   </select>
                 </TableCell>
 
-                {/* Created By Column */}
-                <TableCell>
+                {/* Created By Column - Hidden on mobile, visible lg+ */}
+                <TableCell className="hidden lg:block">
                   {bug.creator ? (
                     <div className="flex items-center gap-2">
                       {bug.creator.avatar_url ? (
@@ -229,15 +203,15 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
                   )}
                 </TableCell>
 
-                {/* Created Column */}
-                <TableCell>
+                {/* Created Column - Hidden on mobile, visible lg+ */}
+                <TableCell className="hidden lg:block">
                   <TableDescriptionText>
                     {bug.created_at ? format(new Date(bug.created_at), 'MMM d, yyyy') : 'N/A'}
                   </TableDescriptionText>
                 </TableCell>
 
-                {/* Linked Assets Column */}
-                <TableCell>
+                {/* Linked Assets Column - Hidden on mobile, visible xl+ */}
+                <TableCell className="hidden xl:block">
                   {bug.suite_id ? (
                     <div onClick={(e) => e.stopPropagation()}>
                       <AssetLinkerCompact

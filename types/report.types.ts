@@ -80,6 +80,7 @@ export interface ReportScheduleFormData {
 }
 
 export interface ReportWithCreator extends Report {
+  [x: string]: any;
   creator?: {
     id: string;
     name: string;

@@ -43,7 +43,7 @@ export type ActionGroup = {
     actions: BulkAction[];
 };
 
-export type AssetType = 'testCases' | 'bugs' | 'recordings' | 'recommendations' | 'sprints' | 'archive' | 'testRuns' | 'trash' | 'testData';
+export type AssetType = 'testCases' | 'bugs' | 'recordings' | 'recommendations' | 'sprints' | 'archive' | 'testRuns' | 'trash' | 'testData' | 'reports' | 'schedules';
 
 export interface BulkActionsBarProps {
     selectedItems?: string[];
@@ -423,6 +423,106 @@ const generateAssetActionConfig = (
                     actions: [
                         { id: 'archive', label: 'Archive', icon: 'Archive', requiresConfirm: true, confirmMessage: 'Archive selected bugs?' },
                         { id: 'delete', label: 'Delete', icon: 'Trash2', destructive: true, confirmMessage: 'Delete selected bugs?' }
+                    ]
+                }
+            ]
+        },
+
+        reports: {
+            groups: [
+                {
+                    name: 'actions',
+                    actions: [
+                        {
+                            id: 'regenerate',
+                            label: 'Regenerate',
+                            icon: 'RefreshCw'
+                        },
+                        {
+                            id: 'download',
+                            label: 'Download',
+                            icon: 'Download'
+                        },
+                        {
+                            id: 'share',
+                            label: 'Share',
+                            icon: 'Link2'
+                        },
+                        {
+                            id: 'archive',
+                            label: 'Archive',
+                            icon: 'Archive',
+                            requiresConfirm: true,
+                            confirmMessage: 'Archive selected reports?'
+                        },
+                        {
+                            id: 'delete',
+                            label: 'Delete',
+                            icon: 'Trash2',
+                            destructive: true,
+                            confirmMessage: 'Delete selected reports? This action cannot be undone.'
+                        }
+                    ]
+                }
+            ]
+        },
+
+        schedules: {
+            groups: [
+                {
+                    name: 'status',
+                    actions: [
+                        {
+                            id: 'enable',
+                            label: 'Enable',
+                            icon: 'CheckCircle'
+                        },
+                        {
+                            id: 'disable',
+                            label: 'Disable',
+                            icon: 'XCircle'
+                        }
+                    ]
+                },
+                {
+                    name: 'execution',
+                    actions: [
+                        {
+                            id: 'run-now',
+                            label: 'Run Now',
+                            icon: 'Play'
+                        },
+                        {
+                            id: 'set-frequency',
+                            label: 'Set Frequency',
+                            icon: 'Clock',
+                            type: 'select' as const,
+                            options: [
+                                { id: 'daily', value: 'daily', label: 'Daily' },
+                                { id: 'weekly', value: 'weekly', label: 'Weekly' },
+                                { id: 'monthly', value: 'monthly', label: 'Monthly' },
+                                { id: 'custom', value: 'custom', label: 'Custom' }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: 'actions',
+                    actions: [
+                        {
+                            id: 'archive',
+                            label: 'Archive',
+                            icon: 'Archive',
+                            requiresConfirm: true,
+                            confirmMessage: 'Archive selected schedules?'
+                        },
+                        {
+                            id: 'delete',
+                            label: 'Delete',
+                            icon: 'Trash2',
+                            destructive: true,
+                            confirmMessage: 'Delete selected schedules? This will stop all future report generation.'
+                        }
                     ]
                 }
             ]

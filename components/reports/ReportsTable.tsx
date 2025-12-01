@@ -1,46 +1,45 @@
 // ============================================
-// components/reports/ReportTable.tsx
-// Table view for reports with inline actions
+// components/reports/ReportsTable.tsx
+// Updated with selection support using custom Table components
 // ============================================
 'use client';
 
-import { ReportWithCreator, ReportType, ReportData } from '@/types/report.types';
-import { Eye, RefreshCw, Trash2, Download } from 'lucide-react';
-import { format } from 'date-fns';
-import {
-  Table,
-  TableRow,
-  TableCell,
-  TableGrid,
+import { ReportWithCreator } from '@/types/report.types';
+import { ReportGrid } from './ReportsGrid';
+import { 
+  Table, 
+  TableRow, 
+  TableCell, 
+  TableGrid, 
+  TableCheckbox,
   TableHeaderText,
   TableDescriptionText,
-  TableCheckbox,
-  TableSelectAll,
+  TableEmpty 
 } from '@/components/ui/Table';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { FileText } from 'lucide-react';
 
 interface ReportTableProps {
   reports: ReportWithCreator[];
   onView: (report: ReportWithCreator) => void;
   onRegenerate: (reportId: string) => void;
   onDelete: (reportId: string) => void;
+  generatingId?: string | null;
+  viewMode?: 'grid' | 'table';
   selectedReports?: string[];
   onSelectionChange?: (selectedIds: string[]) => void;
-  generatingId?: string | null;
 }
 
-export function ReportTable({
-  reports,
-  onView,
+export function ReportTable({ 
+  reports, 
+  onView, 
   onRegenerate,
   onDelete,
+  generatingId,
+  viewMode = 'table',
   selectedReports = [],
   onSelectionChange,
-  generatingId,
 }: ReportTableProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
+  
   const handleToggleSelection = (reportId: string) => {
     if (!onSelectionChange) return;
     
@@ -51,237 +50,191 @@ export function ReportTable({
     }
   };
 
-  const handleSelectAll = () => {
-    if (!onSelectionChange) return;
-    
-    if (selectedReports.length === reports.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(reports.map(report => report.id));
+  // If grid view is selected, use ReportGrid component
+  if (viewMode === 'grid') {
+    return (
+      <ReportGrid
+        reports={reports}
+        onView={onView}
+        onRegenerate={onRegenerate}
+        onDelete={onDelete}
+        generatingId={generatingId}
+        selectedReports={selectedReports}
+        onSelectionChange={onSelectionChange}
+      />
+    );
+  }
+
+  const getReportTypeColor = (type: string): string => {
+    switch (type) {
+      case 'test_execution': return 'text-info bg-info/10 border-info/20';
+      case 'test_coverage': return 'text-success bg-success/10 border-success/20';
+      case 'bug_trends': return 'text-warning bg-warning/10 border-warning/20';
+      case 'sprint_summary': return 'text-purple-600 bg-purple-600/10 border-purple-600/20';
+      case 'team_performance': return 'text-blue-600 bg-blue-600/10 border-blue-600/20';
+      default: return 'text-muted-foreground bg-muted border-border';
     }
   };
 
-  const handleDelete = async (reportId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (!confirm('Are you sure you want to delete this report?')) return;
-    
-    setDeletingId(reportId);
-    try {
-      await onDelete(reportId);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleRegenerate = async (reportId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    await onRegenerate(reportId);
-  };
-
-  const getReportTypeLabel = (type: string) => {
-    switch (type as ReportType) {
+  const getReportTypeLabel = (type: string): string => {
+    switch (type) {
+      case 'test_execution': return 'Test Execution';
       case 'test_coverage': return 'Test Coverage';
       case 'bug_trends': return 'Bug Trends';
       case 'sprint_summary': return 'Sprint Summary';
       case 'team_performance': return 'Team Performance';
-      case 'custom': return 'Custom';
       default: return type;
     }
   };
 
-  const getReportTypeColor = (type: string) => {
-    switch (type as ReportType) {
-      case 'test_coverage': return 'text-info bg-info/10';
-      case 'bug_trends': return 'text-error bg-destructive/10';
-      case 'sprint_summary': return 'text-success bg-success/10';
-      case 'team_performance': return 'text-accent bg-accent/10';
-      case 'custom': return 'text-muted-foreground bg-muted';
-      default: return 'text-muted-foreground bg-muted';
-    }
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (reports.length === 0) {
     return (
-      <div className="text-center py-8 text-sm text-muted-foreground">
-        No reports generated yet
-      </div>
+      <TableEmpty
+        icon={<FileText className="w-8 h-8 text-muted-foreground" />}
+        title="No reports found"
+        description="Generate your first report to get started"
+      />
     );
   }
 
   return (
-    <div className="space-y-3">
-      {/* Select All */}
-      {onSelectionChange && (
-        <div className="flex items-center justify-between">
-          <TableSelectAll
-            checked={selectedReports.length === reports.length && reports.length > 0}
-            onCheckedChange={handleSelectAll}
-          />
-          {selectedReports.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {selectedReports.length} selected
-            </span>
-          )}
-        </div>
-      )}
-
+    <Table>
       {/* Table Header */}
-      <div className={`px-4 py-2 bg-muted/50 rounded-lg border border-border ${onSelectionChange ? 'pl-12' : ''}`}>
-        <TableGrid columns={5} className="gap-4">
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Report Name
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Type
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Created By
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Generated
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Actions
-          </TableHeaderText>
-        </TableGrid>
+      <div className="hidden lg:grid lg:grid-cols-5 gap-4 px-4 py-2 bg-muted/50 rounded-lg border border-border text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+        <div>Report Name</div>
+        <div>Type</div>
+        <div>Creator</div>
+        <div>Generated</div>
+        <div className="text-right">Actions</div>
       </div>
 
       {/* Table Rows */}
-      <Table className="space-y-2">
-        {reports.map((report) => {
-          const isSelected = selectedReports.includes(report.id);
-          const isGenerating = generatingId === report.id;
-          const isDeleting = deletingId === report.id;
-          
-          // Safely cast report.data to ReportData
-          const reportData = report.data as ReportData | null;
-          
-          return (
-            <TableRow
-              key={report.id}
-              className="cursor-pointer"
-              onClick={() => onView(report)}
-              selected={isSelected}
-              selectable={!!onSelectionChange}
-            >
-              {/* Checkbox */}
-              {onSelectionChange && (
-                <TableCheckbox
-                  checked={isSelected}
-                  onCheckedChange={() => handleToggleSelection(report.id)}
-                />
-              )}
+      {reports.map((report) => {
+        const isGenerating = generatingId === report.id;
+        const isSelected = selectedReports.includes(report.id);
 
-              <TableGrid columns={5} className="gap-4">
-                {/* Report Name Column */}
-                <TableCell>
-                  <div className="text-sm font-medium text-foreground">
-                    {report.name}
-                  </div>
-                  {reportData?.summary && (
-                    <TableDescriptionText className="line-clamp-1 mt-1">
-                      {reportData.summary}
-                    </TableDescriptionText>
-                  )}
-                </TableCell>
+        return (
+          <TableRow
+            key={report.id}
+            selected={isSelected}
+            selectable={!!onSelectionChange}
+            onClick={() => onView(report)}
+            className="cursor-pointer"
+          >
+            {/* Selection Checkbox */}
+            {onSelectionChange && (
+              <TableCheckbox
+                checked={isSelected}
+                onCheckedChange={() => handleToggleSelection(report.id)}
+              />
+            )}
 
-                {/* Type Column */}
-                <TableCell>
-                  <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${getReportTypeColor(report.type)}`}>
-                    {getReportTypeLabel(report.type)}
-                  </span>
-                </TableCell>
+            <TableGrid columns={5}>
+              {/* Report Name Column */}
+              <TableCell>
+                <TableHeaderText>{report.name || 'Untitled Report'}</TableHeaderText>
+                {report.data && typeof report.data === 'object' && 'summary' in report.data && (
+                  <TableDescriptionText>{String(report.data.summary)}</TableDescriptionText>
+                )}
+              </TableCell>
 
-                {/* Created By Column */}
-                <TableCell>
-                  {report.creator ? (
-                    <div className="flex items-center gap-2">
-                      {report.creator.avatar_url ? (
-                        <img 
-                          src={report.creator.avatar_url} 
-                          alt={report.creator.name} 
-                          className="w-6 h-6 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
-                          {report.creator.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className="text-sm text-foreground">
-                        {report.creator.name}
-                      </span>
-                    </div>
+              {/* Type Column */}
+              <TableCell>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block ${getReportTypeColor(report.type)}`}>
+                  {getReportTypeLabel(report.type)}
+                </span>
+              </TableCell>
+
+              {/* Creator Column */}
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  {report.creator?.avatar_url ? (
+                    <img
+                      src={report.creator.avatar_url}
+                      alt={report.creator.name}
+                      className="w-6 h-6 rounded-full"
+                    />
                   ) : (
-                    <TableDescriptionText>—</TableDescriptionText>
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                      {report.creator?.name?.charAt(0).toUpperCase() || '?'}
+                    </div>
                   )}
-                </TableCell>
+                  <span className="text-sm text-foreground truncate">
+                    {report.creator?.name || 'Unknown'}
+                  </span>
+                </div>
+              </TableCell>
 
-                {/* Generated Column */}
-                <TableCell>
-                  <TableDescriptionText>
-                    {report.created_at ? format(new Date(report.created_at), 'MMM d, yyyy') : 'N/A'}
-                  </TableDescriptionText>
-                  {report.updated_at && report.updated_at !== report.created_at && (
-                    <TableDescriptionText className="text-xs">
-                      Updated {format(new Date(report.updated_at), 'MMM d')}
-                    </TableDescriptionText>
-                  )}
-                </TableCell>
+              {/* Generated Column */}
+              <TableCell>
+                <div className="text-sm text-foreground">
+                  {formatDate(report.created_at)}
+                </div>
+                {isGenerating && (
+                  <span className="text-xs text-warning">Generating...</span>
+                )}
+              </TableCell>
 
-                {/* Actions Column */}
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => handleRegenerate(report.id, e)}
-                      disabled={isGenerating}
-                      className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-50"
-                      title="Regenerate report"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                    </button>
-                    
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toast.info('Download feature coming soon');
-                      }}
-                      className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors"
-                      title="Download report"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={(e) => handleDelete(report.id, e)}
-                      disabled={isDeleting}
-                      className="p-1.5 text-muted-foreground hover:text-error hover:bg-destructive/10 rounded transition-colors disabled:opacity-50"
-                      title="Delete report"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </TableCell>
-              </TableGrid>
-
-              {/* View Button - Appears on hover */}
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onView(report);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded transition-colors"
-                  title="View report"
-                >
-                  <Eye className="w-4 h-4" />
-                  View
-                </button>
-              </div>
-            </TableRow>
-          );
-        })}
-      </Table>
-    </div>
+              {/* Actions Column */}
+              <TableCell>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onView(report);
+                    }}
+                    disabled={isGenerating}
+                    className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+                    title="View"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRegenerate(report.id);
+                    }}
+                    disabled={isGenerating}
+                    className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+                    title="Regenerate"
+                  >
+                    <svg className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(report.id);
+                    }}
+                    disabled={isGenerating}
+                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors disabled:opacity-50"
+                    title="Delete"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </TableCell>
+            </TableGrid>
+          </TableRow>
+        );
+      })}
+    </Table>
   );
 }

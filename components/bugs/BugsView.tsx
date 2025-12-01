@@ -6,10 +6,10 @@
 'use client';
 
 import { useState } from 'react';
-import { RefreshCw, Network, Upload } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { RefreshCw, Network, Upload, Plus } from 'lucide-react';
 import { BugTracking } from './BugTracking';
 import { Suggestions } from './Suggestions';
+import { BugForm } from './BugForm';
 
 interface BugsViewProps {
   suiteId: string;
@@ -20,6 +20,8 @@ type TabType = 'tracking' | 'suggestions';
 export function BugsView({ suiteId }: BugsViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('tracking');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showBugForm, setShowBugForm] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const tabs = [
     { id: 'tracking', label: 'Bug Tracking' },
@@ -28,7 +30,7 @@ export function BugsView({ suiteId }: BugsViewProps) {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Refresh based on active tab
+    setRefreshTrigger(prev => prev + 1);
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
@@ -40,77 +42,131 @@ export function BugsView({ suiteId }: BugsViewProps) {
     console.log('Open import dialog');
   };
 
+  const handleNewBug = () => {
+    setShowBugForm(true);
+  };
+
+  const handleFormSuccess = () => {
+    setShowBugForm(false);
+    handleRefresh();
+  };
+
+  const handleFormCancel = () => {
+    setShowBugForm(false);
+  };
+
+  // If form is open, show only the form
+  if (showBugForm) {
+    return (
+      <div className="min-h-screen">
+        <div className="mx-auto lg:px-2">
+          <BugForm
+            suiteId={suiteId}
+            bug={null}
+            onSuccess={handleFormSuccess}
+            onCancel={handleFormCancel}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header Section - Mobile First */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Tabs Navigation - Scrollable on mobile */}
-        <div className="border-b border-border overflow-x-auto">
-          <nav className="flex gap-4 sm:gap-6 min-w-max">
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
+    <div className="min-h-screen">
+      <div className="mx-auto lg:px-2">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+                Bugs
+              </h1>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Action Buttons - Only show on Bug Tracking tab */}
+              {activeTab === 'tracking' && (
+                <>
+                  <button
+                    onClick={handleTraceability}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200"
+                  >
+                    <Network className="w-4 h-4" />
+                    <span className="hidden sm:inline">Traceability</span>
+                  </button>
+
+                  <button
+                    onClick={handleImport}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden sm:inline">Import</span>
+                  </button>
+                </>
+              )}
+
+              {/* New Bug Button - Always visible */}
+              <button
+                onClick={handleNewBug}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Bug</span>
+              </button>
+
+              {/* Refresh Button - Icon Only, Extreme Right */}
+              {activeTab === 'tracking' && (
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabType)}
-                  className={`px-1 py-2 sm:py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    isActive
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center justify-center w-10 h-10 text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh"
                 >
-                  {tab.label}
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
-              );
-            })}
-          </nav>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Action Buttons - Only show on Bug Tracking tab */}
-        {activeTab === 'tracking' && (
-          <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="flex-1 sm:flex-none"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTraceability}
-              className="flex-1 sm:flex-none"
-            >
-              <Network className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Traceability</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleImport}
-              className="flex-1 sm:flex-none"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Import</span>
-            </Button>
+        {/* Tabs Navigation */}
+        <div className="bg-card shadow-theme-md rounded-lg overflow-hidden border border-border mb-6">
+          <div className="border-b border-border">
+            <nav className="flex overflow-x-auto">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as TabType)}
+                    className={`flex-1 min-w-[120px] px-6 py-4 text-sm font-semibold border-b-2 transition-all duration-200 whitespace-nowrap ${
+                      isActive
+                        ? 'border-primary text-primary bg-primary/5'
+                        : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
           </div>
-        )}
-      </div>
 
-      {/* Tab Content */}
-      <div className="min-h-[400px]">
-        {activeTab === 'tracking' && (
-          <BugTracking suiteId={suiteId} onRefresh={handleRefresh} />
-        )}
-        {activeTab === 'suggestions' && (
-          <Suggestions suiteId={suiteId} onRefresh={handleRefresh} />
-        )}
+          {/* Tab Content */}
+          <div className="p-0">
+            {activeTab === 'tracking' && (
+              <BugTracking 
+                key={refreshTrigger}
+                suiteId={suiteId} 
+                onRefresh={handleRefresh}
+              />
+            )}
+            {activeTab === 'suggestions' && (
+              <Suggestions suiteId={suiteId} onRefresh={handleRefresh} />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

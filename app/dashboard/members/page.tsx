@@ -1,40 +1,27 @@
-// ============================================
-// FILE: app/(dashboard)/[suiteId]/members/page.tsx
-// ============================================
-import { createClient } from '@/lib/supabase/server'
-import SuiteMembersView from '@/components/suites/SuiteMembersView'
+// app/dashboard/members/page.tsx (example path)
+'use client';
 
-interface SuiteMembersPageProps {
-  params: { suiteId: string }
-}
+import { SuiteMembersView } from '@/components/suites/SuiteMembersView';
+import { useSuiteContext } from '@/providers/SuiteContextProvider';
+import { Toaster } from 'sonner';
 
-export const metadata = {
-  title: 'Suite Members',
-  description: 'Manage test suite members',
-}
+export default function SuiteMembersPage() {
+  const { suite } = useSuiteContext();
 
-export default async function SuiteMembersPage({ params }: SuiteMembersPageProps) {
-  const supabase = await createClient()
-
-  const { data: suite } = await supabase
-    .from('test_suites')
-    .select('admins, members, owner_type, owner_id')
-    .eq('id', params.suiteId)
-    .single()
-
-  // Get member details
-  const memberIds = [...(suite?.admins || []), ...(suite?.members || [])]
-  const { data: members } = await supabase
-    .from('profiles')
-    .select('id, name, email, avatar_url')
-    .in('id', memberIds)
+  if (!suite) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-gray-500 dark:text-gray-400">Loading suite...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <SuiteMembersView
-      suiteId={params.suiteId}
-      suite={suite}
-      members={members || []}
-    />
-  )
+    <>
+      <Toaster />
+      <SuiteMembersView suiteId={suite.id} />
+    </>
+  );
 }
-

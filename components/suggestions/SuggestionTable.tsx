@@ -13,7 +13,6 @@ import {
   TableHeaderText,
   TableDescriptionText,
   TableCheckbox,
-  TableSelectAll,
 } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 
@@ -45,16 +44,6 @@ export function SuggestionTable({
       onSelectionChange(selectedSuggestions.filter(id => id !== suggestionId));
     } else {
       onSelectionChange([...selectedSuggestions, suggestionId]);
-    }
-  };
-
-  const handleSelectAll = () => {
-    if (!onSelectionChange) return;
-    
-    if (selectedSuggestions.length === suggestions.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(suggestions.map(s => s.id));
     }
   };
 
@@ -120,20 +109,6 @@ export function SuggestionTable({
 
   return (
     <div className="space-y-3">
-      {onSelectionChange && (
-        <div className="flex items-center justify-between">
-          <TableSelectAll
-            checked={selectedSuggestions.length === suggestions.length && suggestions.length > 0}
-            onCheckedChange={handleSelectAll}
-          />
-          {selectedSuggestions.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {selectedSuggestions.length} selected
-            </span>
-          )}
-        </div>
-      )}
-
       <div className={`hidden md:block px-4 py-2 bg-muted/50 rounded-lg border border-border ${onSelectionChange ? 'pl-12' : ''}`}>
         <TableGrid columns={7} className="gap-4">
           <TableHeaderText className="text-xs uppercase font-semibold">Title</TableHeaderText>

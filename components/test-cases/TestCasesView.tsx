@@ -1,16 +1,18 @@
 // ============================================
 // FILE: components/test-cases/TestCasesView.tsx
+// Updated to match BugsView design exactly
 // ============================================
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Search, RefreshCw, Filter, Upload, Sparkles, Play, GitBranch, ChevronLeft } from 'lucide-react'
+import { Plus, Search, RefreshCw, Filter, Upload, Sparkles, Play, GitBranch, ChevronLeft, Grid, List } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { TestCaseForm } from './TestCaseForm'
 import { TestCaseTable } from './TestCaseTable'
+import { TestCaseGrid } from './TestCaseGrid'
 import type { TestCase, TestCasePriority, TestCaseStatus } from '@/types/test-case.types'
 import type { TestCaseRow } from './TestCaseTable'
 import type { ActionOption } from '@/components/shared/BulkActionBar'
@@ -19,6 +21,8 @@ interface TestCasesViewProps {
   suiteId: string
   canWrite?: boolean
 }
+
+type ViewMode = 'grid' | 'table'
 
 export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps) {
   const router = useRouter()
@@ -30,6 +34,9 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [isLoading, setIsLoading] = useState(true)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('table')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const fetchTestCases = async () => {
     setIsLoading(true)
@@ -165,6 +172,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       }
 
       await fetchTestCases()
+      setSelectedIds([])
     } catch (error: any) {
       console.error('Bulk action failed:', error)
       toast.error('Action failed', { description: error.message })
@@ -243,10 +251,61 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     setIsDrawerOpen(prev => !prev)
   }
 
+  const handleSelectAll = () => {
+    if (selectedIds.length === filteredTestCases.length && filteredTestCases.length > 0) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filteredTestCases.map(tc => tc.id))
+    }
+  }
+
+  const handleSelectionChange = (newSelectedIds: string[]) => {
+    setSelectedIds(newSelectedIds)
+  }
+
+  const clearFilters = () => {
+    setPriorityFilter('all')
+    setStatusFilter('all')
+  }
+
+  const activeFiltersCount = (priorityFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+
+  // Skeleton Loader
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-6 pb-24">
+        {/* Header Skeleton */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
+              <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
+              <div className="h-10 w-10 bg-muted animate-pulse rounded-lg" />
+            </div>
+          </div>
+        </div>
+
+        {/* Content Card Skeleton */}
+        <div className="bg-card rounded-lg overflow-hidden border border-border">
+          <div className="px-3 py-2 border-b border-border">
+            <div className="flex items-center justify-between gap-4">
+              <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-64 bg-muted animate-pulse rounded-lg" />
+                <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
+                <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -296,171 +355,302 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
+    <div className="space-y-6 pb-24">
+      {/* Header with Action Buttons */}
       <div className="space-y-4">
-        <div className="flex flex-col space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Test Cases</h1>
-          <p className="text-sm text-muted-foreground">
-            {filteredTestCases.length} of {testCases.length} test cases
-          </p>
-        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Test Cases
+            </h1>
+            <span className="text-sm text-muted-foreground">
+              ({testCases.length})
+            </span>
+          </div>
 
-        {/* Action Buttons Container - Right Aligned */}
-        <div className="relative overflow-hidden">
-          <div className="flex items-center justify-end gap-2">
-            {/* Sliding Drawer - Hidden buttons that slide from left */}
-            {canWrite && (
-              <div
-                className="flex items-center gap-2 transition-all duration-300 ease-in-out"
-                style={{
-                  maxWidth: isDrawerOpen ? '1000px' : '0px',
-                  opacity: isDrawerOpen ? 1 : 0,
-                  marginRight: isDrawerOpen ? '0.5rem' : '0',
-                  pointerEvents: isDrawerOpen ? 'auto' : 'none', // Prevent clicks when closed
-                }}
+          {/* Action Buttons Container */}
+          <div className="relative overflow-hidden">
+            <div className="flex items-center justify-end gap-2">
+              {/* Sliding Drawer */}
+              {canWrite && (
+                <div
+                  className="flex items-center gap-2 transition-all duration-300 ease-in-out"
+                  style={{
+                    maxWidth: isDrawerOpen ? '1000px' : '0px',
+                    opacity: isDrawerOpen ? 1 : 0,
+                    marginRight: isDrawerOpen ? '0.5rem' : '0',
+                    pointerEvents: isDrawerOpen ? 'auto' : 'none',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold whitespace-nowrap"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Test Case
+                  </button>
+
+                  <Link
+                    href="/dashboard/test-cases/import"
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import
+                  </Link>
+
+                  <Link
+                    href="/dashboard/test-runs"
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Test Runs
+                  </Link>
+
+                  <Link
+                    href="/dashboard/traceability"
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+                  >
+                    <GitBranch className="h-4 w-4 mr-2" />
+                    Traceability
+                  </Link>
+                </div>
+              )}
+
+              {/* Always Visible Buttons */}
+              {canWrite && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleToggleDrawer}
+                    className="inline-flex items-center justify-center p-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
+                    aria-label="Toggle menu"
+                  >
+                    <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
+                  </button>
+
+                  <Link
+                    href="/dashboard/test-cases/ai-generate"
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 flex-shrink-0"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    AI Generate
+                  </Link>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={fetchTestCases}
+                disabled={isLoading}
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
               >
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold whitespace-nowrap"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Test Case
-                </button>
-
-                <Link
-                  href="/dashboard/test-cases/import"
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import
-                </Link>
-
-                <Link
-                  href="/dashboard/test-runs"
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  Test Runs
-                </Link>
-
-                <Link
-                  href="/dashboard/traceability"
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
-                >
-                  <GitBranch className="h-4 w-4 mr-2" />
-                  Traceability
-                </Link>
-              </div>
-            )}
-
-            {/* Always Visible Buttons - Right Side - Fixed Position */}
-            {canWrite && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleToggleDrawer}
-                  className="inline-flex items-center justify-center p-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
-                  aria-label="Toggle menu"
-                >
-                  <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
-                </button>
-
-                <Link
-                  href="/dashboard/test-cases/ai-generate"
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 flex-shrink-0"
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  AI Generate
-                </Link>
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={fetchTestCases}
-              disabled={isLoading}
-              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters - Mobile First */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search test cases..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring outline-none transition-all duration-200"
-          />
+      {/* Main Content Card */}
+      <div className="bg-card rounded-lg overflow-hidden border border-border">
+        {/* Unified Controls Bar */}
+        <div className="px-3 py-2 border-b border-border bg-card">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Left Side: Select All */}
+            <div className="flex items-center gap-3 order-2 lg:order-1">
+              <input
+                type="checkbox"
+                checked={selectedIds.length === filteredTestCases.length && filteredTestCases.length > 0}
+                onChange={handleSelectAll}
+                disabled={isLoading}
+                className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              />
+              <span className="text-sm font-medium text-muted-foreground">
+                Select All
+              </span>
+            </div>
+
+            {/* Right Side: Search, Filters, View Toggle */}
+            <div className="flex items-center gap-3 flex-1 justify-end order-1 lg:order-2 flex-wrap">
+              {/* Search */}
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search test cases..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                />
+              </div>
+
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                disabled={isLoading}
+                className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
+              >
+                <Filter className="w-4 h-4" />
+                Filter
+                {activeFiltersCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+
+              {/* View Toggle */}
+              <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  disabled={isLoading}
+                  className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    viewMode === 'grid'
+                      ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                  title="Grid View"
+                >
+                  <Grid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  disabled={isLoading}
+                  className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    viewMode === 'table'
+                      ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                  title="Table View"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+                {activeFiltersCount > 0 && (
+                  <button
+                    onClick={clearFilters}
+                    className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Priority Filter */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                    Priority
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {(['low', 'medium', 'high', 'critical'] as const).map(priority => (
+                      <button
+                        key={priority}
+                        onClick={() => setPriorityFilter(priorityFilter === priority ? 'all' : priority)}
+                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                          priorityFilter === priority
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
+                        }`}
+                      >
+                        {priority}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status Filter */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                    Status
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {(['active', 'archived'] as const).map(status => (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
+                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                          statusFilter === status
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="flex gap-3 sm:gap-4">
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="flex-1 sm:flex-initial px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring outline-none transition-all duration-200"
-          >
-            <option value="all">All Priorities</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="flex-1 sm:flex-initial px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring outline-none transition-all duration-200"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-          </select>
+
+        {/* Content Area */}
+        <div className="p-6">
+          {/* Stats Bar */}
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {filteredTestCases.length} of {testCases.length} test cases
+              {selectedIds.length > 0 && ` • ${selectedIds.length} selected`}
+            </p>
+          </div>
+
+          {/* No Results */}
+          {filteredTestCases.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+              <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+              <h3 className="text-lg font-medium text-foreground mb-1">
+                No test cases found
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Try adjusting your filters or search query
+              </p>
+              <button
+                onClick={clearFilters}
+                className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
+              >
+                Clear Filters
+              </button>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <TestCaseGrid
+              testCases={testCaseRows}
+              suiteId={suiteId}
+              onBulkAction={handleBulkAction}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onArchive={handleArchive}
+              onDuplicate={handleDuplicate}
+              onRun={handleRun}
+              selectedIds={selectedIds}
+              onSelectionChange={handleSelectionChange}
+            />
+          ) : (
+            <TestCaseTable 
+              testCases={testCaseRows} 
+              suiteId={suiteId}
+              onBulkAction={handleBulkAction}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onArchive={handleArchive}
+              onDuplicate={handleDuplicate}
+              onRun={handleRun}
+              selectedIds={selectedIds}
+              onSelectionChange={handleSelectionChange}
+            />
+          )}
         </div>
       </div>
-
-      {/* No Results */}
-      {filteredTestCases.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-          <Filter className="h-12 w-12 text-muted-foreground mb-3" />
-          <h3 className="text-lg font-medium text-foreground mb-1">
-            No test cases found
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Try adjusting your filters or search query
-          </p>
-          <button
-            onClick={() => {
-              setSearchQuery('')
-              setPriorityFilter('all')
-              setStatusFilter('active')
-            }}
-            className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
-          >
-            Clear Filters
-          </button>
-        </div>
-      )}
-
-      {/* Table */}
-      {filteredTestCases.length > 0 && (
-        <TestCaseTable 
-          testCases={testCaseRows} 
-          suiteId={suiteId}
-          onBulkAction={handleBulkAction}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onArchive={handleArchive}
-          onDuplicate={handleDuplicate}
-          onRun={handleRun}
-        />
-      )}
 
       {/* Create Modal */}
       {isCreateModalOpen && (

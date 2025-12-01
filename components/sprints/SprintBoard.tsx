@@ -1,5 +1,6 @@
 // ============================================
 // FILE: components/sprints/SprintBoard.tsx
+// Fixed to support hideSelectAll prop
 // ============================================
 
 'use client';
@@ -17,6 +18,7 @@ interface SprintBoardProps {
   suiteId: string;
   selectedSprints?: string[];
   onSelectionChange?: (selected: string[]) => void;
+  hideSelectAll?: boolean;
 }
 
 function useSprintStatsForBoard(sprintId: string) {
@@ -233,7 +235,7 @@ function SprintCard({ sprint, onEdit, onDelete, isSelected, onToggleSelection }:
   );
 }
 
-export function SprintBoard({ sprints, suiteId, selectedSprints = [], onSelectionChange }: SprintBoardProps) {
+export function SprintBoard({ sprints, suiteId, selectedSprints = [], onSelectionChange, hideSelectAll = false }: SprintBoardProps) {
   const handleToggleSelection = (sprintId: string) => {
     if (!onSelectionChange) return;
     
@@ -270,8 +272,8 @@ export function SprintBoard({ sprints, suiteId, selectedSprints = [], onSelectio
 
   return (
     <div className="space-y-4">
-      {/* Select All Header */}
-      {showSelection && sprints.length > 0 && (
+      {/* Select All Header - Only show if hideSelectAll is false */}
+      {!hideSelectAll && showSelection && sprints.length > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-lg">
           <input
             type="checkbox"

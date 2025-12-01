@@ -1,6 +1,6 @@
 // ============================================
 // components/bugs/BugForm.tsx
-// Enhanced Bug Form with attachments and recording links
+// Enhanced Bug Form with attachments and recording links - FIXED
 // ============================================
 'use client';
 
@@ -10,8 +10,8 @@ import { useSupabase } from '@/providers/SupabaseProvider';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { Select } from '@/components/ui/Select';
-import { Plus, Trash, Upload, X, File, Video, Link2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { Plus, Trash, Upload, X, File, Video, Link2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BugWithCreator } from '@/types/bug.types';
 
@@ -48,7 +48,7 @@ export function BugForm({
   const [severity, setSeverity] = useState('medium');
   const [priority, setPriority] = useState('medium');
   const [status, setStatus] = useState('open');
-  const [sprintId, setSprintId] = useState('');
+  const [sprintId, setSprintId] = useState<string | null>(null);
   
   // Reproduction details
   const [steps, setSteps] = useState<ReproductionStep[]>([
@@ -64,14 +64,14 @@ export function BugForm({
   const [version, setVersion] = useState('');
   
   // Organization
-  const [assignedTo, setAssignedTo] = useState('');
+  const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [module, setModule] = useState('');
   const [component, setComponent] = useState('');
   const [tags, setTags] = useState('');
   
   // Linked assets
-  const [linkedRecordingId, setLinkedRecordingId] = useState('');
-  const [linkedTestCaseId, setLinkedTestCaseId] = useState('');
+  const [linkedRecordingId, setLinkedRecordingId] = useState<string | null>(null);
+  const [linkedTestCaseId, setLinkedTestCaseId] = useState<string | null>(null);
   
   // Attachments
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -93,18 +93,18 @@ export function BugForm({
       setSeverity(bug.severity || 'medium');
       setPriority(bug.priority || 'medium');
       setStatus(bug.status || 'open');
-      setSprintId(bug.sprint_id || '');
+      setSprintId(bug.sprint_id || null);
       setExpectedBehavior(bug.expected_behavior || '');
       setActualBehavior(bug.actual_behavior || '');
       setEnvironment(bug.environment || '');
       setBrowser(bug.browser || '');
       setOs(bug.os || '');
       setVersion(bug.version || '');
-      setAssignedTo(bug.assigned_to || '');
+      setAssignedTo(bug.assigned_to || null);
       setModule(bug.module || '');
       setComponent(bug.component || '');
-      setLinkedRecordingId(bug.linked_recording_id || '');
-      setLinkedTestCaseId(bug.linked_test_case_id || '');
+      setLinkedRecordingId(bug.linked_recording_id || null);
+      setLinkedTestCaseId(bug.linked_test_case_id || null);
       
       // Handle tags
       if (bug.tags && Array.isArray(bug.tags)) {
@@ -160,18 +160,40 @@ export function BugForm({
           .limit(100);
         setTestCases(testCasesData || []);
 
-        // Fetch team members
-        const { data: membersData } = await supabase
+        // Fetch team members - FIXED: Using proper join syntax
+        const { data: membersData, error: membersError } = await supabase
           .from('suite_members')
-          .select('user_id, profiles(id, name, email)')
+          .select(`
+            user_id,
+            profiles!suite_members_user_id_fkey (
+              id,
+              name,
+              email
+            )
+          `)
           .eq('suite_id', suiteId);
         
-        const members = membersData?.map(m => ({
-          id: m.user_id,
-          name: (m.profiles as any)?.name || (m.profiles as any)?.email || 'Unknown',
-          email: (m.profiles as any)?.email
-        })) || [];
-        setTeamMembers(members);
+        if (membersError) {
+          console.error('Error fetching team members:', membersError);
+          // Fallback: fetch without profiles if join fails
+          const { data: fallbackData } = await supabase
+            .from('suite_members')
+            .select('user_id')
+            .eq('suite_id', suiteId);
+          
+          setTeamMembers(fallbackData?.map(m => ({
+            id: m.user_id,
+            name: 'User',
+            email: ''
+          })) || []);
+        } else {
+          const members = membersData?.map(m => ({
+            id: m.user_id,
+            name: (m.profiles as any)?.name || (m.profiles as any)?.email || 'Unknown',
+            email: (m.profiles as any)?.email
+          })) || [];
+          setTeamMembers(members);
+        }
       } catch (error) {
         console.error('Error fetching reference data:', error);
       }
@@ -334,12 +356,12 @@ export function BugForm({
         browser: browser.trim() || null,
         os: os.trim() || null,
         version: version.trim() || null,
-        assigned_to: assignedTo || null,
-        sprint_id: sprintId || null,
+        assigned_to: assignedTo,
+        sprint_id: sprintId,
         module: module.trim() || null,
         component: component.trim() || null,
-        linked_recording_id: linkedRecordingId || null,
-        linked_test_case_id: linkedTestCaseId || null,
+        linked_recording_id: linkedRecordingId,
+        linked_test_case_id: linkedTestCaseId,
         tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         created_by: user.id,
       };
@@ -400,13 +422,18 @@ export function BugForm({
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-foreground">
-          {bug ? 'Edit Bug' : 'Report New Bug'}
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {bug ? 'Update the bug details below' : 'Fill in the details to report a new bug'}
-        </p>
+      <div className="mb-6 flex items-start gap-4">
+        <Button variant="outline" size="sm" onClick={onCancel} className="mt-1">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">
+            {bug ? 'Edit Bug' : 'Report New Bug'}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {bug ? 'Update the bug details below' : 'Fill in the details to report a new bug'}
+          </p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -443,37 +470,52 @@ export function BugForm({
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Severity *
                 </label>
-                <Select value={severity} onChange={(e) => setSeverity(e.target.value)} options={[
-                  { value: 'low', label: 'Low' },
-                  { value: 'medium', label: 'Medium' },
-                  { value: 'high', label: 'High' },
-                  { value: 'critical', label: 'Critical' },
-                ]} />
+                <Select value={severity} onValueChange={(value) => setSeverity(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Priority
                 </label>
-                <Select value={priority} onChange={(e) => setPriority(e.target.value)} options={[
-                  { value: 'low', label: 'Low' },
-                  { value: 'medium', label: 'Medium' },
-                  { value: 'high', label: 'High' },
-                  { value: 'critical', label: 'Critical' },
-                ]} />
+                <Select value={priority} onValueChange={(value) => setPriority(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Status *
                 </label>
-                <Select value={status} onChange={(e) => setStatus(e.target.value)} options={[
-                  { value: 'open', label: 'Open' },
-                  { value: 'in_progress', label: 'In Progress' },
-                  { value: 'resolved', label: 'Resolved' },
-                  { value: 'closed', label: 'Closed' },
-                  { value: 'reopened', label: 'Reopened' },
-                ]} />
+                <Select value={status} onValueChange={(value) => setStatus(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="reopened">Reopened</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
@@ -607,10 +649,20 @@ export function BugForm({
               <label className="block text-sm font-medium text-foreground mb-2">
                 Assigned To
               </label>
-              <Select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} options={[
-                { value: '', label: 'Unassigned' },
-                ...teamMembers.map(m => ({ value: m.id, label: m.name }))
-              ]} />
+              <Select 
+                value={assignedTo || 'unassigned'} 
+                onValueChange={(value) => setAssignedTo(value === 'unassigned' ? null : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {teamMembers.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {sprints.length > 0 && (
@@ -618,10 +670,22 @@ export function BugForm({
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Sprint
                 </label>
-                <Select value={sprintId} onChange={(e) => setSprintId(e.target.value)} options={[
-                  { value: '', label: 'No Sprint' },
-                  ...sprints.map(s => ({ value: s.id, label: `${s.name} ${s.status ? `(${s.status})` : ''}` }))
-                ]} />
+                <Select 
+                  value={sprintId || 'no-sprint'} 
+                  onValueChange={(value) => setSprintId(value === 'no-sprint' ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select sprint" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-sprint">No Sprint</SelectItem>
+                    {sprints.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {`${s.name} ${s.status ? `(${s.status})` : ''}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
@@ -674,16 +738,21 @@ export function BugForm({
                   Link to Recording
                 </label>
                 <Select 
-                  value={linkedRecordingId} 
-                  onChange={(e) => setLinkedRecordingId(e.target.value)}
-                  options={[
-                    { value: '', label: 'No Recording' },
-                    ...recordings.map(r => ({ 
-                      value: r.id, 
-                      label: `${r.title} - ${new Date(r.created_at).toLocaleDateString()}` 
-                    }))
-                  ]} 
-                />
+                  value={linkedRecordingId || 'no-recording'} 
+                  onValueChange={(value) => setLinkedRecordingId(value === 'no-recording' ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select recording" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-recording">No Recording</SelectItem>
+                    {recordings.map(r => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {`${r.title} - ${new Date(r.created_at).toLocaleDateString()}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
@@ -693,13 +762,19 @@ export function BugForm({
                   Link to Test Case
                 </label>
                 <Select 
-                  value={linkedTestCaseId} 
-                  onChange={(e) => setLinkedTestCaseId(e.target.value)}
-                  options={[
-                    { value: '', label: 'No Test Case' },
-                    ...testCases.map(tc => ({ value: tc.id, label: tc.title }))
-                  ]} 
-                />
+                  value={linkedTestCaseId || 'no-testcase'} 
+                  onValueChange={(value) => setLinkedTestCaseId(value === 'no-testcase' ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select test case" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-testcase">No Test Case</SelectItem>
+                    {testCases.map(tc => (
+                      <SelectItem key={tc.id} value={tc.id}>{tc.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>

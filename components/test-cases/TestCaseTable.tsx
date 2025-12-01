@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/test-cases/TestCaseTable.tsx
-// Mobile-first responsive with better interactions and linked assets
+// Updated to work with parent selection state
 // ============================================
 'use client'
 
@@ -44,9 +44,7 @@ import { relationshipsApi } from '@/lib/api/relationships'
 import type { TestCase } from '@/types/test-case.types'
 import { cn } from '@/lib/utils/cn'
 
-// Create a clean interface without index signature conflicts
 export interface TestCaseRow {
-  // Core fields from TestCase
   id: string;
   suite_id: string;
   title: string;
@@ -59,8 +57,6 @@ export interface TestCaseRow {
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
-  
-  // Additional display fields with proper types
   last_result?: 'passed' | 'failed' | 'blocked' | null;
   assigned_to?: string | null;
   module?: string | null;
@@ -78,6 +74,8 @@ interface TestCaseTableProps {
   onArchive?: (testCaseId: string) => void
   onDuplicate?: (testCaseId: string) => void
   onRun?: (testCaseId: string) => void
+  selectedIds?: string[]
+  onSelectionChange?: (selectedIds: string[]) => void
 }
 
 export function TestCaseTable({ 
@@ -88,9 +86,10 @@ export function TestCaseTable({
   onDelete,
   onArchive,
   onDuplicate,
-  onRun
+  onRun,
+  selectedIds: externalSelectedIds = [],
+  onSelectionChange
 }: TestCaseTableProps) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [loadingActions, setLoadingActions] = useState<string[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
@@ -100,6 +99,16 @@ export function TestCaseTable({
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  // Use external selection if provided
+  const selectedIds = externalSelectedIds
+
+  // Paginated data
+  const paginatedTestCases = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return testCases.slice(startIndex, endIndex)
+  }, [testCases, currentPage, itemsPerPage])
 
   // Fetch linked assets count for all visible test cases
   useEffect(() => {
@@ -123,14 +132,7 @@ export function TestCaseTable({
     if (paginatedTestCases.length > 0) {
       fetchLinkedCounts()
     }
-  }, [])
-
-  // Paginated data
-  const paginatedTestCases = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return testCases.slice(startIndex, endIndex)
-  }, [testCases, currentPage, itemsPerPage])
+  }, [paginatedTestCases])
 
   const getPriorityColor = (priority: string | null | undefined): 'danger' | 'warning' | 'info' | 'success' | 'default' => {
     switch (priority) {
@@ -180,19 +182,13 @@ export function TestCaseTable({
     })
   }
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(paginatedTestCases.map(tc => tc.id))
-    } else {
-      setSelectedIds([])
-    }
-  }
-
   const handleSelectOne = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds(prev => [...prev, id])
-    } else {
-      setSelectedIds(prev => prev.filter(selectedId => selectedId !== id))
+    if (onSelectionChange) {
+      if (checked) {
+        onSelectionChange([...selectedIds, id])
+      } else {
+        onSelectionChange(selectedIds.filter(selectedId => selectedId !== id))
+      }
     }
   }
 
@@ -210,7 +206,9 @@ export function TestCaseTable({
       } else {
         await new Promise(resolve => setTimeout(resolve, 1000))
       }
-      setSelectedIds([])
+      if (onSelectionChange) {
+        onSelectionChange([])
+      }
     } catch (error) {
       console.error('Bulk action failed:', error)
     } finally {
@@ -220,13 +218,17 @@ export function TestCaseTable({
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
-    setSelectedIds([])
+    if (onSelectionChange) {
+      onSelectionChange([])
+    }
   }
 
   const handleItemsPerPageChange = (newItemsPerPage: number) => {
     setItemsPerPage(newItemsPerPage)
     setCurrentPage(1)
-    setSelectedIds([])
+    if (onSelectionChange) {
+      onSelectionChange([])
+    }
   }
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
@@ -244,9 +246,6 @@ export function TestCaseTable({
     setDrawerTestCase(testCase as TestCase)
   }
 
-  const allSelected = paginatedTestCases.length > 0 && 
-    paginatedTestCases.every(tc => selectedIds.includes(tc.id))
-
   if (testCases.length === 0) {
     return (
       <TableEmpty
@@ -259,25 +258,6 @@ export function TestCaseTable({
 
   return (
     <div className="space-y-0">
-      {/* Header with Select All - Mobile Responsive */}
-      <div className="bg-card px-4 sm:px-6 py-3 sm:py-4 border-t border-x border-border rounded-t-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <TableSelectAll
-            checked={allSelected}
-            onCheckedChange={handleSelectAll}
-          />
-          {selectedIds.length > 0 && (
-            <div className="text-xs sm:text-sm text-muted-foreground">
-              {selectedIds.length} of {paginatedTestCases.length} selected
-            </div>
-          )}
-        </div>
-        
-        <div className="text-xs sm:text-sm text-muted-foreground">
-          Total: {testCases.length} test cases
-        </div>
-      </div>
-
       {/* Table - Mobile First */}
       <Table>
         {paginatedTestCases.map((testCase) => {
@@ -621,7 +601,7 @@ export function TestCaseTable({
       {/* Bulk Actions Bar */}
       <BulkActionsBar
         selectedItems={selectedIds}
-        onClearSelection={() => setSelectedIds([])}
+        onClearSelection={() => onSelectionChange?.([])}
         assetType="testCases"
         onAction={handleBulkActionExecute}
         loadingActions={loadingActions}
