@@ -1,6 +1,6 @@
 // ============================================
-// FILE 1: components/settings/organizations/OrgMembersSettings.tsx
-// DROP-IN REPLACEMENT - INTEGRATES EVERYTHING
+// components/settings/organizations/OrgMembersSettings.tsx
+// WITH EXPLICIT TYPE EXPORTS
 // ============================================
 'use client'
 
@@ -10,19 +10,21 @@ import { UserPlus } from 'lucide-react'
 import MembersList from './MembersList'
 import InviteMemberForm from './InviteMemberForm'
 
-interface OrgMembersSettingsProps {
+// Explicit interface export
+export interface OrgMembersSettingsProps {
   organization: any
   members: any[]
   currentUserId: string
   isAdmin: boolean
 }
 
-export default function OrgMembersSettings({ 
+// Explicit function component type
+const OrgMembersSettings: React.FC<OrgMembersSettingsProps> = ({ 
   organization, 
   members, 
   currentUserId, 
   isAdmin 
-}: OrgMembersSettingsProps) {
+}) => {
   const [showInvite, setShowInvite] = useState(false)
 
   return (
@@ -60,3 +62,5 @@ export default function OrgMembersSettings({
     </div>
   )
 }
+
+export default OrgMembersSettings

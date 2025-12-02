@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/settings/account/OrganizationAccountView.tsx
+// components/settings/account/OrganizationAccountView.tsx
 // ============================================
 'use client'
 
@@ -8,7 +8,7 @@ import OrgGeneralSettings from '../organizations/OrgGeneralSettings'
 import OrgMembersSettings from '../organizations/OrgMembersSettings'
 import OrgBillingSettings from '../organizations/OrgBillingSettings'
 
-interface OrganizationAccountViewProps {
+export interface OrganizationAccountViewProps {
   user: any
   profile: any
   organization: any
@@ -54,7 +54,9 @@ export default function OrganizationAccountView({
       <TabsContent value="billing">
         <OrgBillingSettings
           organization={organization}
-          isAdmin={isAdmin} subscription={undefined}        />
+          isAdmin={isAdmin}
+          subscription={undefined}
+        />
       </TabsContent>
     </Tabs>
   )

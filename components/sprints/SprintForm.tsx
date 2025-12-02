@@ -5,12 +5,12 @@
 'use client';
 
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { useCreateSprint, useUpdateSprint } from '@/lib/hooks/useSprints';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { Select } from '@/components/ui/Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Target, Calendar, FileText } from 'lucide-react';
 
 interface SprintFormProps {
@@ -24,7 +24,7 @@ export default function SprintForm({ suiteId, initialData, onSuccess, onCancel }
     const createMutation = useCreateSprint(suiteId);
     const updateMutation = useUpdateSprint(suiteId);
 
-    const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+    const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm({
         defaultValues: initialData || {
             name: '',
             description: '',
@@ -149,15 +149,26 @@ export default function SprintForm({ suiteId, initialData, onSuccess, onCancel }
                         Status
                     </h3>
                     <div className="max-w-md">
-                        <Select
-                            {...register('status')}
-                            options={[
-                                { value: 'planning', label: 'Planning' },
-                                { value: 'active', label: 'Active' },
-                                { value: 'on-hold', label: 'On Hold' },
-                                { value: 'completed', label: 'Completed' },
-                                { value: 'archived', label: 'Archived' },
-                            ]}
+                        <Controller
+                            name="status"
+                            control={control}
+                            render={({ field }) => (
+                                <Select
+                                    value={field.value}
+                                    onValueChange={field.onChange}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="planning">Planning</SelectItem>
+                                        <SelectItem value="active">Active</SelectItem>
+                                        <SelectItem value="on-hold">On Hold</SelectItem>
+                                        <SelectItem value="completed">Completed</SelectItem>
+                                        <SelectItem value="archived">Archived</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            )}
                         />
                     </div>
                 </section>

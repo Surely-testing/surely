@@ -59,7 +59,10 @@ export function SuiteDetailsModal({
       />
 
       {/* Modal Container */}
-      <div className="relative w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-lg bg-background shadow-xl overflow-hidden flex flex-col">
+      <div 
+        className="relative w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-lg bg-background shadow-xl overflow-hidden flex flex-col"
+        style={{ zIndex: 51 }}
+      >
         {/* Close Button */}
         <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <h2 className="text-lg font-semibold">Suite Details</h2>
@@ -80,9 +83,7 @@ export function SuiteDetailsModal({
             suite={suite}
             userRole={userRole}
             userId={userId}
-            accountType={accountType}
             isModal={true}
-            onRefresh={onRefresh}
           />
         </div>
       </div>

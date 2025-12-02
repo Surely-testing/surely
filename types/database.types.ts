@@ -840,6 +840,7 @@ export type Database = {
       }
       recordings: {
         Row: {
+          [x: string]: any
           created_at: string | null
           created_by: string
           duration: number | null

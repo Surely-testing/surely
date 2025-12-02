@@ -1,5 +1,6 @@
 // ============================================
-// FILE 4: components/settings/organizations/InviteMemberForm.tsx
+// components/settings/organizations/InviteMemberForm.tsx
+// Organization member invite form
 // ============================================
 'use client'
 
@@ -28,7 +29,8 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { inviteOrgMember } from '@/lib/actions/members'
-import RoleSelector from './RoleSelector'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select'
+import { SuiteMemberRole } from '@/types/member.types'
 
 const inviteSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -78,6 +80,10 @@ export default function InviteMemberForm({
     setIsLoading(false)
   }
 
+  function setRole(arg0: SuiteMemberRole): void {
+    throw new Error('Function not implemented.')
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto">
@@ -116,20 +122,30 @@ export default function InviteMemberForm({
               control={form.control}
               name="role"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-sm sm:text-base">Role</FormLabel>
-                  <FormControl>
-                    <RoleSelector
-                      value={field.value}
-                      onChange={field.onChange}
-                      type="organization"
-                    />
-                  </FormControl>
-                  <FormDescription className="text-xs sm:text-sm">
-                    Select the access level for this member
-                  </FormDescription>
-                  <FormMessage className="text-xs sm:text-sm" />
-                </FormItem>
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">Member - Can view and contribute</SelectItem>
+                            <SelectItem value="admin">Admin - Full access to suite settings</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormDescription>
+                        Select the access level for this member
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
             />
 
@@ -142,8 +158,8 @@ export default function InviteMemberForm({
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={isLoading}
                 className="w-full sm:w-auto order-1 sm:order-2"
               >

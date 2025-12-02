@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { useInviteMember } from '@/lib/hooks/useMembers';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 
 interface InviteMemberFormProps {
   suiteId: string;
@@ -49,9 +49,14 @@ export function InviteMemberForm({ suiteId, onSuccess, onCancel }: InviteMemberF
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Role
         </label>
-        <Select value={role} onChange={(e) => setRole(e.target.value as any)} options={[]}>
-          <option value="member">Member - Can view and contribute</option>
-          <option value="admin">Admin - Full access to suite settings</option>
+        <Select value={role} onValueChange={(value) => setRole(value as 'admin' | 'member')}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select a role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="member">Member - Can view and contribute</SelectItem>
+            <SelectItem value="admin">Admin - Full access to suite settings</SelectItem>
+          </SelectContent>
         </Select>
       </div>
 

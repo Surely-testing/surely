@@ -15,12 +15,9 @@ import {
 } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Select';
 import { useUpdateMemberRole, useRemoveMember } from '@/lib/hooks/useMembers';
 import { SuiteMember } from '@/types/member.types';
-import { Crown, Shield, Trash } from 'lucide-react';
-
-
+import { Crown, Shield, Trash, User } from 'lucide-react';
 
 interface SuiteMembersListProps {
   members: SuiteMember[] 
@@ -35,7 +32,7 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
   if (members.length === 0) {
     return (
       <TableEmpty
-        icon={<span className="text-4xl">👥</span>}
+        icon={<User className="w-12 h-12 text-muted-foreground" />}
         title="No members yet"
         description="Invite team members to collaborate on this test suite"
       />
@@ -64,11 +61,11 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
                   <img
                     src={member.avatar_url}
                     alt={member.name}
-                    className="w-10 h-10 rounded-full"
+                    className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
-                    <span className="text-white font-semibold">
+                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                    <span className="text-primary-foreground font-semibold">
                       {member.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -82,22 +79,27 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
 
             <TableCell>
               {editingMember === member.id ? (
-                <Select
-                              value={member.role}
-                              onChange={(e) => handleRoleChange(member.id, e.target.value as any)}
-                              className="w-32" options={[]}                >
+                <select
+                  value={member.role}
+                  onChange={(e) => handleRoleChange(member.id, e.target.value as 'admin' | 'member')}
+                  className="w-32 px-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  disabled={updateRoleMutation.isPending}
+                >
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
-                </Select>
+                </select>
               ) : (
-                <Badge variant={member.role === 'admin' ? 'warning' : 'primary'}>
+                <Badge variant={member.role === 'admin' ? 'warning' : 'default'}>
                   {member.role === 'admin' ? (
                     <>
                       <Crown className="w-3 h-3 mr-1" />
                       Admin
                     </>
                   ) : (
-                    'Member'
+                    <>
+                      <User className="w-3 h-3 mr-1" />
+                      Member
+                    </>
                   )}
                 </Badge>
               )}
@@ -108,6 +110,7 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setEditingMember(editingMember === member.id ? null : member.id)}
+                disabled={updateRoleMutation.isPending}
               >
                 <Shield className="w-4 h-4" />
               </Button>
@@ -115,8 +118,9 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => handleRemoveMember(member.id, member.name)}
+                disabled={removeMemberMutation.isPending}
               >
-                <Trash className="w-4 h-4 text-red-500" />
+                <Trash className="w-4 h-4 text-error" />
               </Button>
             </TableCell>
           </TableGrid>
