@@ -46,33 +46,78 @@ export type Database = {
       }
       ai_usage_logs: {
         Row: {
-          created_at: string | null
+          asset_ids: string[] | null
+          asset_type: string | null
+          cost: number
+          cost_breakdown: Json | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
           id: string
+          input_tokens: number | null
           metadata: Json | null
-          operation_id: string
+          model: string
+          operation_name: string | null
           operation_type: string
+          output_tokens: number | null
+          prompt_length: number | null
+          prompt_summary: string | null
+          provider: string
+          response_length: number | null
+          response_summary: string | null
           success: boolean
           suite_id: string
+          tokens_used: number
           user_id: string
         }
         Insert: {
-          created_at?: string | null
-          id?: string
+          asset_ids?: string[] | null
+          asset_type?: string | null
+          cost?: number
+          cost_breakdown?: Json | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id: string
+          input_tokens?: number | null
           metadata?: Json | null
-          operation_id: string
+          model: string
+          operation_name?: string | null
           operation_type: string
-          success: boolean
+          output_tokens?: number | null
+          prompt_length?: number | null
+          prompt_summary?: string | null
+          provider?: string
+          response_length?: number | null
+          response_summary?: string | null
+          success?: boolean
           suite_id: string
+          tokens_used?: number
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          asset_ids?: string[] | null
+          asset_type?: string | null
+          cost?: number
+          cost_breakdown?: Json | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
           id?: string
+          input_tokens?: number | null
           metadata?: Json | null
-          operation_id?: string
+          model?: string
+          operation_name?: string | null
           operation_type?: string
+          output_tokens?: number | null
+          prompt_length?: number | null
+          prompt_summary?: string | null
+          provider?: string
+          response_length?: number | null
+          response_summary?: string | null
           success?: boolean
           suite_id?: string
+          tokens_used?: number
           user_id?: string
         }
         Relationships: [
@@ -126,47 +171,214 @@ export type Database = {
           },
         ]
       }
-      bugs: {
+      asset_relationships: {
         Row: {
           created_at: string | null
           created_by: string
-          description: string | null
           id: string
-          severity: string | null
-          sprint_id: string | null
-          status: string | null
-          steps_to_reproduce: Json | null
-          suite_id: string
-          title: string
+          notes: string | null
+          relationship_type: string
+          source_id: string
+          source_type: string
+          suite_id: string | null
+          target_id: string
+          target_type: string
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           created_by: string
-          description?: string | null
           id?: string
-          severity?: string | null
-          sprint_id?: string | null
-          status?: string | null
-          steps_to_reproduce?: Json | null
-          suite_id: string
-          title: string
+          notes?: string | null
+          relationship_type: string
+          source_id: string
+          source_type: string
+          suite_id?: string | null
+          target_id: string
+          target_type: string
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           created_by?: string
-          description?: string | null
           id?: string
+          notes?: string | null
+          relationship_type?: string
+          source_id?: string
+          source_type?: string
+          suite_id?: string | null
+          target_id?: string
+          target_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_relationships_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bug_attachments: {
+        Row: {
+          bug_id: string
+          created_at: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          uploaded_by: string
+        }
+        Insert: {
+          bug_id: string
+          created_at?: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id?: string
+          uploaded_by: string
+        }
+        Update: {
+          bug_id?: string
+          created_at?: string | null
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_attachments_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_attachments_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs_with_details"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bugs: {
+        Row: {
+          actual_behavior: string | null
+          assigned_to: string | null
+          browser: string | null
+          closed_at: string | null
+          component: string | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          environment: string | null
+          expected_behavior: string | null
+          id: string
+          labels: Json | null
+          linked_recording_id: string | null
+          linked_test_case_id: string | null
+          module: string | null
+          os: string | null
+          priority: string | null
+          resolved_at: string | null
+          severity: string | null
+          sprint_id: string | null
+          status: string | null
+          steps_to_reproduce: Json | null
+          suite_id: string
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+          version: string | null
+        }
+        Insert: {
+          actual_behavior?: string | null
+          assigned_to?: string | null
+          browser?: string | null
+          closed_at?: string | null
+          component?: string | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          environment?: string | null
+          expected_behavior?: string | null
+          id?: string
+          labels?: Json | null
+          linked_recording_id?: string | null
+          linked_test_case_id?: string | null
+          module?: string | null
+          os?: string | null
+          priority?: string | null
+          resolved_at?: string | null
+          severity?: string | null
+          sprint_id?: string | null
+          status?: string | null
+          steps_to_reproduce?: Json | null
+          suite_id: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+          version?: string | null
+        }
+        Update: {
+          actual_behavior?: string | null
+          assigned_to?: string | null
+          browser?: string | null
+          closed_at?: string | null
+          component?: string | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          environment?: string | null
+          expected_behavior?: string | null
+          id?: string
+          labels?: Json | null
+          linked_recording_id?: string | null
+          linked_test_case_id?: string | null
+          module?: string | null
+          os?: string | null
+          priority?: string | null
+          resolved_at?: string | null
           severity?: string | null
           sprint_id?: string | null
           status?: string | null
           steps_to_reproduce?: Json | null
           suite_id?: string
+          tags?: string[] | null
           title?: string
           updated_at?: string | null
+          version?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bugs_linked_recording_id_fkey"
+            columns: ["linked_recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_linked_recording_id_fkey"
+            columns: ["linked_recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_linked_test_case_id_fkey"
+            columns: ["linked_test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bugs_suite_id_fkey"
             columns: ["suite_id"]
@@ -179,6 +391,126 @@ export type Database = {
             columns: ["sprint_id"]
             isOneToOne: false
             referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comment_attachments: {
+        Row: {
+          comment_id: string
+          created_at: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          uploaded_by: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id?: string
+          uploaded_by: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string | null
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_attachments_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comment_reactions: {
+        Row: {
+          comment_id: string
+          created_at: string | null
+          emoji: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string | null
+          emoji: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string | null
+          emoji?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_reactions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          created_at: string | null
+          edited: boolean | null
+          id: string
+          mentions: string[] | null
+          parent_comment_id: string | null
+          resource_id: string
+          resource_type: string
+          text: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          edited?: boolean | null
+          id?: string
+          mentions?: string[] | null
+          parent_comment_id?: string | null
+          resource_id: string
+          resource_type: string
+          text: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          edited?: boolean | null
+          id?: string
+          mentions?: string[] | null
+          parent_comment_id?: string | null
+          resource_id?: string
+          resource_type?: string
+          text?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
             referencedColumns: ["id"]
           },
         ]
@@ -337,8 +669,10 @@ export type Database = {
           created_at: string | null
           created_by: string
           id: string
+          industry: string | null
           name: string
           owner_id: string
+          size: string | null
           status: string | null
           updated_at: string | null
         }
@@ -346,8 +680,10 @@ export type Database = {
           created_at?: string | null
           created_by: string
           id?: string
+          industry?: string | null
           name: string
           owner_id: string
+          size?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -355,8 +691,10 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           id?: string
+          industry?: string | null
           name?: string
           owner_id?: string
+          size?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -366,44 +704,80 @@ export type Database = {
         Row: {
           account_type: string
           avatar_url: string | null
+          bio: string | null
+          company: string | null
           created_at: string | null
           created_by: string | null
           email: string
           id: string
+          location: string | null
+          metadata: Json | null
           name: string
           organization_id: string | null
+          organization_industry: string | null
+          organization_name: string | null
+          organization_size: string | null
+          organization_website: string | null
           registration_completed: boolean | null
+          role: string | null
           status: string | null
           terms_accepted: boolean | null
+          theme: string | null
+          timezone: string | null
           updated_at: string | null
+          website: string | null
         }
         Insert: {
           account_type: string
           avatar_url?: string | null
+          bio?: string | null
+          company?: string | null
           created_at?: string | null
           created_by?: string | null
           email: string
           id: string
+          location?: string | null
+          metadata?: Json | null
           name: string
           organization_id?: string | null
+          organization_industry?: string | null
+          organization_name?: string | null
+          organization_size?: string | null
+          organization_website?: string | null
           registration_completed?: boolean | null
+          role?: string | null
           status?: string | null
           terms_accepted?: boolean | null
+          theme?: string | null
+          timezone?: string | null
           updated_at?: string | null
+          website?: string | null
         }
         Update: {
           account_type?: string
           avatar_url?: string | null
+          bio?: string | null
+          company?: string | null
           created_at?: string | null
           created_by?: string | null
           email?: string
           id?: string
+          location?: string | null
+          metadata?: Json | null
           name?: string
           organization_id?: string | null
+          organization_industry?: string | null
+          organization_name?: string | null
+          organization_size?: string | null
+          organization_website?: string | null
           registration_completed?: boolean | null
+          role?: string | null
           status?: string | null
           terms_accepted?: boolean | null
+          theme?: string | null
+          timezone?: string | null
           updated_at?: string | null
+          website?: string | null
         }
         Relationships: []
       }
@@ -466,6 +840,7 @@ export type Database = {
       }
       recordings: {
         Row: {
+          [x: string]: any
           created_at: string | null
           created_by: string
           duration: number | null
@@ -521,6 +896,7 @@ export type Database = {
       report_schedules: {
         Row: {
           created_at: string | null
+          emails: string[] | null
           frequency: string
           id: string
           is_active: boolean | null
@@ -532,6 +908,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          emails?: string[] | null
           frequency: string
           id?: string
           is_active?: boolean | null
@@ -543,6 +920,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          emails?: string[] | null
           frequency?: string
           id?: string
           is_active?: boolean | null
@@ -562,6 +940,27 @@ export type Database = {
           },
         ]
       }
+      report_types: {
+        Row: {
+          default_metrics: Json | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          default_metrics?: Json | null
+          description?: string | null
+          id: string
+          name: string
+        }
+        Update: {
+          default_metrics?: Json | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           created_at: string | null
@@ -569,6 +968,7 @@ export type Database = {
           data: Json | null
           id: string
           name: string
+          sprint_id: string | null
           suite_id: string
           type: string
           updated_at: string | null
@@ -579,6 +979,7 @@ export type Database = {
           data?: Json | null
           id?: string
           name: string
+          sprint_id?: string | null
           suite_id: string
           type: string
           updated_at?: string | null
@@ -589,11 +990,19 @@ export type Database = {
           data?: Json | null
           id?: string
           name?: string
+          sprint_id?: string | null
           suite_id?: string
           type?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "reports_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reports_suite_id_fkey"
             columns: ["suite_id"]
@@ -609,11 +1018,13 @@ export type Database = {
           created_by: string
           description: string | null
           end_date: string | null
+          goals: string | null
           id: string
           name: string
           start_date: string | null
           status: string | null
           suite_id: string
+          test_case_ids: string[] | null
           updated_at: string | null
         }
         Insert: {
@@ -621,11 +1032,13 @@ export type Database = {
           created_by: string
           description?: string | null
           end_date?: string | null
+          goals?: string | null
           id?: string
           name: string
           start_date?: string | null
           status?: string | null
           suite_id: string
+          test_case_ids?: string[] | null
           updated_at?: string | null
         }
         Update: {
@@ -633,11 +1046,13 @@ export type Database = {
           created_by?: string
           description?: string | null
           end_date?: string | null
+          goals?: string | null
           id?: string
           name?: string
           start_date?: string | null
           status?: string | null
           suite_id?: string
+          test_case_ids?: string[] | null
           updated_at?: string | null
         }
         Relationships: [
@@ -730,48 +1145,258 @@ export type Database = {
           },
         ]
       }
-      test_cases: {
+      suggestions: {
         Row: {
+          assigned_to: string | null
+          attachments: string[] | null
+          category: string
           created_at: string | null
           created_by: string
-          description: string | null
-          expected_result: string | null
+          description: string
+          discussion_notes: string | null
+          downvotes: number | null
+          effort_estimate: string | null
           id: string
+          impact: string
+          implemented_at: string | null
+          priority: string
+          rationale: string | null
+          status: string
+          suite_id: string
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+          upvotes: number | null
+          votes: Json | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachments?: string[] | null
+          category: string
+          created_at?: string | null
+          created_by: string
+          description: string
+          discussion_notes?: string | null
+          downvotes?: number | null
+          effort_estimate?: string | null
+          id?: string
+          impact: string
+          implemented_at?: string | null
+          priority: string
+          rationale?: string | null
+          status?: string
+          suite_id: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+          upvotes?: number | null
+          votes?: Json | null
+        }
+        Update: {
+          assigned_to?: string | null
+          attachments?: string[] | null
+          category?: string
+          created_at?: string | null
+          created_by?: string
+          description?: string
+          discussion_notes?: string | null
+          downvotes?: number | null
+          effort_estimate?: string | null
+          id?: string
+          impact?: string
+          implemented_at?: string | null
+          priority?: string
+          rationale?: string | null
+          status?: string
+          suite_id?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+          upvotes?: number | null
+          votes?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggestions_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestions_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suite_members: {
+        Row: {
+          accepted_at: string | null
+          created_at: string | null
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          role: string
+          suite_id: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string | null
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          role?: string
+          suite_id: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string | null
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          role?: string
+          suite_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suite_members_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_cases: {
+        Row: {
+          actual_duration: number | null
+          archived_at: string | null
+          archived_by: string | null
+          assigned_to: string | null
+          attachments: Json | null
+          created_at: string | null
+          created_by: string
+          custom_fields: Json | null
+          description: string | null
+          estimated_duration: number | null
+          execution_count: number | null
+          expected_result: string | null
+          fail_count: number | null
+          id: string
+          is_automated: boolean | null
+          last_executed_at: string | null
+          last_executed_by: string | null
+          last_fail_date: string | null
+          last_pass_date: string | null
+          last_result: string | null
+          linked_bugs: string[] | null
+          module: string | null
+          parent_id: string | null
+          pass_count: number | null
+          postconditions: string | null
+          preconditions: string | null
           priority: string | null
           sprint_id: string | null
           status: string | null
           steps: Json | null
           suite_id: string
+          tags: string[] | null
+          test_data_id: string | null
           title: string
+          type: string | null
           updated_at: string | null
+          version: number | null
         }
         Insert: {
+          actual_duration?: number | null
+          archived_at?: string | null
+          archived_by?: string | null
+          assigned_to?: string | null
+          attachments?: Json | null
           created_at?: string | null
           created_by: string
+          custom_fields?: Json | null
           description?: string | null
+          estimated_duration?: number | null
+          execution_count?: number | null
           expected_result?: string | null
+          fail_count?: number | null
           id?: string
+          is_automated?: boolean | null
+          last_executed_at?: string | null
+          last_executed_by?: string | null
+          last_fail_date?: string | null
+          last_pass_date?: string | null
+          last_result?: string | null
+          linked_bugs?: string[] | null
+          module?: string | null
+          parent_id?: string | null
+          pass_count?: number | null
+          postconditions?: string | null
+          preconditions?: string | null
           priority?: string | null
           sprint_id?: string | null
           status?: string | null
           steps?: Json | null
           suite_id: string
+          tags?: string[] | null
+          test_data_id?: string | null
           title: string
+          type?: string | null
           updated_at?: string | null
+          version?: number | null
         }
         Update: {
+          actual_duration?: number | null
+          archived_at?: string | null
+          archived_by?: string | null
+          assigned_to?: string | null
+          attachments?: Json | null
           created_at?: string | null
           created_by?: string
+          custom_fields?: Json | null
           description?: string | null
+          estimated_duration?: number | null
+          execution_count?: number | null
           expected_result?: string | null
+          fail_count?: number | null
           id?: string
+          is_automated?: boolean | null
+          last_executed_at?: string | null
+          last_executed_by?: string | null
+          last_fail_date?: string | null
+          last_pass_date?: string | null
+          last_result?: string | null
+          linked_bugs?: string[] | null
+          module?: string | null
+          parent_id?: string | null
+          pass_count?: number | null
+          postconditions?: string | null
+          preconditions?: string | null
           priority?: string | null
           sprint_id?: string | null
           status?: string | null
           steps?: Json | null
           suite_id?: string
+          tags?: string[] | null
+          test_data_id?: string | null
           title?: string
+          type?: string | null
           updated_at?: string | null
+          version?: number | null
         }
         Relationships: [
           {
@@ -782,10 +1407,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "test_cases_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "test_cases_suite_id_fkey"
             columns: ["suite_id"]
             isOneToOne: false
             referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_cases_test_data_id_fkey"
+            columns: ["test_data_id"]
+            isOneToOne: false
+            referencedRelation: "test_data"
             referencedColumns: ["id"]
           },
         ]
@@ -831,6 +1470,349 @@ export type Database = {
           },
           {
             foreignKeyName: "test_data_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_data_items: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          metadata: Json | null
+          suite_id: string
+          type_id: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          metadata?: Json | null
+          suite_id: string
+          type_id: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          metadata?: Json | null
+          suite_id?: string
+          type_id?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_data_items_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_data_items_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "test_data_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_data_types: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          generator_type: string | null
+          icon: string | null
+          id: string
+          name: string
+          suite_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          generator_type?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          suite_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          generator_type?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          suite_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_data_types_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_execution_history: {
+        Row: {
+          duration_minutes: number | null
+          executed_at: string | null
+          executed_by: string | null
+          id: string
+          notes: string | null
+          sprint_id: string | null
+          status: string
+          test_case_id: string
+          test_run_id: string
+        }
+        Insert: {
+          duration_minutes?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          sprint_id?: string | null
+          status: string
+          test_case_id: string
+          test_run_id: string
+        }
+        Update: {
+          duration_minutes?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          sprint_id?: string | null
+          status?: string
+          test_case_id?: string
+          test_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_execution_history_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_run_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_run_results: {
+        Row: {
+          actual_result: string | null
+          bug_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          executed_at: string | null
+          executed_by: string | null
+          id: string
+          notes: string | null
+          screenshots: Json | null
+          sprint_id: string | null
+          status: string | null
+          test_case_id: string
+          test_run_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_result?: string | null
+          bug_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          screenshots?: Json | null
+          sprint_id?: string | null
+          status?: string | null
+          test_case_id: string
+          test_run_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_result?: string | null
+          bug_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          notes?: string | null
+          screenshots?: Json | null
+          sprint_id?: string | null
+          status?: string | null
+          test_case_id?: string
+          test_run_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_run_results_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_run_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_run_results_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_runs: {
+        Row: {
+          additional_case_ids: string[] | null
+          assigned_to: string | null
+          attachments: Json | null
+          blocked_count: number | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          environment: string
+          executed_at: string | null
+          failed_count: number | null
+          id: string
+          name: string
+          notes: string | null
+          passed_count: number | null
+          scheduled_date: string | null
+          skipped_count: number | null
+          sprint_ids: string[] | null
+          status: string | null
+          suite_id: string
+          test_case_ids: string[] | null
+          test_type: string | null
+          total_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          additional_case_ids?: string[] | null
+          assigned_to?: string | null
+          attachments?: Json | null
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          environment: string
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          passed_count?: number | null
+          scheduled_date?: string | null
+          skipped_count?: number | null
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id: string
+          test_case_ids?: string[] | null
+          test_type?: string | null
+          total_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          additional_case_ids?: string[] | null
+          assigned_to?: string | null
+          attachments?: Json | null
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          environment?: string
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          passed_count?: number | null
+          scheduled_date?: string | null
+          skipped_count?: number | null
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id?: string
+          test_case_ids?: string[] | null
+          test_type?: string | null
+          total_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_runs_suite_id_fkey"
             columns: ["suite_id"]
             isOneToOne: false
             referencedRelation: "test_suites"
@@ -924,11 +1906,344 @@ export type Database = {
           },
         ]
       }
+      user_sessions: {
+        Row: {
+          current_suite_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          current_suite_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          current_suite_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_current_suite_id_fkey"
+            columns: ["current_suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      ai_model_usage_stats: {
+        Row: {
+          avg_cost_per_op: number | null
+          avg_tokens_per_op: number | null
+          model: string | null
+          operation_count: number | null
+          success_rate: number | null
+          total_cost: number | null
+          total_tokens: number | null
+        }
+        Relationships: []
+      }
+      ai_usage_daily_summary: {
+        Row: {
+          avg_cost: number | null
+          avg_tokens: number | null
+          failed_operations: number | null
+          operation_count: number | null
+          operation_type: string | null
+          successful_operations: number | null
+          suite_id: string | null
+          total_cost: number | null
+          total_tokens: number | null
+          usage_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_user_summary: {
+        Row: {
+          last_operation: string | null
+          suite_id: string | null
+          total_cost: number | null
+          total_operations: number | null
+          total_tokens: number | null
+          unique_operation_types: number | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_relationships_with_details: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          creator_avatar: string | null
+          creator_name: string | null
+          id: string | null
+          notes: string | null
+          relationship_type: string | null
+          source_id: string | null
+          source_title: string | null
+          source_type: string | null
+          target_id: string | null
+          target_title: string | null
+          target_type: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
+      bugs_with_details: {
+        Row: {
+          actual_behavior: string | null
+          assigned_to: string | null
+          assignee_email: string | null
+          assignee_name: string | null
+          attachment_count: number | null
+          attachments: Json | null
+          browser: string | null
+          closed_at: string | null
+          component: string | null
+          created_at: string | null
+          created_by: string | null
+          creator_email: string | null
+          creator_name: string | null
+          description: string | null
+          environment: string | null
+          expected_behavior: string | null
+          id: string | null
+          labels: Json | null
+          linked_recording_id: string | null
+          linked_test_case_id: string | null
+          module: string | null
+          os: string | null
+          priority: string | null
+          resolved_at: string | null
+          severity: string | null
+          sprint_id: string | null
+          status: string | null
+          steps_to_reproduce: Json | null
+          suite_id: string | null
+          tags: string[] | null
+          title: string | null
+          updated_at: string | null
+          version: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bugs_linked_recording_id_fkey"
+            columns: ["linked_recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_linked_recording_id_fkey"
+            columns: ["linked_recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_linked_test_case_id_fkey"
+            columns: ["linked_test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_sprint"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recordings_with_details: {
+        Row: {
+          created_at: string | null
+          creator_email: string | null
+          creator_name: string | null
+          duration: number | null
+          id: string | null
+          metadata: Json | null
+          sprint_id: string | null
+          sprint_name: string | null
+          suite_id: string | null
+          suite_name: string | null
+          suite_owner_id: string | null
+          title: string | null
+          updated_at: string | null
+          url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_sprint"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recordings_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_case_execution_history: {
+        Row: {
+          duration_minutes: number | null
+          executed_at: string | null
+          executed_by: string | null
+          notes: string | null
+          sprint_id: string | null
+          sprint_name: string | null
+          status: string | null
+          test_case_id: string | null
+          test_case_title: string | null
+          test_run_id: string | null
+          test_run_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_execution_history_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_run_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_execution_history_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_run_analytics: {
+        Row: {
+          additional_case_count: number | null
+          blocked_count: number | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          duration_seconds: number | null
+          environment: string | null
+          executed_at: string | null
+          failed_count: number | null
+          id: string | null
+          name: string | null
+          pass_rate: number | null
+          passed_count: number | null
+          skipped_count: number | null
+          sprint_count: number | null
+          sprint_ids: string[] | null
+          status: string | null
+          suite_id: string | null
+          test_type: string | null
+          total_count: number | null
+        }
+        Insert: {
+          additional_case_count?: never
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_seconds?: never
+          environment?: string | null
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string | null
+          name?: string | null
+          pass_rate?: never
+          passed_count?: number | null
+          skipped_count?: number | null
+          sprint_count?: never
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id?: string | null
+          test_type?: string | null
+          total_count?: number | null
+        }
+        Update: {
+          additional_case_count?: never
+          blocked_count?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_seconds?: never
+          environment?: string | null
+          executed_at?: string | null
+          failed_count?: number | null
+          id?: string | null
+          name?: string | null
+          pass_rate?: never
+          passed_count?: number | null
+          skipped_count?: number | null
+          sprint_count?: never
+          sprint_ids?: string[] | null
+          status?: string | null
+          suite_id?: string | null
+          test_type?: string | null
+          total_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_runs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      can_access_asset: {
+        Args: { asset_id: string; asset_type: string; user_id: string }
+        Returns: boolean
+      }
       can_admin_test_suite: {
         Args: { suite_id: string; user_id: string }
         Returns: boolean
@@ -940,6 +2255,85 @@ export type Database = {
       can_write_test_suite: {
         Args: { suite_id: string; user_id: string }
         Returns: boolean
+      }
+      cleanup_old_ai_logs: {
+        Args: { retention_days?: number }
+        Returns: number
+      }
+      cleanup_old_recording_logs: { Args: never; Returns: number }
+      downgrade_expired_trials: { Args: never; Returns: undefined }
+      get_asset_relationship_count: {
+        Args: { asset_id: string; asset_type: string }
+        Returns: number
+      }
+      get_asset_suite_id: {
+        Args: { asset_id: string; asset_type: string }
+        Returns: string
+      }
+      get_linked_assets: {
+        Args: { p_asset_id: string; p_asset_type: string }
+        Returns: {
+          asset_id: string
+          asset_title: string
+          asset_type: string
+          created_at: string
+          direction: string
+          relationship_id: string
+          relationship_type: string
+        }[]
+      }
+      get_recording_stats: {
+        Args: { p_suite_id: string }
+        Returns: {
+          recordings_this_month: number
+          total_duration: number
+          total_recordings: number
+          total_size_mb: number
+        }[]
+      }
+      get_suite_ai_stats: {
+        Args: { p_end_date?: string; p_start_date?: string; p_suite_id: string }
+        Returns: {
+          cost_by_model: Json
+          daily_usage: Json
+          operations_by_type: Json
+          total_cost: number
+          total_operations: number
+          total_tokens: number
+        }[]
+      }
+      get_suite_relationship_stats: {
+        Args: { p_suite_id: string }
+        Returns: {
+          count: number
+          relationship_type: string
+        }[]
+      }
+      get_test_case_history: {
+        Args: { p_limit?: number; p_test_case_id: string }
+        Returns: {
+          duration_minutes: number
+          executed_at: string
+          notes: string
+          sprint_id: string
+          sprint_name: string
+          status: string
+          test_run_id: string
+          test_run_name: string
+        }[]
+      }
+      handle_new_user_registration: {
+        Args: {
+          org_industry?: string
+          org_name?: string
+          org_size?: string
+          user_account_type: string
+          user_email: string
+          user_id: string
+          user_name: string
+          user_terms_accepted: boolean
+        }
+        Returns: Json
       }
       is_org_admin: {
         Args: { org_id: string; user_id: string }

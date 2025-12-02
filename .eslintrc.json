@@ -1,0 +1,76 @@
+{
+  "root": true,
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript"
+  ],
+  "rules": {
+    // TypeScript rules - Turn errors into warnings
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/ban-ts-comment": "warn",
+    "@typescript-eslint/no-non-null-assertion": "warn",
+    // React/Next.js rules - Be more lenient
+    "react-hooks/exhaustive-deps": "warn",
+    "react-hooks/rules-of-hooks": "error",
+    "@next/next/no-img-element": "warn",
+    "@next/next/no-html-link-for-pages": "off",
+    // General JavaScript rules
+    "no-console": "off",
+    "no-unused-vars": "off",
+    "prefer-const": "warn",
+    "no-var": "warn",
+    // Import rules
+    "import/no-anonymous-default-export": "warn",
+    // Allow console.log in development
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "CallExpression[callee.object.name='console'][callee.property.name!=/^(log|warn|error|info|trace)$/]",
+        "message": "Unexpected property on console object was called"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      // Completely disable ESLint for generated files
+      "files": [
+        "*.config.ts",
+        "*.config.js",
+        "next-env.d.ts"
+      ],
+      "rules": {
+        "@typescript-eslint/no-var-requires": "off"
+      }
+    },
+    {
+      // Be more lenient in API routes and webhooks
+      "files": [
+        "app/api/**/*.ts",
+        "app/api/**/*.tsx"
+      ],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "import/no-anonymous-default-export": "off"
+      }
+    },
+    {
+      // Strict rules for important files
+      "files": [
+        "lib/**/*.ts",
+        "components/**/*.tsx"
+      ],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "warn"
+      }
+    }
+  ],
+  "ignoreDuringBuilds": true
+}

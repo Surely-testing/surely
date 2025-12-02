@@ -1,9 +1,11 @@
-// app/(marketing)/layout.tsx
+// ============================================
+// FILE: app/(marketing)/layout.tsx
+// ============================================
 'use client'
 
 import { useState, useEffect } from 'react'
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
+import Navbar from '@/components/marketing/Navbar'
+import Footer from '@/components/marketing/Footer'
 
 export default function MarketingLayout({
   children,
@@ -13,10 +15,9 @@ export default function MarketingLayout({
   const [activeSection, setActiveSection] = useState('home')
 
   const scrollToSection = (sectionId: string) => {
-    console.log('Scrolling to:', sectionId) // DEBUG
     const element = document.getElementById(sectionId)
     if (element) {
-      const offset = 80
+      const offset = 80 // Height of fixed navbar
       const elementPosition = element.getBoundingClientRect().top
       const offsetPosition = elementPosition + window.pageYOffset - offset
 
@@ -27,6 +28,7 @@ export default function MarketingLayout({
     }
   }
 
+  // Track active section on scroll
   useEffect(() => {
     const handleScroll = () => {
       const sections = ['home', 'features', 'pricing', 'testimonials']
@@ -50,12 +52,10 @@ export default function MarketingLayout({
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  console.log('Layout rendering, activeSection:', activeSection) // DEBUG
-
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar activeSection={activeSection} scrollToSection={scrollToSection} />
-      <main className="flex-1 pt-16 sm:pt-20">{children}</main>
+      <main className="flex-1 pt-14 sm:pt-16">{children}</main>
       <Footer />
     </div>
   )

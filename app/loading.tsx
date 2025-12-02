@@ -1,21 +1,17 @@
-
 // ============================================
-// FILE: app/(marketing)/page.tsx
+// FILE: app/loading.tsx
 // ============================================
-import { Hero } from '@/components/marketing/Hero'
-import { Features } from '@/components/marketing/Features'
-import { Pricing } from '@/components/marketing/Pricing'
-import { Testimonials } from '@/components/marketing/Testimonials'
-import { CTA } from '@/components/marketing/CTA'
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 
-export default function HomePage() {
+export default function RootLoading() {
   return (
-    <>
-      <Hero />
-      <Features />
-      <Pricing />
-      <Testimonials />
-      <CTA />
-    </>
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <LoadingSpinner size="lg" />
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    </div>
   )
 }
+
+
