@@ -1,16 +1,22 @@
 // ============================================
 // app/dashboard/recordings/[recordingId]/page.tsx
+// Recording detail page - FIXED
 // ============================================
 
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { RecordingPlayer } from '@/components/Recordings/RecordingPlayer';
+import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
 
-export default async function RecordingDetailPage({
-  params,
-}: {
-  params: { recordingId: string };
-}) {
+interface PageProps {
+  params: Promise<{ recordingId: string }>;
+}
+
+export default async function RecordingDetailPage({ params }: PageProps) {
+  // Await params in Next.js 15+
+  const { recordingId } = await params;
+  
   const supabase = await createClient();
 
   // Get current user
@@ -27,33 +33,33 @@ export default async function RecordingDetailPage({
   const { data: recording, error: recordingError } = await supabase
     .from('recordings')
     .select('*')
-    .eq('id', params.recordingId)
+    .eq('id', recordingId)
     .single();
 
   if (recordingError || !recording) {
+    console.error('Recording fetch error:', recordingError);
     notFound();
   }
 
   // Get the suite
-  const { data: suite } = await supabase
+  const { data: suite, error: suiteError } = await supabase
     .from('test_suites')
-    .select('id, name')
+    .select('id, name, owner_id, admins, members')
     .eq('id', recording.suite_id)
     .single();
 
-  if (!suite) {
+  if (suiteError || !suite) {
+    console.error('Suite fetch error:', suiteError);
     notFound();
   }
 
   // Check if user has access to this suite
-  const { data: hasAccess } = await supabase
-    .from('test_suites')
-    .select('id')
-    .eq('id', suite.id)
-    .or(`owner_id.eq.${user.id},admins.cs.{${user.id}},members.cs.{${user.id}}`)
-    .single();
+  const isOwner = suite.owner_id === user.id;
+  const isAdmin = Array.isArray(suite.admins) && suite.admins.includes(user.id);
+  const isMember = Array.isArray(suite.members) && suite.members.includes(user.id);
 
-  if (!hasAccess) {
+  if (!isOwner && !isAdmin && !isMember) {
+    console.warn('User does not have access to this suite');
     redirect('/dashboard');
   }
 
@@ -66,11 +72,13 @@ export default async function RecordingDetailPage({
       .eq('id', recording.sprint_id)
       .single();
 
-    sprint = sprintData;
+    sprint = sprintData || null;
   }
 
   return (
-    <div className="container py-8">
+    <div className="container mx-auto px-4 py-6 md:py-8">
+
+      {/* Recording Player */}
       <RecordingPlayer
         recording={recording}
         suite={suite}
@@ -78,4 +86,21 @@ export default async function RecordingDetailPage({
       />
     </div>
   );
+}
+
+// Generate metadata for the page
+export async function generateMetadata({ params }: PageProps) {
+  const { recordingId } = await params;
+  const supabase = await createClient();
+
+  const { data: recording } = await supabase
+    .from('recordings')
+    .select('title')
+    .eq('id', recordingId)
+    .single();
+
+  return {
+    title: recording?.title || 'Recording',
+    description: 'View test recording details and playback',
+  };
 }

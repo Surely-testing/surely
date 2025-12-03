@@ -15,7 +15,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/Textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Upload } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Loader2, Upload, X } from 'lucide-react';
 import { createRecording, uploadLogs, updateRecording } from '@/lib/actions/recordings';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -162,33 +163,50 @@ export function RecordingPreviewDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] p-0 gap-0">
-        <div className="flex h-[90vh]">
-          {/* Left Side - Video Preview */}
-          <div className="flex-1 flex flex-col bg-muted/30">
-            <DialogHeader className="px-6 py-4 border-b">
-              <DialogTitle>Recording Preview</DialogTitle>
-            </DialogHeader>
+      <DialogContent className="max-w-7xl max-h-[90vh] p-0 gap-0 overflow-hidden">
+        <div className="flex flex-col h-full max-h-[90vh]">
+          {/* Header with Close and Save */}
+          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
+            <DialogTitle>Recording Preview</DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={onClose}>
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={!title.trim()}>
+                <Upload className="h-4 w-4 mr-2" />
+                Save Recording
+              </Button>
+            </div>
+          </div>
 
-            <div className="flex-1 flex items-center justify-center p-6">
-              <div className="w-full max-w-3xl">
-                <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-xl">
-                  <video
-                    ref={videoRef}
-                    src={videoUrl}
-                    controls
-                    className="w-full h-full"
-                  />
+          {/* YouTube-style Layout */}
+          <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+            {/* Left Column - Video Player (70%) */}
+            <div className="lg:w-[70%] p-6 overflow-y-auto">
+              <div className="space-y-4 max-w-4xl mx-auto">
+                {/* Video Player */}
+                <div className="bg-black rounded-xl overflow-hidden">
+                  <div className="aspect-video relative">
+                    <video
+                      ref={videoRef}
+                      src={videoUrl}
+                      controls
+                      className="w-full h-full"
+                    />
+                  </div>
                 </div>
-                
-                {/* Video Info */}
-                <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+
+                {/* Video Metadata */}
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <span>
                     Duration: {Math.floor(preview.duration / 60)}m {preview.duration % 60}s
                   </span>
+                  <span>•</span>
                   <span>
                     Resolution: {preview.metadata.resolution}
                   </span>
+                  <span>•</span>
                   <span>
                     Size: {(preview.videoBlob.size / 1024 / 1024).toFixed(2)} MB
                   </span>
@@ -196,205 +214,223 @@ export function RecordingPreviewDialog({
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t bg-background flex items-center justify-between">
-              <Button variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={!title.trim()}>
-                <Upload className="h-4 w-4 mr-2" />
-                Save Recording
-              </Button>
-            </div>
-          </div>
+            {/* Right Column - Form & Logs Tabs (30%) */}
+            <div className="lg:w-[30%] border-t lg:border-t-0 lg:border-l flex flex-col overflow-hidden">
+              <div className="p-4 space-y-3 border-b shrink-0">
+                <div className="space-y-2">
+                  <Label htmlFor="title" className="text-xs font-medium">
+                    Title *
+                  </Label>
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Enter recording title"
+                  />
+                </div>
 
-          {/* Right Side - Info Panel */}
-          <div className="w-[400px] border-l flex flex-col bg-background">
-            <div className="flex-1 overflow-hidden">
-              <Tabs defaultValue="info" className="h-full flex flex-col">
-                <div className="px-4 pt-4">
-                  <TabsList className="grid w-full grid-cols-4 h-auto">
-                    <TabsTrigger value="info" className="text-xs px-2 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="description" className="text-xs font-medium">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Add a description (optional)"
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+
+              <Tabs defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
+                <div className="px-4 pt-4 shrink-0">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="info" className="text-xs">
                       Info
                     </TabsTrigger>
-                    <TabsTrigger value="console" className="text-xs px-2 py-2">
+                    <TabsTrigger value="console" className="text-xs">
                       Console
                     </TabsTrigger>
-                    <TabsTrigger value="network" className="text-xs px-2 py-2">
+                    <TabsTrigger value="network" className="text-xs">
                       Network
                     </TabsTrigger>
-                    <TabsTrigger value="actions" className="text-xs px-2 py-2">
-                      Actions
+                    <TabsTrigger value="screenshots" className="text-xs">
+                      Shots
                     </TabsTrigger>
                   </TabsList>
                 </div>
 
                 <div className="flex-1 overflow-hidden">
                   <TabsContent value="info" className="h-full mt-0">
-                    <ScrollArea className="h-full">
-                      <div className="p-4 space-y-4">
-                        {/* Recording Details Form */}
-                        <div className="space-y-3">
+                    <ScrollArea className="h-full px-4 py-4">
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm">Recording Details</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
                           <div>
-                            <Label htmlFor="title" className="text-xs font-medium">
-                              Title *
-                            </Label>
-                            <Input
-                              id="title"
-                              value={title}
-                              onChange={(e) => setTitle(e.target.value)}
-                              placeholder="Enter recording title"
-                              className="mt-1.5"
-                            />
+                            <dt className="text-xs font-medium text-muted-foreground mb-1">
+                              Timestamp
+                            </dt>
+                            <dd className="text-sm">
+                              {new Date(preview.metadata.timestamp || '').toLocaleString()}
+                            </dd>
                           </div>
-
                           <div>
-                            <Label htmlFor="description" className="text-xs font-medium">
-                              Description
-                            </Label>
-                            <Textarea
-                              id="description"
-                              value={description}
-                              onChange={(e) => setDescription(e.target.value)}
-                              placeholder="Add a description (optional)"
-                              rows={4}
-                              className="mt-1.5 resize-none"
-                            />
+                            <dt className="text-xs font-medium text-muted-foreground mb-1">
+                              Duration
+                            </dt>
+                            <dd className="text-sm font-mono">
+                              {Math.floor(preview.duration / 60)}:{String(preview.duration % 60).padStart(2, '0')}
+                            </dd>
                           </div>
-                        </div>
-
-                        {/* Metadata */}
-                        <div className="pt-4 border-t space-y-3">
-                          <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                            Metadata
-                          </h4>
-                          <div className="space-y-2 text-xs">
-                            <div className="flex justify-between py-1.5">
-                              <span className="text-muted-foreground">Timestamp</span>
-                              <span className="font-medium">
-                                {new Date(preview.metadata.timestamp || '').toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="flex justify-between py-1.5 border-t">
-                              <span className="text-muted-foreground">OS</span>
-                              <span className="font-medium">{preview.metadata.os || 'Unknown'}</span>
-                            </div>
-                            <div className="flex justify-between py-1.5 border-t">
-                              <span className="text-muted-foreground">Browser</span>
-                              <span className="font-medium">{preview.metadata.browser || 'Chrome'}</span>
-                            </div>
-                            <div className="flex justify-between py-1.5 border-t">
-                              <span className="text-muted-foreground">Window Size</span>
-                              <span className="font-medium">{preview.metadata.resolution}</span>
-                            </div>
+                          <div>
+                            <dt className="text-xs font-medium text-muted-foreground mb-1">
+                              Resolution
+                            </dt>
+                            <dd className="text-sm">{preview.metadata.resolution}</dd>
                           </div>
-                        </div>
-
-                        {/* Screenshots Preview */}
-                        {preview.screenshots.length > 0 && (
-                          <div className="pt-4 border-t space-y-3">
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                              Screenshots ({preview.screenshots.length})
-                            </h4>
-                            <div className="grid grid-cols-2 gap-2">
-                              {preview.screenshots.slice(0, 4).map((screenshot, index) => (
-                                <img
-                                  key={index}
-                                  src={screenshot}
-                                  alt={`Screenshot ${index + 1}`}
-                                  className="rounded border cursor-pointer hover:ring-2 ring-primary aspect-video object-cover"
-                                  onClick={() => window.open(screenshot)}
-                                />
-                              ))}
-                            </div>
+                          <div>
+                            <dt className="text-xs font-medium text-muted-foreground mb-1">
+                              Browser
+                            </dt>
+                            <dd className="text-sm">{preview.metadata.browser || 'Chrome'}</dd>
                           </div>
-                        )}
-                      </div>
+                          <div>
+                            <dt className="text-xs font-medium text-muted-foreground mb-1">
+                              Operating System
+                            </dt>
+                            <dd className="text-sm">{preview.metadata.os || 'Unknown'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs font-medium text-muted-foreground mb-1">
+                              File Size
+                            </dt>
+                            <dd className="text-sm">
+                              {(preview.videoBlob.size / 1024 / 1024).toFixed(2)} MB
+                            </dd>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </ScrollArea>
                   </TabsContent>
 
                   <TabsContent value="console" className="h-full mt-0">
-                    <ScrollArea className="h-full">
-                      <div className="p-4">
-                        {preview.consoleLogs.length === 0 ? (
-                          <p className="text-muted-foreground text-center py-8 text-sm">
-                            No console logs captured
-                          </p>
-                        ) : (
-                          <div className="space-y-1 font-mono text-[10px]">
-                            {preview.consoleLogs.map((log, index) => (
-                              <div key={index} className="flex gap-2 py-1 border-b last:border-0">
-                                <span className="text-muted-foreground shrink-0 text-[9px]">
-                                  {formatLogTime(log.timestamp)}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "shrink-0 font-semibold",
-                                    log.type === 'error' && 'text-red-500',
-                                    log.type === 'warn' && 'text-yellow-500',
-                                    log.type === 'info' && 'text-blue-500',
-                                    log.type === 'log' && 'text-foreground'
-                                  )}
-                                >
-                                  {log.type}
-                                </span>
-                                <span className="break-all text-foreground/90">{log.message}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                    <ScrollArea className="h-full px-4 py-4">
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm">Console Logs</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {preview.consoleLogs.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-8 text-sm">
+                              No console logs captured
+                            </p>
+                          ) : (
+                            <div className="space-y-2 font-mono text-xs max-h-[400px] overflow-y-auto">
+                              {preview.consoleLogs.map((log, index) => (
+                                <div key={index} className="flex gap-2 pb-2 border-b">
+                                  <span className="text-muted-foreground shrink-0 text-[10px]">
+                                    {formatLogTime(log.timestamp)}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "shrink-0",
+                                      log.type === 'error' && 'text-red-500',
+                                      log.type === 'warn' && 'text-yellow-500',
+                                      log.type === 'info' && 'text-blue-500',
+                                      log.type === 'log' && 'text-foreground'
+                                    )}
+                                  >
+                                    [{log.type}]
+                                  </span>
+                                  <span className="break-all text-[11px]">{log.message}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     </ScrollArea>
                   </TabsContent>
 
                   <TabsContent value="network" className="h-full mt-0">
-                    <ScrollArea className="h-full">
-                      <div className="p-4">
-                        {preview.networkLogs.length === 0 ? (
-                          <p className="text-muted-foreground text-center py-8 text-sm">
-                            No network requests captured
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {preview.networkLogs.map((log, index) => (
-                              <div key={index} className="text-xs border rounded-lg p-3 hover:bg-muted/50">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="default" size='md'>
-                                      {log.method}
-                                    </Badge>
-                                    <span
-                                      className={cn(
-                                        "font-semibold text-xs",
-                                        log.status && log.status >= 200 && log.status < 300 && 'text-green-600',
-                                        log.status && log.status >= 400 && 'text-red-600',
-                                        (!log.status || log.status < 200) && 'text-yellow-600'
+                    <ScrollArea className="h-full px-4 py-4">
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm">Network Activity</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {preview.networkLogs.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-8 text-sm">
+                              No network activity recorded
+                            </p>
+                          ) : (
+                            <div className="divide-y max-h-[400px] overflow-y-auto">
+                              {preview.networkLogs.map((log, index) => (
+                                <div key={index} className="py-3 text-xs hover:bg-muted/50">
+                                  <div className="flex items-center justify-between mb-2 gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="info" className="text-[10px] px-1.5 py-0">
+                                        {log.method}
+                                      </Badge>
+                                      <span
+                                        className={cn(
+                                          "font-semibold text-[11px]",
+                                          log.status && log.status >= 200 && log.status < 300 && 'text-green-600',
+                                          log.status && log.status >= 400 && 'text-red-600',
+                                          (!log.status || log.status < 200) && 'text-yellow-600'
+                                        )}
+                                      >
+                                        {log.status || 'pending'}
+                                      </span>
+                                      {log.duration && (
+                                        <span className="text-muted-foreground text-[10px]">
+                                          {log.duration}ms
+                                        </span>
                                       )}
-                                    >
-                                      {log.status || 'pending'}
-                                    </span>
+                                    </div>
                                   </div>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {log.duration}ms
-                                  </span>
+                                  <div className="text-muted-foreground text-[10px] break-all">
+                                    {log.url}
+                                  </div>
                                 </div>
-                                <div className="text-muted-foreground text-[10px] break-all">
-                                  {log.url}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     </ScrollArea>
                   </TabsContent>
 
-                  <TabsContent value="actions" className="h-full mt-0">
-                    <ScrollArea className="h-full">
-                      <div className="p-4 space-y-2">
-                        <p className="text-xs text-muted-foreground mb-4">
-                          Additional recording actions will be available here.
-                        </p>
-                      </div>
+                  <TabsContent value="screenshots" className="h-full mt-0">
+                    <ScrollArea className="h-full px-4 py-4">
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm">Screenshots</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {preview.screenshots.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto">
+                              {preview.screenshots.map((screenshot, index) => (
+                                <img
+                                  key={index}
+                                  src={screenshot}
+                                  alt={`Screenshot ${index + 1}`}
+                                  className="rounded border cursor-pointer hover:ring-2 ring-primary aspect-video object-cover transition-all"
+                                  onClick={() => window.open(screenshot)}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-center text-muted-foreground py-8 text-sm">
+                              No screenshots captured
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
                     </ScrollArea>
                   </TabsContent>
                 </div>

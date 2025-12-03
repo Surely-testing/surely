@@ -1,6 +1,6 @@
 // ============================================
 // components/recordings/RecordingsView.tsx
-// Parent component managing selection and pagination
+// Mobile-First Responsive - Aligned with TestCasesView
 // ============================================
 
 'use client';
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/Select';
-import { Search, Grid3x3, List, CheckSquare, Square, Play, Clock, Calendar } from 'lucide-react';
+import { Search, Grid3x3, List, CheckSquare, Square, Play, Clock, Calendar, Filter, RefreshCw, ChevronLeft } from 'lucide-react';
 import { getRecordings } from '@/lib/actions/recordings';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { BulkActionsBar, type ActionGroup } from '@/components/shared/BulkActionBar';
@@ -54,6 +54,8 @@ export function RecordingsView({
     sort: 'newest',
   });
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showFilters, setShowFilters] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
   // Selection and pagination state
   const [selectedRecordings, setSelectedRecordings] = useState<string[]>([]);
@@ -200,100 +202,45 @@ export function RecordingsView({
     }
   };
 
-  return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header - Mobile Responsive */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Recordings</h1>
-          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            {filteredRecordings.length} recording{filteredRecordings.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        
-        {/* Recording Toolbar */}
-        <RecordingToolbar
-          suiteId={suiteId}
-          onRecordingSaved={fetchRecordings}
-        />
-      </div>
+  const clearFilters = () => {
+    setFilters({
+      search: '',
+      sort: 'newest',
+      sprint_id: undefined,
+    });
+  };
 
-      {/* Filters Bar - Single Row */}
-      <div className="flex items-center gap-3 bg-card border border-border rounded-lg p-3">
-        {/* Select All Checkbox */}
-        {paginatedRecordings.length > 0 && (
-          <button
-            onClick={handleSelectAll}
-            className="p-2 hover:bg-muted rounded transition-colors shrink-0"
-            title={allSelected ? 'Deselect all' : 'Select all on this page'}
-          >
-            {allSelected ? (
-              <CheckSquare className="w-5 h-5 text-primary" />
-            ) : (
-              <Square className="w-5 h-5 text-muted-foreground" />
-            )}
-          </button>
-        )}
+  const activeFiltersCount = (filters.sprint_id ? 1 : 0);
 
-        {/* Search */}
-        <div className="relative w-[300px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search recordings..."
-            value={filters.search || ''}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
-            className="pl-9 h-9"
-          />
+  const handleToggleDrawer = () => {
+    setIsDrawerOpen(prev => !prev);
+  };
+
+  if (isLoading && recordings.length === 0) {
+    return (
+      <div className="space-y-4 md:space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
+            <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
+            <div className="h-10 w-10 bg-muted animate-pulse rounded-lg" />
+          </div>
         </div>
 
-        {/* Sprint Filter */}
-        {sprints.length > 0 && (
-          <Select
-            value={filters.sprint_id || 'all'}
-            onValueChange={(value) =>
-              handleFilterChange('sprint_id', value === 'all' ? undefined : value)
-            }
-          >
-            <SelectTrigger className="w-[140px] h-9">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              {sprints.map((sprint) => (
-                <SelectItem key={sprint.id} value={sprint.id}>
-                  {sprint.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {/* Spacer to push view toggle to the right */}
-        <div className="flex-1" />
-
-        {/* View Toggle */}
-        <div className="flex items-center gap-1 border rounded-md p-1">
-          <Button
-            variant={viewMode === 'grid' ? 'secondary' : 'outline'}
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => setViewMode('grid')}
-          >
-            <Grid3x3 className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'secondary' : 'outline'}
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => setViewMode('list')}
-          >
-            <List className="h-4 w-4" />
-          </Button>
+        {/* Controls Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
+          <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-64 bg-muted animate-pulse rounded-lg" />
+            <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
+          </div>
         </div>
-      </div>
 
-      {/* Content */}
-      {isLoading ? (
+        {/* Content Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="space-y-3">
@@ -303,12 +250,228 @@ export function RecordingsView({
             </div>
           ))}
         </div>
-      ) : filteredRecordings.length === 0 ? (
-        <TableEmpty
-          icon={<Play className="w-8 h-8 text-primary" />}
-          title="No recordings found"
-          description="Start recording test sessions to see them here"
+      </div>
+    );
+  }
+
+  if (recordings.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
+        <Play className="h-16 w-16 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-medium text-foreground mb-2">No recordings yet</h3>
+        <p className="text-sm text-muted-foreground mb-6">Start recording test sessions to see them here</p>
+        <RecordingToolbar
+          suiteId={suiteId}
+          onRecordingSaved={fetchRecordings}
         />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 md:space-y-6">
+      {/* Header with Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            Recordings
+          </h1>
+          <span className="text-sm text-muted-foreground">
+            ({recordings.length})
+          </span>
+        </div>
+
+        {/* Action Buttons Container */}
+        <div className="relative overflow-hidden">
+          <div className="flex items-center justify-end gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
+            {/* Sliding Drawer */}
+            <div
+              className="flex items-center gap-2 transition-all duration-300 ease-in-out"
+              style={{
+                maxWidth: isDrawerOpen ? '1000px' : '0px',
+                opacity: isDrawerOpen ? 1 : 0,
+                marginRight: isDrawerOpen ? '0.5rem' : '0',
+                pointerEvents: isDrawerOpen ? 'auto' : 'none',
+              }}
+            >
+              {/* Additional actions can go here */}
+            </div>
+
+            {/* Always Visible Buttons */}
+            <button
+              type="button"
+              onClick={handleToggleDrawer}
+              className="inline-flex items-center justify-center p-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
+              aria-label="Toggle menu"
+            >
+              <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
+            </button>
+
+            <RecordingToolbar
+              suiteId={suiteId}
+              onRecordingSaved={fetchRecordings}
+            />
+
+            <button
+              type="button"
+              onClick={() => {
+                fetchRecordings();
+                window.location.reload();
+              }}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center p-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Controls Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border">
+        {/* Left Side: Select All */}
+        <div className="flex items-center gap-3 order-2 lg:order-1">
+          <input
+            type="checkbox"
+            checked={selectedRecordings.length === paginatedRecordings.length && paginatedRecordings.length > 0}
+            onChange={handleSelectAll}
+            disabled={isLoading}
+            className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          />
+          <span className="text-sm font-medium text-muted-foreground">
+            Select All
+          </span>
+        </div>
+
+        {/* Right Side: Search, Filters, View Toggle */}
+        <div className="flex items-center gap-3 flex-1 justify-end order-1 lg:order-2 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search recordings..."
+              value={filters.search || ''}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              disabled={isLoading}
+              className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+            />
+          </div>
+
+          {/* Filter Button */}
+          {sprints.length > 0 && (
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              disabled={isLoading}
+              className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
+            >
+              <Filter className="w-4 h-4" />
+              <span className="hidden sm:inline">Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* View Toggle */}
+          <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+            <button
+              onClick={() => setViewMode('grid')}
+              disabled={isLoading}
+              className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                viewMode === 'grid'
+                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+              title="Grid View"
+            >
+              <Grid3x3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              disabled={isLoading}
+              className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                viewMode === 'list'
+                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+              title="List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters Panel */}
+      {showFilters && sprints.length > 0 && (
+        <div className="pb-4 border-b border-border">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Sprint Filter */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                Sprint
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {sprints.map((sprint) => (
+                  <button
+                    key={sprint.id}
+                    onClick={() => handleFilterChange('sprint_id', filters.sprint_id === sprint.id ? undefined : sprint.id)}
+                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                      filters.sprint_id === sprint.id
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-foreground border-border hover:border-primary'
+                    }`}
+                  >
+                    {sprint.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats Bar */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {filteredRecordings.length} of {recordings.length} recordings
+          {selectedRecordings.length > 0 && ` • ${selectedRecordings.length} selected`}
+        </p>
+      </div>
+
+      {/* Content Area */}
+      {filteredRecordings.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+          <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+          <h3 className="text-lg font-medium text-foreground mb-1">
+            No recordings found
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Try adjusting your filters or search query
+          </p>
+          <button
+            onClick={clearFilters}
+            className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
+          >
+            Clear Filters
+          </button>
+        </div>
       ) : viewMode === 'grid' ? (
         <>
           <RecordingGrid

@@ -15,8 +15,9 @@ import {
   Monitor,
   Activity,
   Network,
-  Image as ImageIcon,
+  Image,
   ExternalLink,
+  Play,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -27,10 +28,33 @@ interface RecordingPlayerProps {
   sprint?: { id: string; name: string } | null;
 }
 
+// Helper function to extract YouTube video ID
+const getYouTubeVideoId = (url: string | null): string | null => {
+  if (!url) return null;
+  
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=)([^&\n?#]+)/,
+    /(?:youtu\.be\/)([^&\n?#]+)/,
+    /(?:youtube\.com\/embed\/)([^&\n?#]+)/,
+    /(?:youtube\.com\/v\/)([^&\n?#]+)/,
+    /^([a-zA-Z0-9_-]{11})$/  // Direct video ID
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+};
+
 export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerProps) {
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const [networkLogs, setNetworkLogs] = useState<NetworkLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [videoError, setVideoError] = useState(false);
 
   useEffect(() => {
     loadLogs();
@@ -42,22 +66,25 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
     try {
       const metadata = recording.metadata as any;
 
-      // Load console logs
-      if (metadata?.consoleLogsUrl) {
+      // Load console logs from metadata
+      if (metadata?.consoleLogs && Array.isArray(metadata.consoleLogs)) {
+        setConsoleLogs(metadata.consoleLogs);
+      } else if (metadata?.consoleLogsUrl) {
         const response = await fetch(metadata.consoleLogsUrl);
         const data = await response.json();
         setConsoleLogs(data);
       }
 
-      // Load network logs
-      if (metadata?.networkLogsUrl) {
+      // Load network logs from metadata
+      if (metadata?.networkLogs && Array.isArray(metadata.networkLogs)) {
+        setNetworkLogs(metadata.networkLogs);
+      } else if (metadata?.networkLogsUrl) {
         const response = await fetch(metadata.networkLogsUrl);
         const data = await response.json();
         setNetworkLogs(data);
       }
     } catch (error) {
       console.error('Error loading logs:', error);
-      toast.error('Failed to load logs');
     } finally {
       setIsLoadingLogs(false);
     }
@@ -85,363 +112,360 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const getVideoEmbedUrl = () => {
+  const getVideoEmbedUrl = (): string => {
     const metadata = recording.metadata as any;
     
-    // First, try to use the embedUrl from metadata
+    // Priority 1: Use embedUrl from metadata
     if (metadata?.embedUrl) {
       return metadata.embedUrl;
     }
 
-    // Second, try to use videoId from metadata
+    // Priority 2: Use videoId from metadata
     if (metadata?.videoId) {
       return `https://www.youtube.com/embed/${metadata.videoId}`;
     }
 
-    // Third, try to extract video ID from the URL
+    // Priority 3: Extract from recording URL
     const url = recording.url;
     if (!url) return '';
 
-    // Handle different YouTube URL formats
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=)([^&]+)/,
-      /(?:youtu\.be\/)([^?]+)/,
-      /(?:youtube\.com\/embed\/)([^?]+)/,
-    ];
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match && match[1]) {
-        return `https://www.youtube.com/embed/${match[1]}`;
-      }
+    // If it's already a YouTube embed URL
+    if (url.includes('youtube.com/embed/')) {
+      return url;
     }
 
-    // If it's already an embed URL or direct video URL, return as is
-    if (url.includes('youtube.com/embed/') || url.includes('.mp4') || url.includes('.webm')) {
+    // Try to extract YouTube video ID
+    const videoId = getYouTubeVideoId(url);
+    if (videoId) {
+      return `https://www.youtube.com/embed/${videoId}`;
+    }
+
+    // If it's a direct video file
+    if (url.match(/\.(mp4|webm|ogg)$/i)) {
       return url;
     }
 
     return '';
   };
 
+  const isDirectVideoUrl = (url: string): boolean => {
+    return url.match(/\.(mp4|webm|ogg)$/i) !== null;
+  };
+
   const metadata = recording.metadata as any;
   const createdAt = recording.created_at ? new Date(recording.created_at) : new Date();
   const embedUrl = getVideoEmbedUrl();
+  const isDirectVideo = embedUrl && isDirectVideoUrl(embedUrl);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold">{recording.title}</h1>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {formatDistanceToNow(createdAt, { addSuffix: true })}
-            </div>
-            {recording.duration && (
-              <div className="flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                {formatDuration(recording.duration)}
-              </div>
-            )}
-            {metadata?.resolution && (
-              <div className="flex items-center gap-1">
-                <Monitor className="h-4 w-4" />
-                {metadata.resolution}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <Badge variant="info">{suite.name}</Badge>
-            {sprint && <Badge variant="primary">{sprint.name}</Badge>}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleShare}>
-            <Share2 className="h-4 w-4 mr-2" />
-            Share
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href={recording.url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Open in YouTube
-            </a>
-          </Button>
-        </div>
+    <div className="w-full">
+      {/* Back and Share Buttons - Top Row */}
+      <div className="flex justify-between items-center mb-4">
+        <Button variant="outline" size="sm" onClick={() => window.history.back()} className="gap-2">
+          <ExternalLink className="h-4 w-4 rotate-180" />
+          Back
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleShare} className="gap-2">
+          <Share2 className="h-4 w-4" />
+          Share
+        </Button>
       </div>
 
-      {/* Video Player */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="aspect-video bg-black">
-            {embedUrl ? (
-              <iframe
-                src={embedUrl}
-                title={recording.title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-white">
-                <div className="text-center">
-                  <p className="text-lg mb-2">Video unavailable</p>
-                  <p className="text-sm text-gray-400">
-                    The video URL is invalid or missing
-                  </p>
-                  {recording.url && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                      asChild
+      {/* YouTube-style Layout */}
+      <div className="flex flex-col lg:flex-row gap-6 w-full">
+        {/* Left Column - Video Player (70%) */}
+        <div className="lg:w-[70%] space-y-4">
+          {/* Video Player */}
+          <div className="bg-black rounded-xl overflow-hidden">
+            <div className="aspect-video relative">
+              {embedUrl ? (
+                <>
+                  {isDirectVideo ? (
+                    <video
+                      src={embedUrl}
+                      controls
+                      className="w-full h-full"
+                      onError={() => setVideoError(true)}
                     >
-                      <a
-                        href={recording.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Try opening directly
-                      </a>
-                    </Button>
+                      Your browser does not support the video tag.
+                    </video>
+                  ) : (
+                    <iframe
+                      src={embedUrl}
+                      title={recording.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      className="w-full h-full border-0"
+                      onError={() => setVideoError(true)}
+                    />
                   )}
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Debug info (remove in production) */}
-      {process.env.NODE_ENV === 'development' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Debug Info</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xs font-mono space-y-1">
-              <div>URL: {recording.url || 'null'}</div>
-              <div>Video ID: {metadata?.videoId || 'null'}</div>
-              <div>Embed URL: {metadata?.embedUrl || 'null'}</div>
-              <div>Computed Embed: {embedUrl || 'null'}</div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Logs and Details */}
-      <Tabs defaultValue="info" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="info">
-            <Activity className="h-4 w-4 mr-2" />
-            Info
-          </TabsTrigger>
-          <TabsTrigger value="console">
-            <Activity className="h-4 w-4 mr-2" />
-            Console ({consoleLogs.length})
-          </TabsTrigger>
-          <TabsTrigger value="network">
-            <Network className="h-4 w-4 mr-2" />
-            Network ({networkLogs.length})
-          </TabsTrigger>
-          <TabsTrigger value="screenshots">
-            <ImageIcon className="h-4 w-4 mr-2" />
-            Screenshots ({metadata?.screenshotUrls?.length || 0})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="info">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recording Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground mb-1">
-                    Duration
-                  </dt>
-                  <dd className="text-sm font-mono">
-                    {formatDuration(recording.duration)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground mb-1">
-                    Resolution
-                  </dt>
-                  <dd className="text-sm">{metadata?.resolution || 'N/A'}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground mb-1">
-                    Created
-                  </dt>
-                  <dd className="text-sm">
-                    {createdAt.toLocaleString()}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground mb-1">
-                    Browser
-                  </dt>
-                  <dd className="text-sm">{metadata?.browser || 'N/A'}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground mb-1">
-                    Operating System
-                  </dt>
-                  <dd className="text-sm">{metadata?.os || 'N/A'}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground mb-1">
-                    Test Suite
-                  </dt>
-                  <dd className="text-sm">{suite.name}</dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="console">
-          <Card>
-            <CardHeader>
-              <CardTitle>Console Logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[500px]">
-                {isLoadingLogs ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    Loading logs...
-                  </p>
-                ) : consoleLogs.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No console logs available
-                  </p>
-                ) : (
-                  <div className="space-y-2 font-mono text-xs">
-                    {consoleLogs.map((log, index) => (
-                      <div key={index} className="flex gap-2 pb-2 border-b">
-                        <span className="text-muted-foreground shrink-0">
-                          {formatLogTime(log.timestamp)}
-                        </span>
-                        <span
-                          className={
-                            log.type === 'error'
-                              ? 'text-red-500 shrink-0'
-                              : log.type === 'warn'
-                              ? 'text-yellow-500 shrink-0'
-                              : log.type === 'info'
-                              ? 'text-blue-500 shrink-0'
-                              : 'text-foreground shrink-0'
-                          }
-                        >
-                          [{log.type}]
-                        </span>
-                        <span className="break-all">{log.message}</span>
-                      </div>
-                    ))}
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-full text-white">
+                  <div className="text-center px-4">
+                    <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg mb-2">Video unavailable</p>
+                    <p className="text-sm text-gray-400">
+                      {recording.url 
+                        ? 'Unable to play this video format'
+                        : 'No video URL provided'
+                      }
+                    </p>
                   </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </div>
+              )}
 
-        <TabsContent value="network">
-          <Card>
-            <CardHeader>
-              <CardTitle>Network Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[500px]">
-                {isLoadingLogs ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    Loading network logs...
-                  </p>
-                ) : networkLogs.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No network activity recorded
-                  </p>
-                ) : (
-                  <div className="divide-y">
-                    {networkLogs.map((log, index) => (
-                      <div key={index} className="py-3 text-sm hover:bg-muted/50">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            <Badge variant="info">
-                              {log.method}
-                            </Badge>
+              {videoError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                  <div className="text-center text-white px-4">
+                    <p className="text-lg mb-2">Failed to load video</p>
+                    <p className="text-sm text-gray-400">
+                      The video may be private or unavailable
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Video Info */}
+          <div className="space-y-3">
+            <h1 className="text-xl font-semibold">{recording.title}</h1>
+            
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <span>
+                  {formatDistanceToNow(createdAt, { addSuffix: true })}
+                </span>
+                {recording.duration && (
+                  <>
+                    <span>•</span>
+                    <span>{formatDuration(recording.duration)}</span>
+                  </>
+                )}
+                {metadata?.resolution && (
+                  <>
+                    <span>•</span>
+                    <span>{metadata.resolution}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="info">{suite.name}</Badge>
+              {sprint && <Badge variant="primary">{sprint.name}</Badge>}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column - Logs Tabs (30%) */}
+        <div className="lg:w-[30%]">
+          <Tabs defaultValue="info" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-4">
+              <TabsTrigger value="info" className="text-xs">
+                Info
+              </TabsTrigger>
+              <TabsTrigger value="console" className="text-xs">
+                Console
+              </TabsTrigger>
+              <TabsTrigger value="network" className="text-xs">
+                Network
+              </TabsTrigger>
+              <TabsTrigger value="screenshots" className="text-xs">
+                Shots
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="info" className="mt-0">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Recording Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">
+                      Duration
+                    </dt>
+                    <dd className="text-sm font-mono">
+                      {formatDuration(recording.duration)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">
+                      Resolution
+                    </dt>
+                    <dd className="text-sm">{metadata?.resolution || 'N/A'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">
+                      Created
+                    </dt>
+                    <dd className="text-sm">
+                      {createdAt.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">
+                      Browser
+                    </dt>
+                    <dd className="text-sm">{metadata?.browser || 'N/A'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">
+                      Operating System
+                    </dt>
+                    <dd className="text-sm">{metadata?.os || 'N/A'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">
+                      Test Suite
+                    </dt>
+                    <dd className="text-sm">{suite.name}</dd>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="console" className="mt-0">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Console Logs</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[600px]">
+                    {isLoadingLogs ? (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        Loading logs...
+                      </p>
+                    ) : consoleLogs.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        No console logs available
+                      </p>
+                    ) : (
+                      <div className="space-y-2 font-mono text-xs">
+                        {consoleLogs.map((log, index) => (
+                          <div key={index} className="flex gap-2 pb-2 border-b">
+                            <span className="text-muted-foreground shrink-0 text-[10px]">
+                              {formatLogTime(log.timestamp)}
+                            </span>
                             <span
                               className={
-                                log.status && log.status >= 200 && log.status < 300
-                                  ? 'text-green-600 font-semibold'
-                                  : log.status && log.status >= 400
-                                  ? 'text-red-600 font-semibold'
-                                  : 'text-yellow-600 font-semibold'
+                                log.type === 'error'
+                                  ? 'text-red-500 shrink-0'
+                                  : log.type === 'warn'
+                                  ? 'text-yellow-500 shrink-0'
+                                  : log.type === 'info'
+                                  ? 'text-blue-500 shrink-0'
+                                  : 'text-foreground shrink-0'
                               }
                             >
-                              {log.status || 'pending'}
+                              [{log.type}]
                             </span>
-                            {log.duration && (
-                              <span className="text-muted-foreground">
-                                {log.duration}ms
-                              </span>
-                            )}
+                            <span className="break-all text-[11px]">{log.message}</span>
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            {formatLogTime(log.timestamp)}
-                          </span>
-                        </div>
-                        <div className="text-muted-foreground text-xs break-all">
-                          {log.url}
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        <TabsContent value="screenshots">
-          <Card>
-            <CardHeader>
-              <CardTitle>Screenshots</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {metadata?.screenshotUrls?.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {metadata.screenshotUrls.map((url: string, index: number) => (
-                    <a
-                      key={index}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group relative aspect-video overflow-hidden rounded-lg border bg-muted hover:ring-2 ring-primary transition-all"
-                    >
-                      <img
-                        src={url}
-                        alt={`Screenshot ${index + 1}`}
-                        className="object-cover w-full h-full group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                        <ExternalLink className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <TabsContent value="network" className="mt-0">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Network Activity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[600px]">
+                    {isLoadingLogs ? (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        Loading network logs...
+                      </p>
+                    ) : networkLogs.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        No network activity recorded
+                      </p>
+                    ) : (
+                      <div className="divide-y">
+                        {networkLogs.map((log, index) => (
+                          <div key={index} className="py-3 text-xs hover:bg-muted/50">
+                            <div className="flex items-center justify-between mb-2 gap-2">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="info" className="text-[10px] px-1.5 py-0">
+                                  {log.method}
+                                </Badge>
+                                <span
+                                  className={
+                                    log.status && log.status >= 200 && log.status < 300
+                                      ? 'text-green-600 font-semibold text-[11px]'
+                                      : log.status && log.status >= 400
+                                      ? 'text-red-600 font-semibold text-[11px]'
+                                      : 'text-yellow-600 font-semibold text-[11px]'
+                                  }
+                                >
+                                  {log.status || 'pending'}
+                                </span>
+                                {log.duration && (
+                                  <span className="text-muted-foreground text-[10px]">
+                                    {log.duration}ms
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-muted-foreground text-[10px] break-all">
+                              {log.url}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-8">
-                  No screenshots captured
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="screenshots" className="mt-0">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Screenshots</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[600px]">
+                    {metadata?.screenshotUrls?.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-3">
+                        {metadata.screenshotUrls.map((url: string, index: number) => (
+                          <a
+                            key={index}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group relative aspect-video overflow-hidden rounded-lg border bg-muted hover:ring-2 ring-primary transition-all"
+                          >
+                            <img
+                              src={url}
+                              alt={`Screenshot ${index + 1}`}
+                              className="object-cover w-full h-full group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                              <ExternalLink className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-8 text-sm">
+                        No screenshots captured
+                      </p>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
