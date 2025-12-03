@@ -176,8 +176,8 @@ export function BugsView({ suiteId }: BugsViewProps) {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="bg-card shadow-theme-md rounded-lg overflow-hidden border border-border">
-        <div className="border-b border-border">
+      <div>
+        <div>
           <nav className="flex overflow-x-auto">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;

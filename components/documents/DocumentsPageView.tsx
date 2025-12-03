@@ -347,7 +347,7 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
 
   return (
     <>
-      <div className="min-h-screen pb-24">
+      <div className="min-h-screen">
         <div className="mx-auto lg:px-2">
           {/* Header */}
           <div className="mb-8">
@@ -381,7 +381,7 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
           </div>
 
           {/* Main Content Card */}
-          <div className="bg-card shadow-theme-md rounded-lg overflow-hidden border border-border">
+          <div>
             {/* Unified Controls Bar */}
             <div className="px-3 py-2 border-b border-border bg-card">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -514,7 +514,7 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
             </div>
 
             {/* Content Area */}
-            <div className="p-6">
+            <div className="pt-6">
               {/* Stats Bar */}
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">

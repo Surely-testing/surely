@@ -293,7 +293,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
         </div>
 
         {/* Content Card Skeleton */}
-        <div className="bg-card rounded-lg overflow-hidden border border-border">
+        <div className="rounded-lg overflow-hidden border border-border">
           <div className="px-3 py-2 border-b border-border">
             <div className="flex items-center justify-between gap-4">
               <div className="h-4 w-32 bg-muted animate-pulse rounded" />
@@ -399,7 +399,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
       </div>
 
       {/* Main Content Card */}
-      <div className="bg-card rounded-lg overflow-hidden border border-border">
+      <div>
         {/* Unified Controls Bar */}
         <div className="px-3 py-2 border-b border-border bg-card">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -547,7 +547,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
         </div>
 
         {/* Content Area */}
-        <div className="p-6">
+        <div className="pt-6">
           {/* Stats Bar */}
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">

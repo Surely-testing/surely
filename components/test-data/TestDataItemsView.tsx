@@ -138,11 +138,11 @@ export default function TestDataItemsView({ type, onBack }: TestDataItemsViewPro
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="bg-card shadow-theme-md rounded-lg overflow-hidden border border-border">
+    <div className="min-h-screen">
+      <div>
+        <div>
           {/* Header */}
-          <div className="border-b border-border px-4 sm:px-6 py-5">
+          <div className="border-b border-border py-5">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               {/* Left Section - Back, Icon, Title */}
               <div className="flex items-center gap-3">
@@ -200,7 +200,7 @@ export default function TestDataItemsView({ type, onBack }: TestDataItemsViewPro
           </div>
 
           {/* Body */}
-          <div className="px-4 sm:px-6 py-6">
+          <div>
             {items.length === 0 ? (
               <div className="text-center py-16">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">

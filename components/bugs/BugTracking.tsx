@@ -496,7 +496,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
     <>
       <div className="space-y-6 pb-24">
         {/* Main Content Card */}
-        <div className="bg-card rounded-lg overflow-hidden border border-border">
+        <div>
           {/* Unified Controls Bar */}
           <div className="px-3 py-2 border-b border-border bg-card">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -686,7 +686,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           </div>
 
           {/* Content Area */}
-          <div className="p-6">
+          <div className="pt-6">
             {/* Stats Bar */}
             <div className="mb-4 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">

@@ -144,6 +144,7 @@ export function SprintTable({
             key={sprint.id}
             selected={isSelected}
             selectable
+            className="!items-center"
           >
             {/* Checkbox */}
             <TableCheckbox
@@ -152,7 +153,7 @@ export function SprintTable({
             />
 
             {/* Content Grid */}
-            <TableGrid columns={5}>
+            <TableGrid columns={5} className="!items-center">
               {/* Sprint Info */}
               <TableCell className="col-span-2">
                 <div className="space-y-1">
@@ -250,88 +251,88 @@ export function SprintTable({
             </TableGrid>
 
             {/* Actions */}
-            <TableCell className="flex-shrink-0 flex items-center justify-end">
+            <TableCell className="flex-shrink-0 !flex !items-center !justify-end">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="p-2 rounded-lg hover:bg-muted transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {sprint.status === 'planning' && onStart && (
-                    <>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStart(sprint.id);
-                        }}
-                      >
-                        <Play className="w-4 h-4 mr-2" />
-                        Start Sprint
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  
-                  {onEdit && (
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(sprint);
-                      }}
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="p-2 rounded-lg hover:bg-muted transition-colors"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                  )}
-                  
-                  {onDuplicate && (
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDuplicate(sprint.id);
-                      }}
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate
-                    </DropdownMenuItem>
-                  )}
-                  
-                  {sprint.status !== 'archived' && onArchive && (
-                    <>
-                      <DropdownMenuSeparator />
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {sprint.status === 'planning' && onStart && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStart(sprint.id);
+                          }}
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          Start Sprint
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    
+                    {onEdit && (
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();
-                          onArchive(sprint.id);
+                          onEdit(sprint);
                         }}
                       >
-                        <Archive className="w-4 h-4 mr-2" />
-                        Archive
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
                       </DropdownMenuItem>
-                    </>
-                  )}
-                  
-                  {onDelete && (
-                    <>
-                      <DropdownMenuSeparator />
+                    )}
+                    
+                    {onDuplicate && (
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();
-                          onDelete(sprint.id);
+                          onDuplicate(sprint.id);
                         }}
-                        className="text-destructive focus:text-destructive"
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
+                        <Copy className="w-4 h-4 mr-2" />
+                        Duplicate
                       </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    )}
+                    
+                    {sprint.status !== 'archived' && onArchive && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onArchive(sprint.id);
+                          }}
+                        >
+                          <Archive className="w-4 h-4 mr-2" />
+                          Archive
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    
+                    {onDelete && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(sprint.id);
+                          }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
             </TableCell>
           </TableRow>
         );
