@@ -193,7 +193,7 @@ export function ScheduleGrid({
                             setMenuOpenId(null);
                           }}
                         />
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-20 py-1">
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg z-20 py-1">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

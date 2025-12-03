@@ -443,7 +443,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       </div>
 
       {/* Controls Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border">
+      <div className="bg-card flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-2 border-b border-border">
         {/* Left Side: Select All */}
         <div className="flex items-center gap-3 order-2 lg:order-1">
           <input

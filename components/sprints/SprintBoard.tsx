@@ -272,31 +272,6 @@ export function SprintBoard({ sprints, suiteId, selectedSprints = [], onSelectio
 
   return (
     <div className="space-y-4">
-      {/* Select All Header - Only show if hideSelectAll is false */}
-      {!hideSelectAll && showSelection && sprints.length > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-lg">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            ref={input => {
-              if (input) {
-                input.indeterminate = someSelected;
-              }
-            }}
-            onChange={handleSelectAll}
-            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer"
-          />
-          <span className="text-sm font-medium text-foreground">
-            {allSelected 
-              ? `All ${sprints.length} sprints selected`
-              : someSelected
-                ? `${selectedSprints.length} of ${sprints.length} sprints selected`
-                : 'Select all sprints'
-            }
-          </span>
-        </div>
-      )}
-
       {/* Sprint Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sprints.map((sprint) => (

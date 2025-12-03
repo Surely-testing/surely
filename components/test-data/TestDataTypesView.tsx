@@ -68,8 +68,8 @@ export default function TestDataTypesView({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen">
+      <div>
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -97,7 +97,7 @@ export default function TestDataTypesView({
         </div>
 
         {/* Main Content Card */}
-        <div className="bg-card shadow-theme-md rounded-lg overflow-hidden border border-border">
+        <div>
           {/* Controls Bar */}
           <div className="px-6 py-4 border-b border-border bg-card">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -162,7 +162,7 @@ export default function TestDataTypesView({
           </div>
 
           {/* Content Area */}
-          <div className="p-6">
+          <div className="pt-6">
             {isLoading ? (
               view === 'grid' ? (
                 // Grid Skeleton
@@ -189,7 +189,7 @@ export default function TestDataTypesView({
                 // List Skeleton
                 <div className="space-y-2">
                   {[...Array(8)].map((_, i) => (
-                    <div key={i} className="border border-border rounded-lg p-4 bg-card shadow-theme-sm">
+                    <div key={i} className="border border-border rounded-lg p-4">
                       <div className="flex items-center gap-4">
                         <Skeleton className="h-4 w-4 rounded flex-shrink-0" />
                         <div className="flex-1 space-y-2">

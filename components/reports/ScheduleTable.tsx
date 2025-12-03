@@ -17,8 +17,8 @@ interface ScheduleTableProps {
   viewMode?: 'grid' | 'table';
   selectedSchedules?: string[];
   onSelectionChange?: (selectedIds: string[]) => void;
-  onSelectAll?: () => void;  // ADD THIS
-  isLoading?: boolean;        // ADD THIS
+  onSelectAll?: () => void;
+  isLoading?: boolean;
 }
 
 export function ScheduleTable({
@@ -30,8 +30,8 @@ export function ScheduleTable({
   viewMode = 'table',
   selectedSchedules = [],
   onSelectionChange,
-  onSelectAll,      // ADD THIS
-  isLoading = false // ADD THIS
+  onSelectAll,
+  isLoading = false
 }: ScheduleTableProps) {
 
   const handleToggleSelection = (scheduleId: string) => {
@@ -120,7 +120,33 @@ export function ScheduleTable({
               />
             )}
 
-            <TableGrid columns={6}>
+            {/* Mobile: Show only 3 columns */}
+            <div className="grid grid-cols-3 gap-4 lg:hidden">
+              <TableCell>
+                <TableHeaderText>{schedule.name || 'Untitled Schedule'}</TableHeaderText>
+                {schedule.description && (
+                  <TableDescriptionText>{schedule.description}</TableDescriptionText>
+                )}
+              </TableCell>
+
+              <TableCell>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block capitalize ${getFrequencyColor(schedule.frequency)}`}>
+                  {schedule.frequency}
+                </span>
+              </TableCell>
+
+              <TableCell>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block ${isActive
+                  ? 'text-success bg-success/10 border-success/20'
+                  : 'text-muted-foreground bg-muted border-border'
+                  }`}>
+                  {isActive ? 'Active' : 'Inactive'}
+                </span>
+              </TableCell>
+            </div>
+
+            {/* Desktop: Show all 6 columns */}
+            <TableGrid columns={6} className="hidden lg:grid">
               {/* Schedule Name Column */}
               <TableCell>
                 <TableHeaderText>{schedule.name || 'Untitled Schedule'}</TableHeaderText>

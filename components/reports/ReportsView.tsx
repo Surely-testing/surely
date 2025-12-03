@@ -14,7 +14,6 @@ import { ScheduleTable } from '@/components/reports/ScheduleTable';
 import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog';
 import { ScheduleReportDialog } from '@/components/reports/ScheduleReportDialog';
 import { ReportDetailsDialog } from '@/components/reports/ReportDetailsDialog';
-import { Skeleton } from '@/components/ui/Skeleton';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
 import { Pagination } from '@/components/shared/Pagination';
 import { useReports } from '@/lib/hooks/useReports';
@@ -340,8 +339,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
           </div>
 
           {/* Tabs Navigation */}
-          <div className="bg-card shadow-theme-md rounded-lg overflow-hidden border border-border mb-6">
-            <div className="border-b border-border">
+          <div className=" rounded-lg mb-6">
+            <div>
               <nav className="flex overflow-x-auto">
                 {tabs.map((tab) => {
                   const isActive = activeTab === tab.id;
@@ -354,8 +353,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                         setShowFilters(false);
                       }}
                       className={`flex-1 min-w-[120px] px-6 py-4 text-sm font-semibold border-b-2 transition-all duration-200 whitespace-nowrap ${isActive
-                          ? 'border-primary text-primary bg-primary/5'
-                          : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        ? 'border-primary text-primary bg-primary/5'
+                        : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
                         }`}
                     >
                       {tab.label}
@@ -369,32 +368,14 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
             <div className="p-0">
               <div className="space-y-6">
                 {/* Main Content Card */}
-                <div className="bg-card rounded-lg overflow-hidden border-0">
+                <div>
                   {/* Unified Controls Bar */}
                   <div className="px-3 py-2 border-b border-border bg-card">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      {/* Left Side: Select All */}
-                      <div className="flex items-center gap-3 order-2 lg:order-1">
-                        <input
-                          type="checkbox"
-                          checked={
-                            activeTab === 'reports'
-                              ? selectedReportIds.length === paginatedReports.length && paginatedReports.length > 0
-                              : selectedScheduleIds.length === filteredSchedules.length && filteredSchedules.length > 0
-                          }
-                          onChange={handleSelectAll}
-                          disabled={isLoading}
-                          className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                        />
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Select All
-                        </span>
-                      </div>
-
-                      {/* Right Side: Search, Filters, Sort, Group, View Toggle */}
-                      <div className="flex items-center gap-3 flex-1 justify-end order-1 lg:order-2 flex-wrap">
-                        {/* Search - Show for both tabs */}
-                        <div className="relative flex-1 max-w-xs">
+                    {/* Mobile Layout - 3 Sections Stacked */}
+                    <div className="flex flex-col gap-3 lg:hidden">
+                      {/* Section 1: Search (Full Width on Mobile) */}
+                      <div className="w-full">
+                        <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                           <input
                             type="text"
@@ -408,8 +389,11 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                             className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
                           />
                         </div>
+                      </div>
 
-                        {/* Filter Button - Show for both tabs */}
+                      {/* Section 2: Filter | Sort | Group */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Filter Button */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -438,7 +422,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                                 setSortOrder(order as SortOrder);
                               }}
                               disabled={isLoading}
-                              className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
+                              className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
                             >
                               <option value="created_at-desc">Newest First</option>
                               <option value="created_at-asc">Oldest First</option>
@@ -449,6 +433,145 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                             </select>
 
                             {/* Group By Dropdown */}
+                            <select
+                              value={groupBy}
+                              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+                              disabled={isLoading}
+                              className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
+                            >
+                              <option value="none">No Grouping</option>
+                              <option value="type">Group by Type</option>
+                              <option value="status">Group by Status</option>
+                              <option value="date">Group by Date</option>
+                            </select>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Section 3: Select All | View Toggle */}
+                      <div className="flex items-center justify-between">
+                        {/* Select All */}
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={
+                              activeTab === 'reports'
+                                ? selectedReportIds.length === paginatedReports.length && paginatedReports.length > 0
+                                : selectedScheduleIds.length === filteredSchedules.length && filteredSchedules.length > 0
+                            }
+                            onChange={handleSelectAll}
+                            disabled={isLoading}
+                            className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Select All
+                          </span>
+                        </div>
+
+                        {/* View Toggle */}
+                        <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                          <button
+                            onClick={() => setViewMode('grid')}
+                            disabled={isLoading}
+                            className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                                ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                              }`}
+                            title="Grid View"
+                          >
+                            <Grid className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setViewMode('table')}
+                            disabled={isLoading}
+                            className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
+                                ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                              }`}
+                            title="Table View"
+                          >
+                            <List className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Desktop Layout - Single Row */}
+                    <div className="hidden lg:flex lg:items-center lg:justify-between">
+                      {/* Left: Select All */}
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={
+                            activeTab === 'reports'
+                              ? selectedReportIds.length === paginatedReports.length && paginatedReports.length > 0
+                              : selectedScheduleIds.length === filteredSchedules.length && filteredSchedules.length > 0
+                          }
+                          onChange={handleSelectAll}
+                          disabled={isLoading}
+                          className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Select All
+                        </span>
+                      </div>
+
+                      {/* Right: All Controls */}
+                      <div className="flex items-center gap-3">
+                        {/* Search */}
+                        <div className="relative w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                          <input
+                            type="text"
+                            placeholder={activeTab === 'reports' ? "Search reports..." : "Search schedules..."}
+                            value={searchQuery}
+                            onChange={(e) => {
+                              setSearchQuery(e.target.value);
+                              setCurrentPage(1);
+                            }}
+                            disabled={isLoading}
+                            className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                          />
+                        </div>
+
+                        {/* Filter Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowFilters(!showFilters)}
+                          className="relative"
+                          disabled={isLoading}
+                        >
+                          <Filter className="w-4 h-4 mr-2" />
+                          Filter
+                          {activeFiltersCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                              {activeFiltersCount}
+                            </span>
+                          )}
+                        </Button>
+
+                        {/* Sort and Group - Only for Reports */}
+                        {activeTab === 'reports' && (
+                          <>
+                            <select
+                              value={`${sortField}-${sortOrder}`}
+                              onChange={(e) => {
+                                const [field, order] = e.target.value.split('-');
+                                setSortField(field as SortField);
+                                setSortOrder(order as SortOrder);
+                              }}
+                              disabled={isLoading}
+                              className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
+                            >
+                              <option value="created_at-desc">Newest First</option>
+                              <option value="created_at-asc">Oldest First</option>
+                              <option value="name-asc">Name (A-Z)</option>
+                              <option value="name-desc">Name (Z-A)</option>
+                              <option value="type-asc">Type (A-Z)</option>
+                              <option value="status-asc">Status (A-Z)</option>
+                            </select>
+
                             <select
                               value={groupBy}
                               onChange={(e) => setGroupBy(e.target.value as GroupBy)}
@@ -609,20 +732,85 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                   </div>
 
                   {/* Content Area */}
-                  <div className="p-6">
-                    {/* Stats Bar */}
-                    <div className="mb-4 flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">
-                        {activeTab === 'reports'
-                          ? `${filteredReports.length} of ${reports.length} reports`
-                          : `${filteredSchedules.length} of ${schedules.length} schedules`}
-                        {(activeTab === 'reports' ? selectedReportIds : selectedScheduleIds).length > 0 &&
-                          ` • ${(activeTab === 'reports' ? selectedReportIds : selectedScheduleIds).length} selected`}
-                      </p>
-                    </div>
+                  <div className="pt-6">
+                    {/* Empty States */}
+                    {activeTab === 'reports' && filteredReports.length === 0 && reports.length === 0 && !isLoading && (
+                      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
+                        <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium text-foreground mb-2">No reports yet</h3>
+                        <p className="text-sm text-muted-foreground mb-6 max-w-md">
+                          Generate your first report to get insights on test execution, bugs, coverage, and performance
+                        </p>
+                        <button
+                          onClick={() => setIsGenerateOpen(true)}
+                          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Generate Report
+                        </button>
+                      </div>
+                    )}
+
+                    {activeTab === 'schedules' && filteredSchedules.length === 0 && schedules.length === 0 && !isLoading && (
+                      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
+                        <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium text-foreground mb-2">No schedules yet</h3>
+                        <p className="text-sm text-muted-foreground mb-6 max-w-md">
+                          Schedule reports to be automatically generated on a recurring basis
+                        </p>
+                        <button
+                          onClick={() => setIsScheduleOpen(true)}
+                          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Schedule Report
+                        </button>
+                      </div>
+                    )}
+
+                    {/* No Results After Filtering */}
+                    {activeTab === 'reports' && filteredReports.length === 0 && reports.length > 0 && !isLoading && (
+                      <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                        <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+                        <h3 className="text-lg font-medium text-foreground mb-1">No reports found</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Try adjusting your filters or search query
+                        </p>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSearchQuery('');
+                            setFilterStatus([]);
+                            setFilterType([]);
+                          }}
+                        >
+                          Clear Filters
+                        </Button>
+                      </div>
+                    )}
+
+                    {activeTab === 'schedules' && filteredSchedules.length === 0 && schedules.length > 0 && !isLoading && (
+                      <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                        <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+                        <h3 className="text-lg font-medium text-foreground mb-1">No schedules found</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Try adjusting your filters or search query
+                        </p>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSearchQuery('');
+                            setFilterScheduleStatus([]);
+                            setFilterFrequency([]);
+                          }}
+                        >
+                          Clear Filters
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Content */}
-                    {activeTab === 'reports' && (
+                    {filteredReports.length > 0 && activeTab === 'reports' && (
                       groupBy === 'none' ? (
                         <ReportTable
                           reports={paginatedReports}
@@ -658,7 +846,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                       )
                     )}
 
-                    {activeTab === 'schedules' && (
+                    {filteredSchedules.length > 0 && activeTab === 'schedules' && (
                       <ScheduleTable
                         schedules={filteredSchedules}
                         onToggle={toggleSchedule}

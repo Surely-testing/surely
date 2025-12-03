@@ -407,9 +407,9 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
     <>
       <div className="space-y-6 pb-24">
         {/* Main Content Card */}
-        <div className="shadow-theme-md rounded-lg overflow-hidden border border-border">
+        <div>
           {/* Unified Controls Bar */}
-          <div className="px-6 py-4 border-b border-border">
+          <div className="px-3 py-2 border-b border-border bg-card">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               {/* Left Side: Select All only */}
               <div className="flex items-center gap-3 order-2 lg:order-1">
@@ -603,7 +603,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
           </div>
 
           {/* Content Area */}
-          <div className="p-6">
+          <div className="pt-6">
             {/* Error Display */}
             {error && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
