@@ -14,10 +14,20 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar'
 import { Pagination } from '@/components/shared/Pagination'
 import { createClient } from '@/lib/supabase/client'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/Select';
 import { toast } from 'sonner'
 
 type ViewMode = 'grid' | 'table'
 type DocumentType = 'all' | 'meeting_notes' | 'test_plan' | 'test_strategy' | 'brainstorm' | 'general'
+type SortField = 'updated_at' | 'created_at' | 'title';
+type SortOrder = 'asc' | 'desc';
+type GroupBy = 'none' | 'type' | 'creator' | 'date'
 
 interface Document {
   id: string
@@ -56,6 +66,10 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
   const [itemsPerPage, setItemsPerPage] = useState(20)
   const [showFilters, setShowFilters] = useState(false)
 
+  const [sortField, setSortField] = useState<SortField>('updated_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
+
   const supabase = createClient()
 
   // Fetch data on mount and when suiteId changes
@@ -65,12 +79,12 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
 
   async function fetchData() {
     setIsLoading(true)
-    
+
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      
+
       setCurrentUserId(user.id)
 
       // Fetch suites for the dropdown
@@ -134,17 +148,96 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
 
   // Filter documents
   const filteredDocs = useMemo(() => {
-    return documents.filter(doc => {
+    let filtered = documents.filter(doc => {
       const matchesSearch = doc.title.toLowerCase().includes(search.toLowerCase())
       const matchesType = typeFilter === 'all' || doc.file_type === typeFilter
       return matchesSearch && matchesType
     })
-  }, [documents, search, typeFilter])
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortField];
+      let bVal: any = b[sortField];
+
+      if (sortField === 'updated_at' || sortField === 'created_at') {
+        aVal = aVal ? new Date(aVal).getTime() : 0;
+        bVal = bVal ? new Date(bVal).getTime() : 0;
+      }
+
+      if (aVal === null || aVal === undefined) return sortOrder === 'asc' ? 1 : -1;
+      if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortOrder === 'asc'
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [documents, search, typeFilter, sortField, sortOrder])
+
+  const groupedDocs = useMemo(() => {
+    if (groupBy === 'none') {
+      return { 'All Documents': filteredDocs };
+    }
+
+    const grouped: Record<string, Document[]> = {};
+
+    filteredDocs.forEach(doc => {
+      let groupKey = 'Uncategorized';
+
+      switch (groupBy) {
+        case 'type':
+          const typeLabels: Record<string, string> = {
+            'meeting_notes': '📝 Meeting Notes',
+            'test_plan': '📋 Test Plan',
+            'test_strategy': '🎯 Test Strategy',
+            'brainstorm': '💡 Brainstorm',
+            'general': '📄 General'
+          };
+          groupKey = doc.file_type ? typeLabels[doc.file_type] || doc.file_type : 'No Type';
+          break;
+
+        case 'creator':
+          groupKey = doc.creator?.name || 'Unknown Creator';
+          break;
+
+        case 'date':
+          const docDate = new Date(doc.created_at);
+          const now = new Date();
+          const diffDays = Math.floor((now.getTime() - docDate.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (diffDays === 0) groupKey = 'Today';
+          else if (diffDays === 1) groupKey = 'Yesterday';
+          else if (diffDays <= 7) groupKey = 'This Week';
+          else if (diffDays <= 30) groupKey = 'This Month';
+          else if (diffDays <= 90) groupKey = 'Last 3 Months';
+          else groupKey = 'Older';
+          break;
+      }
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = [];
+      }
+      grouped[groupKey].push(doc);
+    });
+
+    return grouped;
+  }, [filteredDocs, groupBy]);
 
   // Paginated documents
   const paginatedDocs = useMemo(() => {
+    if (groupBy !== 'none') {
+      return filteredDocs; // Show all when grouped
+    }
     return filteredDocs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-  }, [filteredDocs, currentPage, itemsPerPage])
+  }, [filteredDocs, currentPage, itemsPerPage, groupBy])
+
 
   const handleCreateDocument = async () => {
     if (suites.length === 0) {
@@ -155,7 +248,7 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
     setIsCreating(true)
     try {
       const emptyContent = { type: 'doc', content: [] }
-      
+
       const { data, error } = await supabase
         .from('documents')
         .insert({
@@ -186,13 +279,13 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
         created_by: data.created_by,
         created_at: data.created_at || new Date().toISOString(),
         updated_at: data.updated_at || new Date().toISOString(),
-        creator: profile || { 
-          id: currentUserId, 
-          name: 'You', 
-          avatar_url: null 
+        creator: profile || {
+          id: currentUserId,
+          name: 'You',
+          avatar_url: null
         }
       }
-      
+
       setDocuments([newDoc, ...documents])
       setSelectedDoc(newDoc)
       setMode('edit')
@@ -233,15 +326,15 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
   }
 
   const handleBulkAction = async (
-    actionId: string, 
-    selectedIds: string[], 
-    actionConfig: BulkAction, 
+    actionId: string,
+    selectedIds: string[],
+    actionConfig: BulkAction,
     selectedOption?: ActionOption | null
   ) => {
     try {
       switch (actionId) {
         case 'delete':
-          await Promise.all(selectedIds.map(id => 
+          await Promise.all(selectedIds.map(id =>
             supabase.from('documents').delete().eq('id', id)
           ))
           setDocuments(prev => prev.filter(d => !selectedIds.includes(d.id)))
@@ -329,6 +422,13 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
     }
   }
 
+  const clearFilters = () => {
+    setTypeFilter('all');
+    setSortField('updated_at');
+    setSortOrder('desc');
+    setGroupBy('none');
+  };
+
   const handleRefresh = () => {
     fetchData()
   }
@@ -351,27 +451,26 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
         <div className="mx-auto lg:px-2">
           {/* Header */}
           <div className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Documents</h1>
-              </div>
+            <div className="flex items-center justify-between gap-4">
+              {/* Title */}
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Documents</h1>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 sm:gap-3">
+              {/* Action Buttons - Always on the right */}
+              <div className="flex items-center gap-2">
                 <button
                   onClick={handleCreateDocument}
                   disabled={isCreating}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200 disabled:opacity-50 flex-shrink-0"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{isCreating ? 'Creating...' : 'New Doc'}</span>
+                  <span className="hidden sm:inline">{isCreating ? 'Creating...' : 'New Doc'}</span>
                 </button>
 
                 {/* Refresh Button */}
                 <button
                   onClick={handleRefresh}
                   disabled={isLoading}
-                  className="inline-flex items-center justify-center w-10 h-10 text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center w-10 h-10 text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                   title="Refresh"
                 >
                   <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -382,135 +481,295 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
 
           {/* Main Content Card */}
           <div>
-            {/* Unified Controls Bar */}
-            <div className="px-3 py-2 border-b border-border bg-card">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                {/* Left Side: Select All */}
-                <div className="flex items-center gap-3 order-2 lg:order-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedDocIds.length === paginatedDocs.length && paginatedDocs.length > 0}
-                    onChange={handleSelectAll}
-                    disabled={isLoading}
-                    className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Select All
-                  </span>
-                </div>
+            {/* Unified Controls Bar - Mobile First */}
+            <div className="bg-card border-b border-border">
+              <div className="px-3 py-2">
+                <div className="flex flex-col gap-3 lg:gap-0">
+                  {/* Mobile Layout (< lg screens) */}
+                  <div className="lg:hidden space-y-3">
+                    {/* Row 1: Search (Full Width) */}
+                    <div className="relative w-full">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search documents..."
+                        value={search}
+                        onChange={(e) => {
+                          setSearch(e.target.value)
+                          setCurrentPage(1)
+                        }}
+                        disabled={isLoading}
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                      />
+                    </div>
 
-                {/* Right Side: Search, Filters, View Toggle */}
-                <div className="flex items-center gap-3 flex-1 justify-end order-1 lg:order-2 flex-wrap">
-                  {/* Search */}
-                  <div className="relative flex-1 max-w-xs">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Search documents..."
-                      value={search}
-                      onChange={(e) => {
-                        setSearch(e.target.value)
-                        setCurrentPage(1)
-                      }}
-                      disabled={isLoading}
-                      className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-                    />
-                  </div>
-
-                  {/* Filter Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="relative"
-                    disabled={isLoading}
-                  >
-                    <Filter className="w-4 h-4 mr-2" />
-                    Filter
-                    {activeFiltersCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                        {activeFiltersCount}
-                      </span>
-                    )}
-                  </Button>
-
-                  {/* View Toggle */}
-                  <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                    <button
-                      onClick={() => setViewMode('grid')}
-                      disabled={isLoading}
-                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        viewMode === 'grid'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                      title="Grid View"
-                    >
-                      <Grid className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode('table')}
-                      disabled={isLoading}
-                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        viewMode === 'table'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                      title="Table View"
-                    >
-                      <List className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filters Panel */}
-              {showFilters && (
-                <div className="mt-4 pt-4 border-t border-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-foreground">Filters</h3>
-                    {activeFiltersCount > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setTypeFilter('all')}
+                    {/* Row 2: Filter, Sort, Group By */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      {/* Filter Button */}
+                      <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        disabled={isLoading}
+                        className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
                       >
-                        Clear All
-                      </Button>
-                    )}
+                        <Filter className="w-4 h-4" />
+                        <span>Filter</span>
+                        {activeFiltersCount > 0 && (
+                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                            {activeFiltersCount}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Sort Dropdown */}
+                      <Select
+                        value={`${sortField}-${sortOrder}`}
+                        onValueChange={(value) => {
+                          const [field, order] = value.split('-');
+                          setSortField(field as SortField);
+                          setSortOrder(order as SortOrder);
+                        }}
+                        disabled={isLoading}
+                      >
+                        <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                          <SelectValue placeholder="Sort by..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
+                          <SelectItem value="updated_at-asc">Least Recently Updated</SelectItem>
+                          <SelectItem value="created_at-desc">Newest First</SelectItem>
+                          <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                          <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                          <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {/* Group By Dropdown */}
+                      <Select
+                        value={groupBy}
+                        onValueChange={(value) => setGroupBy(value as GroupBy)}
+                        disabled={isLoading}
+                      >
+                        <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                          <SelectValue placeholder="Group by..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Grouping</SelectItem>
+                          <SelectItem value="type">Group by Type</SelectItem>
+                          <SelectItem value="creator">Group by Creator</SelectItem>
+                          <SelectItem value="date">Group by Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Row 3: Select All (Left) | View Toggle (Right) */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedDocIds.length === paginatedDocs.length && paginatedDocs.length > 0}
+                          onChange={handleSelectAll}
+                          disabled={isLoading}
+                          className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Select All
+                        </span>
+                      </div>
+
+                      {/* View Toggle */}
+                      <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                        <button
+                          onClick={() => setViewMode('grid')}
+                          disabled={isLoading}
+                          className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                            }`}
+                          title="Grid View"
+                        >
+                          <Grid className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setViewMode('table')}
+                          disabled={isLoading}
+                          className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                            }`}
+                          title="Table View"
+                        >
+                          <List className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Type Filter */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                        Document Type
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { value: 'meeting_notes', label: '📝 Meeting Notes' },
-                          { value: 'test_plan', label: '📋 Test Plan' },
-                          { value: 'test_strategy', label: '🎯 Test Strategy' },
-                          { value: 'brainstorm', label: '💡 Brainstorm' },
-                          { value: 'general', label: '📄 General' }
-                        ].map(type => (
+                  {/* Desktop Layout (lg+ screens) - Original Design */}
+                  <div className="hidden lg:flex lg:flex-col lg:gap-0">
+                    <div className="flex items-center justify-between gap-4">
+                      {/* Left Side: Select All */}
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedDocIds.length === paginatedDocs.length && paginatedDocs.length > 0}
+                          onChange={handleSelectAll}
+                          disabled={isLoading}
+                          className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Select All
+                        </span>
+                      </div>
+
+                      {/* Right Side: Search, Filter, Sort, Group, View Toggle */}
+                      <div className="flex items-center gap-3 flex-1 justify-end">
+                        {/* Search */}
+                        <div className="relative flex-1 max-w-xs">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                          <input
+                            type="text"
+                            placeholder="Search documents..."
+                            value={search}
+                            onChange={(e) => {
+                              setSearch(e.target.value)
+                              setCurrentPage(1)
+                            }}
+                            disabled={isLoading}
+                            className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                          />
+                        </div>
+
+                        {/* Filter Button */}
+                        <button
+                          onClick={() => setShowFilters(!showFilters)}
+                          disabled={isLoading}
+                          className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
+                        >
+                          <Filter className="w-4 h-4" />
+                          Filter
+                          {activeFiltersCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                              {activeFiltersCount}
+                            </span>
+                          )}
+                        </button>
+
+                        {/* Sort Dropdown */}
+                        <Select
+                          value={`${sortField}-${sortOrder}`}
+                          onValueChange={(value) => {
+                            const [field, order] = value.split('-');
+                            setSortField(field as SortField);
+                            setSortOrder(order as SortOrder);
+                          }}
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Sort by..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
+                            <SelectItem value="updated_at-asc">Least Recently Updated</SelectItem>
+                            <SelectItem value="created_at-desc">Newest First</SelectItem>
+                            <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                            <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                            <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        {/* Group By Dropdown */}
+                        <Select
+                          value={groupBy}
+                          onValueChange={(value) => setGroupBy(value as GroupBy)}
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Group by..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Grouping</SelectItem>
+                            <SelectItem value="type">Group by Type</SelectItem>
+                            <SelectItem value="creator">Group by Creator</SelectItem>
+                            <SelectItem value="date">Group by Date</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        {/* View Toggle */}
+                        <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                           <button
-                            key={type.value}
-                            onClick={() => setTypeFilter(typeFilter === type.value ? 'all' : type.value as DocumentType)}
-                            className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-                              typeFilter === type.value
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'bg-background text-foreground border-border hover:border-primary'
-                            }`}
+                            onClick={() => setViewMode('grid')}
+                            disabled={isLoading}
+                            className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                              ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                              }`}
+                            title="Grid View"
                           >
-                            {type.label}
+                            <Grid className="w-4 h-4" />
                           </button>
-                        ))}
+                          <button
+                            onClick={() => setViewMode('table')}
+                            disabled={isLoading}
+                            className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
+                              ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                              }`}
+                            title="Table View"
+                          >
+                            <List className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              )}
+
+                {/* Filters Panel */}
+                {showFilters && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+                      {activeFiltersCount > 0 && (
+                        <button
+                          onClick={clearFilters}
+                          className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Type Filter */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                          Document Type
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { value: 'meeting_notes', label: '📝 Meeting Notes' },
+                            { value: 'test_plan', label: '📋 Test Plan' },
+                            { value: 'test_strategy', label: '🎯 Test Strategy' },
+                            { value: 'brainstorm', label: '💡 Brainstorm' },
+                            { value: 'general', label: '📄 General' }
+                          ].map(type => (
+                            <button
+                              key={type.value}
+                              onClick={() => setTypeFilter(typeFilter === type.value ? 'all' : type.value as DocumentType)}
+                              className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${typeFilter === type.value
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-background text-foreground border-border hover:border-primary'
+                                }`}
+                            >
+                              {type.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Content Area */}
@@ -581,22 +840,76 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
                   )}
                 </div>
               ) : (
-                /* Documents Display */
                 <>
-                  {viewMode === 'grid' ? (
-                    <DocumentsGrid 
-                      documents={paginatedDocs} 
-                      onOpen={handleOpenDocument}
-                      selectedDocIds={selectedDocIds}
-                      onToggleSelect={handleToggleSelect}
-                    />
+                  {/* Documents Display */}
+                  {groupBy === 'none' ? (
+                    <>
+                      {viewMode === 'grid' ? (
+                        <DocumentsGrid
+                          documents={paginatedDocs}
+                          onOpen={handleOpenDocument}
+                          selectedDocIds={selectedDocIds}
+                          onToggleSelect={handleToggleSelect}
+                        />
+                      ) : (
+                        <DocumentsTable
+                          documents={paginatedDocs}
+                          onOpen={handleOpenDocument}
+                          selectedDocIds={selectedDocIds}
+                          onToggleSelect={handleToggleSelect}
+                        />
+                      )}
+
+                      {/* Pagination - Only show when not grouping */}
+                      {filteredDocs.length > itemsPerPage && (
+                        <div className="mt-6">
+                          <Pagination
+                            currentPage={currentPage}
+                            totalItems={filteredDocs.length}
+                            itemsPerPage={itemsPerPage}
+                            onPageChange={(page) => {
+                              setCurrentPage(page)
+                              window.scrollTo({ top: 0, behavior: 'smooth' })
+                            }}
+                            onItemsPerPageChange={(items) => {
+                              setItemsPerPage(items)
+                              setCurrentPage(1)
+                            }}
+                          />
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <DocumentsTable 
-                      documents={paginatedDocs} 
-                      onOpen={handleOpenDocument}
-                      selectedDocIds={selectedDocIds}
-                      onToggleSelect={handleToggleSelect}
-                    />
+                    /* Grouped Display */
+                    <div className="space-y-6">
+                      {Object.entries(groupedDocs).map(([groupName, groupDocs]) => (
+                        <div key={groupName}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <h3 className="text-sm font-semibold text-foreground uppercase">
+                              {groupName}
+                            </h3>
+                            <span className="text-xs text-muted-foreground">
+                              ({groupDocs.length})
+                            </span>
+                          </div>
+                          {viewMode === 'grid' ? (
+                            <DocumentsGrid
+                              documents={groupDocs}
+                              onOpen={handleOpenDocument}
+                              selectedDocIds={selectedDocIds}
+                              onToggleSelect={handleToggleSelect}
+                            />
+                          ) : (
+                            <DocumentsTable
+                              documents={groupDocs}
+                              onOpen={handleOpenDocument}
+                              selectedDocIds={selectedDocIds}
+                              onToggleSelect={handleToggleSelect}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   {/* Pagination */}

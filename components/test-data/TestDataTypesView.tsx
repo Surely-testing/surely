@@ -35,7 +35,7 @@ export default function TestDataTypesView({
   const filteredTypes = useMemo(() => {
     if (!search) return types
     const searchLower = search.toLowerCase()
-    return types.filter((t) => 
+    return types.filter((t) =>
       t.name.toLowerCase().includes(searchLower) ||
       (t.description?.toLowerCase() || '').includes(searchLower)
     )
@@ -54,7 +54,7 @@ export default function TestDataTypesView({
   }
 
   const toggleTypeSelection = (id: string) => {
-    setSelectedTypeIds(prev => 
+    setSelectedTypeIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     )
   }
@@ -73,17 +73,13 @@ export default function TestDataTypesView({
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3 flex-1">
+            <div className="flex items-center gap-2 flex-1">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
                 Test Data Library
               </h1>
-              {isLoading ? (
-                <Skeleton className="h-7 w-20 rounded-full" />
-              ) : (
-                <span className="px-3 py-1.5 bg-muted rounded-full text-sm font-medium text-muted-foreground">
-                  {filteredTypes.length} {filteredTypes.length === 1 ? 'type' : 'types'}
-                </span>
-              )}
+              <span className="text-sm text-muted-foreground">
+                ({filteredTypes.length})
+              </span>
             </div>
             <button
               onClick={onCreateNew}
@@ -99,25 +95,12 @@ export default function TestDataTypesView({
         {/* Main Content Card */}
         <div>
           {/* Controls Bar */}
-          <div className="px-6 py-4 border-b border-border bg-card">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              {/* Select All */}
-              <div className="flex items-center gap-3 order-2 sm:order-1">
-                <input
-                  type="checkbox"
-                  checked={selectedTypeIds.length === paginatedTypes.length && paginatedTypes.length > 0}
-                  onChange={handleSelectAll}
-                  disabled={isLoading}
-                  className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                />
-                <span className="text-sm font-medium text-muted-foreground">
-                  Select All
-                </span>
-              </div>
-
-              {/* Search and View Toggle */}
-              <div className="flex items-center gap-3 flex-1 justify-end order-1 sm:order-2">
-                <div className="relative flex-1 max-w-md">
+          <div className="px-3 py-2 border-b border-border bg-card">
+            <div className="flex flex-col gap-3 lg:gap-0">
+              {/* Mobile Layout (< lg screens) */}
+              <div className="lg:hidden space-y-3">
+                {/* Row 1: Search (Full Width) */}
+                <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
                     placeholder="Search types..."
@@ -127,35 +110,113 @@ export default function TestDataTypesView({
                       setTypesPage(1)
                     }}
                     disabled={isLoading}
-                    className="pl-10 w-full h-10 bg-background border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
                   />
                 </div>
 
-                <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                  <button
-                    onClick={() => setView('grid')}
-                    disabled={isLoading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      view === 'grid' 
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm' 
+                {/* Row 2: Select All (Left) | View Toggle (Right) */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedTypeIds.length === paginatedTypes.length && paginatedTypes.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={isLoading}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
+                    </span>
+                  </div>
+
+                  {/* View Toggle */}
+                  <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                    <button
+                      onClick={() => setView('grid')}
+                      disabled={isLoading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${view === 'grid'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
-                    title="Grid view"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setView('list')}
-                    disabled={isLoading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      view === 'list' 
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm' 
+                        }`}
+                      title="Grid view"
+                    >
+                      <Grid className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setView('list')}
+                      disabled={isLoading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${view === 'list'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
-                    title="List view"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
+                        }`}
+                      title="List view"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Desktop Layout (lg+ screens) */}
+              <div className="hidden lg:flex lg:flex-col lg:gap-0">
+                <div className="flex items-center justify-between gap-4">
+                  {/* Left Side: Select All */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedTypeIds.length === paginatedTypes.length && paginatedTypes.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={isLoading}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
+                    </span>
+                  </div>
+
+                  {/* Right Side: Search & View Toggle */}
+                  <div className="flex items-center gap-3 flex-1 justify-end">
+                    {/* Search */}
+                    <div className="relative flex-1 max-w-xs">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      <Input
+                        placeholder="Search types..."
+                        value={search}
+                        onChange={(e) => {
+                          setSearch(e.target.value)
+                          setTypesPage(1)
+                        }}
+                        disabled={isLoading}
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                      />
+                    </div>
+
+                    {/* View Toggle */}
+                    <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                      <button
+                        onClick={() => setView('grid')}
+                        disabled={isLoading}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${view === 'grid'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          }`}
+                        title="Grid view"
+                      >
+                        <Grid className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setView('list')}
+                        disabled={isLoading}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${view === 'list'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          }`}
+                        title="List view"
+                      >
+                        <List className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -215,8 +276,8 @@ export default function TestDataTypesView({
                   {search ? 'No types found' : 'No test data types yet'}
                 </h3>
                 <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  {search 
-                    ? 'Try adjusting your search criteria to find what you\'re looking for.' 
+                  {search
+                    ? 'Try adjusting your search criteria to find what you\'re looking for.'
                     : 'Get started by creating your first test data type to organize your test data.'}
                 </p>
                 {!search && (

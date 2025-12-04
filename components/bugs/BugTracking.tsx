@@ -1,15 +1,20 @@
 // ============================================
 // components/bugs/BugTracking.tsx
-// Bug tracking with unified controls bar matching TestDataTypesView design
 // ============================================
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BugWithCreator, BugSeverity, BugStatus } from '@/types/bug.types';
-import { Grid, List, Code, Search, AlertTriangle, Filter } from 'lucide-react';
+import { Grid, List, Code, Search, AlertTriangle, Filter, Plus, Sparkles, Upload } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/Select';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/Button';
 import { BugForm } from './BugForm';
 import { BugGrid } from './BugGrid';
 import { BugTable } from './BugTable';
@@ -59,9 +64,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
-          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-            isDestructive ? 'bg-error/10' : 'bg-warning/10'
-          }`}>
+          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${isDestructive ? 'bg-error/10' : 'bg-warning/10'
+            }`}>
             <AlertTriangle className={`w-6 h-6 ${isDestructive ? 'text-error' : 'text-warning'}`} />
           </div>
           <div className="flex-1 min-w-0">
@@ -79,11 +83,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-all ${
-              isDestructive
-                ? 'bg-error hover:bg-error/90'
-                : 'bg-primary hover:bg-primary/90'
-            }`}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-all ${isDestructive
+              ? 'bg-error hover:bg-error/90'
+              : 'bg-primary hover:bg-primary/90'
+              }`}
           >
             {confirmText}
           </button>
@@ -103,7 +106,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
   const [editingBug, setEditingBug] = useState<BugWithCreator | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedBugIds, setSelectedBugIds] = useState<string[]>([]);
-  
+
   // Filters, Sorting, Grouping
   const [filterStatus, setFilterStatus] = useState<BugStatus[]>([]);
   const [filterSeverity, setFilterSeverity] = useState<BugSeverity[]>([]);
@@ -111,11 +114,11 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
-  
+
   // Confirm dialog
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -127,7 +130,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDestructive: false
   });
 
@@ -142,7 +145,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
       setLoading(true);
       setError(null);
       const supabase = createClient();
-      
+
       let query = supabase
         .from('bugs')
         .select('*')
@@ -154,7 +157,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
       }
 
       const { data: bugsData, error: bugsError } = await query;
-      
+
       if (bugsError) {
         console.error('Error fetching bugs:', bugsError);
         setError(bugsError.message);
@@ -172,7 +175,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
 
       const creatorIds = [...new Set(bugsData.map(bug => bug.created_by).filter(Boolean))];
       let profilesMap = new Map();
-      
+
       if (creatorIds.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
@@ -248,7 +251,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
     selectedOption?: ActionOption | null
   ) => {
     const supabase = createClient();
-    
+
     try {
       switch (actionId) {
         case 'delete':
@@ -258,7 +261,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           setBugs(bugs.filter(b => !selectedIds.includes(b.id)));
           toast.success(`${selectedIds.length} bug${selectedIds.length > 1 ? 's' : ''} deleted successfully`);
           break;
-          
+
         case 'open':
           await Promise.all(
             selectedIds.map(id => supabase.from('bugs').update({ status: 'open' }).eq('id', id))
@@ -266,7 +269,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           fetchBugs();
           toast.success(`${selectedIds.length} bug${selectedIds.length > 1 ? 's' : ''} reopened`);
           break;
-          
+
         case 'resolve':
           await Promise.all(
             selectedIds.map(id => supabase.from('bugs').update({ status: 'resolved' }).eq('id', id))
@@ -274,7 +277,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           fetchBugs();
           toast.success(`${selectedIds.length} bug${selectedIds.length > 1 ? 's' : ''} resolved`);
           break;
-          
+
         case 'close':
           await Promise.all(
             selectedIds.map(id => supabase.from('bugs').update({ status: 'closed' }).eq('id', id))
@@ -282,11 +285,11 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
           fetchBugs();
           toast.success(`${selectedIds.length} bug${selectedIds.length > 1 ? 's' : ''} closed`);
           break;
-          
+
         case 'severity':
           if (selectedOption) {
             await Promise.all(
-              selectedIds.map(id => 
+              selectedIds.map(id =>
                 supabase.from('bugs').update({ severity: selectedOption.value }).eq('id', id)
               )
             );
@@ -294,7 +297,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
             toast.success(`Severity updated to ${selectedOption.label}`);
           }
           break;
-          
+
         case 'archive':
           await Promise.all(
             selectedIds.map(id => supabase.from('bugs').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id))
@@ -326,9 +329,9 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
         .from('bugs')
         .update(updatedBug)
         .eq('id', updatedBug.id);
-      
+
       if (error) throw error;
-      
+
       fetchBugs();
       toast.success('Bug updated successfully');
     } catch (error: any) {
@@ -372,7 +375,7 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
       if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
 
       if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc' 
+        return sortOrder === 'asc'
           ? aVal.localeCompare(bVal)
           : bVal.localeCompare(aVal);
       }
@@ -497,27 +500,13 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
       <div className="space-y-6 pb-24">
         {/* Main Content Card */}
         <div>
-          {/* Unified Controls Bar */}
+          {/* Unified Controls Bar - Mobile First */}
           <div className="px-3 py-2 border-b border-border bg-card">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              {/* Left Side: Select All */}
-              <div className="flex items-center gap-3 order-2 lg:order-1">
-                <input
-                  type="checkbox"
-                  checked={selectedBugIds.length === paginatedBugs.length && paginatedBugs.length > 0}
-                  onChange={handleSelectAll}
-                  disabled={loading}
-                  className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                />
-                <span className="text-sm font-medium text-muted-foreground">
-                  Select All
-                </span>
-              </div>
-
-              {/* Right Side: Search, Filters, Sort, Group, View Toggle */}
-              <div className="flex items-center gap-3 flex-1 justify-end order-1 lg:order-2 flex-wrap">
-                {/* Search */}
-                <div className="relative flex-1 max-w-xs">
+            <div className="flex flex-col gap-3 lg:gap-0">
+              {/* Mobile Layout (< lg screens) */}
+              <div className="lg:hidden space-y-3">
+                {/* Row 1: Search (Full Width) */}
+                <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <input
                     type="text"
@@ -532,94 +521,247 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                   />
                 </div>
 
-                {/* Filter Button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="relative"
-                  disabled={loading}
-                >
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filter
-                  {activeFiltersCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                      {activeFiltersCount}
+                {/* Row 2: Filter, Sort, Grouping */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {/* Filter Button */}
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    disabled={loading}
+                    className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+                  >
+                    <Filter className="w-4 h-4" />
+                    <span>Filter</span>
+                    {activeFiltersCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Sort Dropdown */}
+                  <Select
+                    value={`${sortField}-${sortOrder}`}
+                    onValueChange={(value) => {
+                      const [field, order] = value.split('-');
+                      setSortField(field as SortField);
+                      setSortOrder(order as SortOrder);
+                    }}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                      <SelectValue placeholder="Sort by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="created_at-desc">Newest First</SelectItem>
+                      <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                      <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
+                      <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                      <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                      <SelectItem value="severity-desc">Severity (High-Low)</SelectItem>
+                      <SelectItem value="severity-asc">Severity (Low-High)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Group By Dropdown */}
+                  <Select
+                    value={groupBy}
+                    onValueChange={(value) => setGroupBy(value as GroupBy)}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                      <SelectValue placeholder="Group by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Grouping</SelectItem>
+                      <SelectItem value="status">Group by Status</SelectItem>
+                      <SelectItem value="severity">Group by Severity</SelectItem>
+                      <SelectItem value="sprint">Group by Sprint</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Row 3: Select All (Left) | View Toggle (Right) */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedBugIds.length === paginatedBugs.length && paginatedBugs.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={loading}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
                     </span>
-                  )}
-                </Button>
+                  </div>
 
-                {/* Sort Dropdown */}
-                <select
-                  value={`${sortField}-${sortOrder}`}
-                  onChange={(e) => {
-                    const [field, order] = e.target.value.split('-');
-                    setSortField(field as SortField);
-                    setSortOrder(order as SortOrder);
-                  }}
-                  disabled={loading}
-                  className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
-                >
-                  <option value="created_at-desc">Newest First</option>
-                  <option value="created_at-asc">Oldest First</option>
-                  <option value="updated_at-desc">Recently Updated</option>
-                  <option value="title-asc">Title (A-Z)</option>
-                  <option value="title-desc">Title (Z-A)</option>
-                  <option value="severity-desc">Severity (High-Low)</option>
-                  <option value="severity-asc">Severity (Low-High)</option>
-                </select>
+                  {/* View Toggle */}
+                  <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      disabled={loading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      title="Grid View"
+                    >
+                      <Grid className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('table')}
+                      disabled={loading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      title="Table View"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('mini')}
+                      disabled={loading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'mini'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      title="Developer Mini View"
+                    >
+                      <Code className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                {/* Group By Dropdown */}
-                <select
-                  value={groupBy}
-                  onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-                  disabled={loading}
-                  className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
-                >
-                  <option value="none">No Grouping</option>
-                  <option value="status">Group by Status</option>
-                  <option value="severity">Group by Severity</option>
-                  <option value="sprint">Group by Sprint</option>
-                </select>
+              {/* Desktop Layout (lg+ screens) - Original Design */}
+              <div className="hidden lg:flex lg:flex-col lg:gap-0">
+                <div className="flex items-center justify-between gap-4">
+                  {/* Left Side: Select All */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedBugIds.length === paginatedBugs.length && paginatedBugs.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={loading}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
+                    </span>
+                  </div>
 
-                {/* View Toggle */}
-                <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    disabled={loading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      viewMode === 'grid'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
-                    title="Grid View"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('table')}
-                    disabled={loading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      viewMode === 'table'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
-                    title="Table View"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('mini')}
-                    disabled={loading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      viewMode === 'mini'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
-                    title="Developer Mini View"
-                  >
-                    <Code className="w-4 h-4" />
-                  </button>
+                  {/* Right Side: Search, Filters, Sort, Group, View Toggle */}
+                  <div className="flex items-center gap-3 flex-1 justify-end">
+                    {/* Search */}
+                    <div className="relative flex-1 max-w-xs">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search bugs..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        disabled={loading}
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                      />
+                    </div>
+
+                    {/* Filter Button */}
+                    <button
+                      onClick={() => setShowFilters(!showFilters)}
+                      disabled={loading}
+                      className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
+                    >
+                      <Filter className="w-4 h-4" />
+                      Filter
+                      {activeFiltersCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                          {activeFiltersCount}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Sort Dropdown */}
+                    <Select
+                      value={`${sortField}-${sortOrder}`}
+                      onValueChange={(value) => {
+                        const [field, order] = value.split('-');
+                        setSortField(field as SortField);
+                        setSortOrder(order as SortOrder);
+                      }}
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Sort by..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="created_at-desc">Newest First</SelectItem>
+                        <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                        <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
+                        <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                        <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                        <SelectItem value="severity-desc">Severity (High-Low)</SelectItem>
+                        <SelectItem value="severity-asc">Severity (Low-High)</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* Group By Dropdown */}
+                    <Select
+                      value={groupBy}
+                      onValueChange={(value) => setGroupBy(value as GroupBy)}
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Group by..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Grouping</SelectItem>
+                        <SelectItem value="status">Group by Status</SelectItem>
+                        <SelectItem value="severity">Group by Severity</SelectItem>
+                        <SelectItem value="sprint">Group by Sprint</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* View Toggle */}
+                    <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        disabled={loading}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          }`}
+                        title="Grid View"
+                      >
+                        <Grid className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('table')}
+                        disabled={loading}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          }`}
+                        title="Table View"
+                      >
+                        <List className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('mini')}
+                        disabled={loading}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'mini'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          }`}
+                        title="Developer Mini View"
+                      >
+                        <Code className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -630,9 +772,12 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-foreground">Filters</h3>
                   {activeFiltersCount > 0 && (
-                    <Button variant="outline" size="sm" onClick={clearFilters}>
+                    <button
+                      onClick={clearFilters}
+                      className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
+                    >
                       Clear All
-                    </Button>
+                    </button>
                   )}
                 </div>
 
@@ -647,11 +792,10 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                         <button
                           key={status}
                           onClick={() => toggleStatusFilter(status)}
-                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-                            filterStatus.includes(status)
+                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterStatus.includes(status)
                               ? 'bg-primary text-primary-foreground border-primary'
                               : 'bg-background text-foreground border-border hover:border-primary'
-                          }`}
+                            }`}
                         >
                           {status.replace('_', ' ')}
                         </button>
@@ -669,11 +813,10 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                         <button
                           key={severity}
                           onClick={() => toggleSeverityFilter(severity)}
-                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-                            filterSeverity.includes(severity)
+                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterSeverity.includes(severity)
                               ? 'bg-primary text-primary-foreground border-primary'
                               : 'bg-background text-foreground border-border hover:border-primary'
-                          }`}
+                            }`}
                         >
                           {severity}
                         </button>
@@ -704,26 +847,126 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
 
             {/* Bugs List */}
             {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p className="mt-4 text-sm text-muted-foreground">Loading bugs...</p>
-              </div>
-            ) : filteredBugs.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-sm text-muted-foreground mb-4">
-                  {bugs.length === 0
-                    ? searchQuery
-                      ? 'No bugs match your search'
-                      : 'No bugs found for this suite'
-                    : 'No bugs match the selected filters'}
-                </p>
-                {bugs.length > 0 && (
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear Filters
-                  </Button>
+              // Skeleton loader
+              <div className="space-y-4">
+                {viewMode === 'mini' ? (
+                  <div className="space-y-2">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg animate-pulse">
+                        <div className="w-4 h-4 bg-muted rounded"></div>
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-muted rounded w-3/4"></div>
+                          <div className="h-3 bg-muted rounded w-1/2"></div>
+                        </div>
+                        <div className="w-16 h-6 bg-muted rounded-full"></div>
+                        <div className="w-20 h-6 bg-muted rounded-full"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : viewMode === 'table' ? (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <div className="bg-muted/50 border-b border-border">
+                      <div className="flex items-center gap-4 p-4">
+                        <div className="w-4 h-4 bg-muted rounded"></div>
+                        <div className="h-4 bg-muted rounded w-1/4"></div>
+                        <div className="h-4 bg-muted rounded w-1/6"></div>
+                        <div className="h-4 bg-muted rounded w-1/6"></div>
+                        <div className="h-4 bg-muted rounded w-1/6"></div>
+                      </div>
+                    </div>
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 border-b border-border last:border-b-0 animate-pulse">
+                        <div className="w-4 h-4 bg-muted rounded"></div>
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-muted rounded w-3/4"></div>
+                          <div className="h-3 bg-muted rounded w-1/2"></div>
+                        </div>
+                        <div className="w-20 h-6 bg-muted rounded-full"></div>
+                        <div className="w-20 h-6 bg-muted rounded-full"></div>
+                        <div className="w-24 h-3 bg-muted rounded"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="bg-card border border-border rounded-lg p-4 space-y-3 animate-pulse">
+                        <div className="flex items-start justify-between">
+                          <div className="w-4 h-4 bg-muted rounded"></div>
+                          <div className="w-20 h-6 bg-muted rounded-full"></div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-5 bg-muted rounded w-3/4"></div>
+                          <div className="h-4 bg-muted rounded w-full"></div>
+                          <div className="h-4 bg-muted rounded w-5/6"></div>
+                        </div>
+                        <div className="flex items-center justify-between pt-3 border-t border-border">
+                          <div className="w-24 h-6 bg-muted rounded-full"></div>
+                          <div className="w-20 h-3 bg-muted rounded"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
+            ) : bugs.length === 0 ? (
+              // Empty State - No bugs at all
+              <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
+                <Plus className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No bugs yet</h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Track and manage bugs for this test suite
+                </p>
+                <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap justify-center">
+                  <button
+                    onClick={() => {
+                      setShowEditForm(true);
+                      setEditingBug(null);
+                    }}
+                    className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold w-full sm:w-auto"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Bug Report
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast.info('Import feature coming soon');
+                    }}
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 w-full sm:w-auto"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import Bugs
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast.info('AI generation coming soon');
+                    }}
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 w-full sm:w-auto"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    AI Generate
+                  </button>
+                </div>
+              </div>
+            ) : filteredBugs.length === 0 ? (
+              // Filtered Empty State - No bugs match filters
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-medium text-foreground mb-1">
+                  No bugs found
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Try adjusting your filters or search query
+                </p>
+                <button
+                  onClick={clearFilters}
+                  className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
+                >
+                  Clear Filters
+                </button>
+              </div>
             ) : (
+              // Content - Show bugs
               <>
                 {viewMode === 'mini' ? (
                   groupBy === 'none' ? (

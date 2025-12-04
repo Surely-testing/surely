@@ -3,7 +3,7 @@
 import { useState, useEffect, SetStateAction } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { SuggestionWithCreator, SuggestionStatus, SuggestionPriority, SuggestionCategory } from '@/types/suggestion.types';
-import { Plus, Grid, List, Search, Filter } from 'lucide-react';
+import { Plus, Grid, List, Search, Filter, Sparkles, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { SuggestionGrid } from '../suggestions/SuggestionGrid';
@@ -11,6 +11,13 @@ import { SuggestionTable } from '../suggestions/SuggestionTable';
 import { SuggestionForm } from '../suggestions/SuggestionForm';
 import { SuggestionDetailsDrawer } from '../suggestions/SuggestionDetailsDrawer';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/Select';
 import { Pagination } from '@/components/shared/Pagination';
 
 interface SuggestionsProps {
@@ -408,27 +415,13 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
       <div className="space-y-6 pb-24">
         {/* Main Content Card */}
         <div>
-          {/* Unified Controls Bar */}
+          {/* Unified Controls Bar - Mobile First, Desktop Preserved */}
           <div className="px-3 py-2 border-b border-border bg-card">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              {/* Left Side: Select All only */}
-              <div className="flex items-center gap-3 order-2 lg:order-1">
-                <input
-                  type="checkbox"
-                  checked={selectedSuggestionIds.length === paginatedSuggestions.length && paginatedSuggestions.length > 0}
-                  onChange={handleSelectAll}
-                  disabled={loading}
-                  className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                />
-                <span className="text-sm font-medium text-muted-foreground">
-                  Select All
-                </span>
-              </div>
-
-              {/* Right Side: Search, Filters, Sort, Group, View Toggle */}
-              <div className="flex items-center gap-3 flex-1 justify-end order-1 lg:order-2 flex-wrap">
-                {/* Search */}
-                <div className="relative flex-1 max-w-xs">
+            <div className="flex flex-col gap-3 lg:gap-0">
+              {/* Mobile Layout (< lg screens) */}
+              <div className="lg:hidden space-y-3">
+                {/* Row 1: Search (Full Width) */}
+                <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <input
                     type="text"
@@ -443,81 +436,229 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                   />
                 </div>
 
-                {/* Filter Button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="relative"
-                  disabled={loading}
-                >
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filter
-                  {activeFiltersCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                      {activeFiltersCount}
+                {/* Row 2: Filter, Sort, Grouping */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {/* Filter Button */}
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    disabled={loading}
+                    className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+                  >
+                    <Filter className="w-4 h-4" />
+                    <span>Filter</span>
+                    {activeFiltersCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Sort Dropdown */}
+                  <Select
+                    value={`${sortField}-${sortOrder}`}
+                    onValueChange={(value) => {
+                      const [field, order] = value.split('-');
+                      setSortField(field as SortField);
+                      setSortOrder(order as SortOrder);
+                    }}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                      <SelectValue placeholder="Sort by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="created_at-desc">Newest First</SelectItem>
+                      <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                      <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
+                      <SelectItem value="upvotes-desc">Most Upvoted</SelectItem>
+                      <SelectItem value="upvotes-asc">Least Upvoted</SelectItem>
+                      <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                      <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Group By Dropdown */}
+                  <Select
+                    value={groupBy}
+                    onValueChange={(value) => setGroupBy(value as GroupBy)}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                      <SelectValue placeholder="Group by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Grouping</SelectItem>
+                      <SelectItem value="status">Group by Status</SelectItem>
+                      <SelectItem value="priority">Group by Priority</SelectItem>
+                      <SelectItem value="category">Group by Category</SelectItem>
+                      <SelectItem value="sprint">Group by Sprint</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Row 3: Select All (Left) | View Toggle (Right) */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSuggestionIds.length === paginatedSuggestions.length && paginatedSuggestions.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={loading}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
                     </span>
-                  )}
-                </Button>
+                  </div>
 
-                {/* Sort Dropdown */}
-                <select
-                  value={`${sortField}-${sortOrder}`}
-                  onChange={(e) => {
-                    const [field, order] = e.target.value.split('-');
-                    setSortField(field as SortField);
-                    setSortOrder(order as SortOrder);
-                  }}
-                  disabled={loading}
-                  className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
-                >
-                  <option value="created_at-desc">Newest First</option>
-                  <option value="created_at-asc">Oldest First</option>
-                  <option value="updated_at-desc">Recently Updated</option>
-                  <option value="upvotes-desc">Most Upvoted</option>
-                  <option value="upvotes-asc">Least Upvoted</option>
-                  <option value="title-asc">Title (A-Z)</option>
-                  <option value="title-desc">Title (Z-A)</option>
-                </select>
+                  {/* View Toggle */}
+                  <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      disabled={loading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      title="Grid View"
+                    >
+                      <Grid className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('table')}
+                      disabled={loading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      title="Table View"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                {/* Group By Dropdown */}
-                <select
-                  value={groupBy}
-                  onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-                  disabled={loading}
-                  className="px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring bg-background text-foreground disabled:opacity-50"
-                >
-                  <option value="none">No Grouping</option>
-                  <option value="status">Group by Status</option>
-                  <option value="priority">Group by Priority</option>
-                  <option value="category">Group by Category</option>
-                  <option value="sprint">Group by Sprint</option>
-                </select>
+              {/* Desktop Layout (lg+ screens) - Original Design */}
+              <div className="hidden lg:flex lg:flex-col lg:gap-0">
+                <div className="flex items-center justify-between gap-4">
+                  {/* Left Side: Select All */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSuggestionIds.length === paginatedSuggestions.length && paginatedSuggestions.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={loading}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
+                    </span>
+                  </div>
 
-                {/* View Toggle */}
-                <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    disabled={loading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                    title="Grid View"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('table')}
-                    disabled={loading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                    title="Table View"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
+                  {/* Right Side: Search, Filters, Sort, Group, View Toggle */}
+                  <div className="flex items-center gap-3 flex-1 justify-end">
+                    {/* Search */}
+                    <div className="relative flex-1 max-w-xs">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search suggestions..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        disabled={loading}
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                      />
+                    </div>
+
+                    {/* Filter Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFilters(!showFilters)}
+                      className="relative"
+                      disabled={loading}
+                    >
+                      <Filter className="w-4 h-4 mr-2" />
+                      Filter
+                      {activeFiltersCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                          {activeFiltersCount}
+                        </span>
+                      )}
+                    </Button>
+
+                    {/* Sort Dropdown */}
+                    <Select
+                      value={`${sortField}-${sortOrder}`}
+                      onValueChange={(value) => {
+                        const [field, order] = value.split('-');
+                        setSortField(field as SortField);
+                        setSortOrder(order as SortOrder);
+                      }}
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Sort by..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="created_at-desc">Newest First</SelectItem>
+                        <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                        <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
+                        <SelectItem value="upvotes-desc">Most Upvoted</SelectItem>
+                        <SelectItem value="upvotes-asc">Least Upvoted</SelectItem>
+                        <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                        <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* Group By Dropdown */}
+                    <Select
+                      value={groupBy}
+                      onValueChange={(value) => setGroupBy(value as GroupBy)}
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Group by..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Grouping</SelectItem>
+                        <SelectItem value="status">Group by Status</SelectItem>
+                        <SelectItem value="priority">Group by Priority</SelectItem>
+                        <SelectItem value="category">Group by Category</SelectItem>
+                        <SelectItem value="sprint">Group by Sprint</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* View Toggle */}
+                    <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        disabled={loading}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          }`}
+                        title="Grid View"
+                      >
+                        <Grid className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('table')}
+                        disabled={loading}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          }`}
+                        title="Table View"
+                      >
+                        <List className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -613,28 +754,104 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
 
             {/* Suggestions List */}
             {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p className="mt-4 text-sm text-muted-foreground">Loading suggestions...</p>
+              // Skeleton loader
+              <div className="space-y-4">
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="bg-card border border-border rounded-lg p-4 space-y-3 animate-pulse">
+                        <div className="flex items-start justify-between">
+                          <div className="w-4 h-4 bg-muted rounded"></div>
+                          <div className="w-20 h-6 bg-muted rounded-full"></div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-5 bg-muted rounded w-3/4"></div>
+                          <div className="h-4 bg-muted rounded w-full"></div>
+                          <div className="h-4 bg-muted rounded w-5/6"></div>
+                        </div>
+                        <div className="flex items-center justify-between pt-3 border-t border-border">
+                          <div className="w-24 h-6 bg-muted rounded-full"></div>
+                          <div className="w-20 h-6 bg-muted rounded"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <div className="bg-muted/50 border-b border-border">
+                      <div className="flex items-center gap-4 p-4">
+                        <div className="w-4 h-4 bg-muted rounded"></div>
+                        <div className="h-4 bg-muted rounded w-1/4"></div>
+                        <div className="h-4 bg-muted rounded w-1/6"></div>
+                        <div className="h-4 bg-muted rounded w-1/6"></div>
+                      </div>
+                    </div>
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 border-b border-border last:border-b-0 animate-pulse">
+                        <div className="w-4 h-4 bg-muted rounded"></div>
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-muted rounded w-3/4"></div>
+                          <div className="h-3 bg-muted rounded w-1/2"></div>
+                        </div>
+                        <div className="w-20 h-6 bg-muted rounded-full"></div>
+                        <div className="w-20 h-6 bg-muted rounded"></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : suggestions.length === 0 ? (
+              // Empty State - No suggestions at all
+              <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
+                <Plus className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No suggestions yet</h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Share your ideas to improve this test suite
+                </p>
+                <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap justify-center">
+                  <button
+                    onClick={() => setShowForm(true)}
+                    className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold w-full sm:w-auto"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Suggestion
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast.info('Import feature coming soon');
+                    }}
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 w-full sm:w-auto"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import Suggestions
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast.info('AI generation coming soon');
+                    }}
+                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 w-full sm:w-auto"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    AI Generate
+                  </button>
+                </div>
               </div>
             ) : filteredSuggestions.length === 0 ? (
-              <div className="text-center py-12">
+              // Filtered Empty State - No suggestions match filters
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-medium text-foreground mb-1">
+                  No suggestions found
+                </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  {suggestions.length === 0
-                    ? searchQuery
-                      ? 'No suggestions match your search'
-                      : 'No suggestions found for this suite'
-                    : 'No suggestions match the selected filters'}
+                  Try adjusting your filters or search query
                 </p>
-                {suggestions.length === 0 ? (
-                  <Button variant="outline" onClick={() => setShowForm(true)}>
-                    Create your first suggestion
-                  </Button>
-                ) : (
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear Filters
-                  </Button>
-                )}
+                <button
+                  onClick={clearFilters}
+                  className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
+                >
+                  Clear Filters
+                </button>
               </div>
             ) : (
               <>
