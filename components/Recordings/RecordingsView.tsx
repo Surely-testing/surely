@@ -56,11 +56,16 @@ export function RecordingsView({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  
+
   // Selection and pagination state
   const [selectedRecordings, setSelectedRecordings] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
+
+  const [sortField, setSortField] = useState<'created_at' | 'duration' | 'title'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
 
   const fetchRecordings = async () => {
     setIsLoading(true);
@@ -71,6 +76,68 @@ export function RecordingsView({
     setIsLoading(false);
   };
 
+  const filteredRecordings = useMemo(() => {
+    let filtered = recordings.filter(recording => {
+      const matchesSearch = !filters.search ||
+        recording.title?.toLowerCase().includes(filters.search.toLowerCase());
+      const matchesSprint = !filters.sprint_id || recording.sprint_id === filters.sprint_id;
+
+      // Status filter (you can add a status field to your recordings or use a custom logic)
+      const matchesStatus = statusFilter === 'all' ||
+        (statusFilter === 'recent' && recording.created_at &&
+          new Date(recording.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+
+      // Date range filter
+      let matchesDateRange = true;
+      if (dateRangeFilter !== 'all' && recording.created_at) {
+        const recordingDate = new Date(recording.created_at);
+        const now = new Date();
+        switch (dateRangeFilter) {
+          case 'today':
+            matchesDateRange = recordingDate.toDateString() === now.toDateString();
+            break;
+          case 'week':
+            matchesDateRange = recordingDate > new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+          case 'month':
+            matchesDateRange = recordingDate > new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            break;
+        }
+      }
+
+      return matchesSearch && matchesSprint && matchesStatus && matchesDateRange;
+    });
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortField];
+      let bVal: any = b[sortField];
+
+      if (sortField === 'created_at') {
+        aVal = aVal ? new Date(aVal).getTime() : 0;
+        bVal = bVal ? new Date(bVal).getTime() : 0;
+      } else if (sortField === 'duration') {
+        aVal = aVal || 0;
+        bVal = bVal || 0;
+      }
+
+      if (aVal === null || aVal === undefined) return sortOrder === 'asc' ? 1 : -1;
+      if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortOrder === 'asc'
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [recordings, filters, sortField, sortOrder, statusFilter, dateRangeFilter]);
+
   useEffect(() => {
     const debounce = setTimeout(() => {
       fetchRecordings();
@@ -79,20 +146,11 @@ export function RecordingsView({
     return () => clearTimeout(debounce);
   }, [filters]);
 
+
   const handleFilterChange = (key: keyof RecordingFilters, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setCurrentPage(1); // Reset to first page on filter change
   };
-
-  // Filter recordings based on search/filters
-  const filteredRecordings = useMemo(() => {
-    return recordings.filter(recording => {
-      const matchesSearch = !filters.search || 
-        recording.title?.toLowerCase().includes(filters.search.toLowerCase());
-      const matchesSprint = !filters.sprint_id || recording.sprint_id === filters.sprint_id;
-      return matchesSearch && matchesSprint;
-    });
-  }, [recordings, filters]);
 
   // Paginate filtered recordings
   const paginatedRecordings = useMemo(() => {
@@ -117,7 +175,7 @@ export function RecordingsView({
     }
   }, [selectedRecordings, paginatedRecordings]);
 
-  const allSelected = paginatedRecordings.length > 0 && 
+  const allSelected = paginatedRecordings.length > 0 &&
     selectedRecordings.length === paginatedRecordings.length;
 
   // Bulk actions handler
@@ -126,7 +184,7 @@ export function RecordingsView({
       case 'download':
         toast.info('Download feature coming soon');
         break;
-        
+
       case 'share':
         if (selectedIds.length > 1) {
           toast.info('Please share recordings one at a time');
@@ -139,16 +197,16 @@ export function RecordingsView({
           toast.success('Link copied to clipboard');
         }
         break;
-        
+
       case 'archive':
         toast.success(`Archived ${selectedIds.length} recording(s)`);
         // Implement archive logic
         setSelectedRecordings([]);
         break;
-        
+
       case 'delete':
         if (!confirm(`Delete ${selectedIds.length} recording(s)? This cannot be undone.`)) return;
-        
+
         try {
           for (const id of selectedIds) {
             await deleteRecording(id);
@@ -208,9 +266,16 @@ export function RecordingsView({
       sort: 'newest',
       sprint_id: undefined,
     });
+    setSortField('created_at');
+    setSortOrder('desc');
+    setStatusFilter('all');
+    setDateRangeFilter('all');
   };
 
-  const activeFiltersCount = (filters.sprint_id ? 1 : 0);
+  const activeFiltersCount =
+    (filters.sprint_id ? 1 : 0) +
+    (statusFilter !== 'all' ? 1 : 0) +
+    (dateRangeFilter !== 'all' ? 1 : 0);
 
   const handleToggleDrawer = () => {
     setIsDrawerOpen(prev => !prev);
@@ -328,124 +393,294 @@ export function RecordingsView({
         </div>
       </div>
 
-      {/* Controls Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border">
-        {/* Left Side: Select All */}
-        <div className="flex items-center gap-3 order-2 lg:order-1">
-          <input
-            type="checkbox"
-            checked={selectedRecordings.length === paginatedRecordings.length && paginatedRecordings.length > 0}
-            onChange={handleSelectAll}
-            disabled={isLoading}
-            className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          />
-          <span className="text-sm font-medium text-muted-foreground">
-            Select All
-          </span>
-        </div>
+      {/* Controls Bar - Mobile First, Desktop Preserved */}
+      <div className="bg-card border-b border-border">
+        <div className="px-3 py-2">
+          <div className="flex flex-col gap-3 lg:gap-0">
+            {/* Mobile Layout (< lg screens) */}
+            <div className="lg:hidden space-y-3">
+              {/* Row 1: Search (Full Width) */}
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search recordings..."
+                  value={filters.search || ''}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                />
+              </div>
 
-        {/* Right Side: Search, Filters, View Toggle */}
-        <div className="flex items-center gap-3 flex-1 justify-end order-1 lg:order-2 flex-wrap">
-          {/* Search */}
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search recordings..."
-              value={filters.search || ''}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              disabled={isLoading}
-              className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-            />
-          </div>
+              {/* Row 2: Filter, Sort */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {/* Filter Button */}
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  disabled={isLoading}
+                  className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+                >
+                  <Filter className="w-4 h-4" />
+                  <span>Filter</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
 
-          {/* Filter Button */}
-          {sprints.length > 0 && (
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              disabled={isLoading}
-              className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
-            >
-              <Filter className="w-4 h-4" />
-              <span className="hidden sm:inline">Filter</span>
-              {activeFiltersCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                  {activeFiltersCount}
-                </span>
-              )}
-            </button>
-          )}
+                {/* Sort Dropdown */}
+                <Select
+                  value={`${sortField}-${sortOrder}`}
+                  onValueChange={(value) => {
+                    const [field, order] = value.split('-');
+                    setSortField(field as 'created_at' | 'duration' | 'title');
+                    setSortOrder(order as 'asc' | 'desc');
+                  }}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at-desc">Newest First</SelectItem>
+                    <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                    <SelectItem value="duration-desc">Longest Duration</SelectItem>
+                    <SelectItem value="duration-asc">Shortest Duration</SelectItem>
+                    <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                    <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* View Toggle */}
-          <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-            <button
-              onClick={() => setViewMode('grid')}
-              disabled={isLoading}
-              className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                viewMode === 'grid'
-                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-              title="Grid View"
-            >
-              <Grid3x3 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              disabled={isLoading}
-              className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                viewMode === 'list'
-                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-              title="List View"
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
+              {/* Row 3: Select All (Left) | View Toggle (Right) */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedRecordings.length === paginatedRecordings.length && paginatedRecordings.length > 0}
+                    onChange={handleSelectAll}
+                    disabled={isLoading}
+                    className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Select All
+                  </span>
+                </div>
 
-      {/* Filters Panel */}
-      {showFilters && sprints.length > 0 && (
-        <div className="pb-4 border-b border-border">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-foreground">Filters</h3>
-            {activeFiltersCount > 0 && (
-              <button
-                onClick={clearFilters}
-                className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
-              >
-                Clear All
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Sprint Filter */}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                Sprint
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {sprints.map((sprint) => (
+                {/* View Toggle */}
+                <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                   <button
-                    key={sprint.id}
-                    onClick={() => handleFilterChange('sprint_id', filters.sprint_id === sprint.id ? undefined : sprint.id)}
-                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-                      filters.sprint_id === sprint.id
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background text-foreground border-border hover:border-primary'
-                    }`}
+                    onClick={() => setViewMode('grid')}
+                    disabled={isLoading}
+                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                    title="Grid View"
                   >
-                    {sprint.name}
+                    <Grid3x3 className="w-4 h-4" />
                   </button>
-                ))}
+                  <button
+                    onClick={() => setViewMode('list')}
+                    disabled={isLoading}
+                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'list'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                    title="List View"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Desktop Layout (lg+ screens) - Original Design */}
+            <div className="hidden lg:flex lg:flex-col lg:gap-0">
+              <div className="flex items-center justify-between gap-4">
+                {/* Left Side: Select All */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedRecordings.length === paginatedRecordings.length && paginatedRecordings.length > 0}
+                    onChange={handleSelectAll}
+                    disabled={isLoading}
+                    className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Select All
+                  </span>
+                </div>
+
+                {/* Right Side: Search, Filter, Sort, View Toggle */}
+                <div className="flex items-center gap-3 flex-1 justify-end">
+                  {/* Search */}
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search recordings..."
+                      value={filters.search || ''}
+                      onChange={(e) => handleFilterChange('search', e.target.value)}
+                      disabled={isLoading}
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                    />
+                  </div>
+
+                  {/* Filter Button */}
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    disabled={isLoading}
+                    className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filter
+                    {activeFiltersCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Sort Dropdown */}
+                  <Select
+                    value={`${sortField}-${sortOrder}`}
+                    onValueChange={(value) => {
+                      const [field, order] = value.split('-');
+                      setSortField(field as 'created_at' | 'duration' | 'title');
+                      setSortOrder(order as 'asc' | 'desc');
+                    }}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Sort by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="created_at-desc">Newest First</SelectItem>
+                      <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                      <SelectItem value="duration-desc">Longest Duration</SelectItem>
+                      <SelectItem value="duration-asc">Shortest Duration</SelectItem>
+                      <SelectItem value="title-asc">Title (A-Z)</SelectItem>
+                      <SelectItem value="title-desc">Title (Z-A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* View Toggle */}
+                  <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      disabled={isLoading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      title="Grid View"
+                    >
+                      <Grid3x3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      disabled={isLoading}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'list'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      title="List View"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+                {activeFiltersCount > 0 && (
+                  <button
+                    onClick={clearFilters}
+                    className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Sprint Filter */}
+                {sprints.length > 0 && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                      Sprint
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {sprints.map((sprint) => (
+                        <button
+                          key={sprint.id}
+                          onClick={() => handleFilterChange('sprint_id', filters.sprint_id === sprint.id ? undefined : sprint.id)}
+                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filters.sprint_id === sprint.id
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background text-foreground border-border hover:border-primary'
+                            }`}
+                        >
+                          {sprint.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Status/Recent Filter */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                    Status
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {(['all', 'recent', 'archived'] as const).map(status => (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(status)}
+                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${statusFilter === status
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
+                          }`}
+                      >
+                        {status === 'all' ? 'All' : status === 'recent' ? 'Recent (7 days)' : 'Archived'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Date Range Filter */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                    Date Range
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {(['all', 'today', 'week', 'month'] as const).map(range => (
+                      <button
+                        key={range}
+                        onClick={() => setDateRangeFilter(range)}
+                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${dateRangeFilter === range
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
+                          }`}
+                      >
+                        {range === 'all' ? 'All Time' : range === 'today' ? 'Today' : range === 'week' ? 'This Week' : 'This Month'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Stats Bar */}
       <div className="flex items-center justify-between">
@@ -501,7 +736,7 @@ export function RecordingsView({
           <Table>
             {paginatedRecordings.map((recording) => {
               const isSelected = selectedRecordings.includes(recording.id);
-              
+
               return (
                 <TableRow
                   key={recording.id}
