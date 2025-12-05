@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar'
 import { Pagination } from '@/components/shared/Pagination'
 import { createClient } from '@/lib/supabase/client'
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select,
   SelectContent,
@@ -445,6 +446,49 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
     )
   }
 
+  if (documents.length === 0 && !isLoading) {
+    return (
+      <>
+        <div className="min-h-screen">
+          <div className="mx-auto lg:px-2">
+            {/* ONLY Page Title */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Documents</h1>
+                <span className="text-sm text-muted-foreground">(0)</span>
+              </div>
+            </div>
+
+            {/* ONLY Empty State */}
+            <EmptyState
+              icon={FileText}
+              iconSize={64}
+              title="No documents yet"
+              description="Create your first document to get started"
+              actions={[
+                {
+                  label: 'Create Document',
+                  onClick: handleCreateDocument,
+                  variant: 'primary',
+                  icon: Plus
+                }
+              ]}
+              minHeight="400px"
+            />
+          </div>
+        </div>
+
+        {/* Bulk Actions Bar */}
+        <BulkActionsBar
+          selectedItems={selectedDocIds}
+          onClearSelection={() => setSelectedDocIds([])}
+          assetType="documents"
+          onAction={handleBulkAction}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <div className="min-h-screen">
@@ -823,21 +867,19 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
                   </div>
                 )
               ) : filteredDocs.length === 0 ? (
-                /* Empty State */
+                /* Filtered Empty State */
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No documents found</h3>
                   <p className="text-muted-foreground mb-4">
-                    {search || typeFilter !== 'all'
-                      ? 'Try adjusting your filters'
-                      : 'Create your first document to get started'}
+                    Try adjusting your filters or search query
                   </p>
-                  {!search && typeFilter === 'all' && (
-                    <Button onClick={handleCreateDocument} disabled={isCreating}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Document
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    onClick={clearFilters}
+                  >
+                    Clear Filters
+                  </Button>
                 </div>
               ) : (
                 <>

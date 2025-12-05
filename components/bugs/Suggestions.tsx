@@ -3,7 +3,7 @@
 import { useState, useEffect, SetStateAction } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { SuggestionWithCreator, SuggestionStatus, SuggestionPriority, SuggestionCategory } from '@/types/suggestion.types';
-import { Plus, Grid, List, Search, Filter, Sparkles, Upload } from 'lucide-react';
+import { Plus, Grid, List, Search, Filter, Sparkles, Upload, Lightbulb } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { SuggestionGrid } from '../suggestions/SuggestionGrid';
@@ -11,6 +11,7 @@ import { SuggestionTable } from '../suggestions/SuggestionTable';
 import { SuggestionForm } from '../suggestions/SuggestionForm';
 import { SuggestionDetailsDrawer } from '../suggestions/SuggestionDetailsDrawer';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import { Pagination } from '@/components/shared/Pagination';
 interface SuggestionsProps {
   suiteId: string;
   onRefresh?: () => void;
+  onCreateClick?: () => void;
 }
 
 type ViewMode = 'grid' | 'table';
@@ -30,7 +32,7 @@ type SortField = 'created_at' | 'updated_at' | 'title' | 'upvotes' | 'priority' 
 type SortOrder = 'asc' | 'desc';
 type GroupBy = 'none' | 'status' | 'priority' | 'category' | 'sprint';
 
-export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
+export function Suggestions({ suiteId, onRefresh, onCreateClick }: SuggestionsProps) {
   const [suggestions, setSuggestions] = useState<SuggestionWithCreator[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -410,6 +412,40 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
     );
   }
 
+  if (!loading && suggestions.length === 0) {
+    return (
+      <>
+        <EmptyState
+          icon={Lightbulb}
+          iconSize={64}
+          title="No suggestions yet"
+          description="Share your ideas to improve this test suite"
+          actions={[
+            {
+              label: 'Create Suggestion',
+              onClick: onCreateClick || (() => setShowForm(true)),
+              variant: 'primary',
+              icon: Plus,
+            },
+            {
+              label: 'Import Suggestions',
+              onClick: () => toast.info('Import feature coming soon'),
+              variant: 'secondary',
+              icon: Upload,
+            },
+            {
+              label: 'AI Generate',
+              onClick: () => toast.info('AI generation coming soon'),
+              variant: 'accent',
+              icon: Sparkles,
+            },
+          ]}
+        />
+      </>
+    );
+  }
+
+
   return (
     <>
       <div className="space-y-6 pb-24">
@@ -517,8 +553,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                       onClick={() => setViewMode('grid')}
                       disabled={loading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Grid View"
                     >
@@ -528,8 +564,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                       onClick={() => setViewMode('table')}
                       disabled={loading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Table View"
                     >
@@ -639,8 +675,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                         onClick={() => setViewMode('grid')}
                         disabled={loading}
                         className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           }`}
                         title="Grid View"
                       >
@@ -650,8 +686,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                         onClick={() => setViewMode('table')}
                         disabled={loading}
                         className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           }`}
                         title="Table View"
                       >
@@ -687,8 +723,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                           key={status}
                           onClick={() => toggleStatusFilter(status)}
                           className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterStatus.includes(status)
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
                             }`}
                         >
                           {status.replace('_', ' ')}
@@ -708,8 +744,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                           key={priority}
                           onClick={() => togglePriorityFilter(priority)}
                           className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterPriority.includes(priority)
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
                             }`}
                         >
                           {priority}
@@ -729,8 +765,8 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                           key={category}
                           onClick={() => toggleCategoryFilter(category)}
                           className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterCategory.includes(category)
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
                             }`}
                         >
                           {category.replace('_', ' ')}
@@ -800,41 +836,22 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
                   </div>
                 )}
               </div>
-            ) : suggestions.length === 0 ? (
-              // Empty State - No suggestions at all
-              <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
-                <Plus className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">No suggestions yet</h3>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Share your ideas to improve this test suite
+            ) : filteredSuggestions.length === 0 ? (
+              // Filtered Empty State - No suggestions match filters
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-medium text-foreground mb-1">
+                  No suggestions found
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Try adjusting your filters or search query
                 </p>
-                <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap justify-center">
-                  <button
-                    onClick={() => setShowForm(true)}
-                    className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold w-full sm:w-auto"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Suggestion
-                  </button>
-                  <button
-                    onClick={() => {
-                      toast.info('Import feature coming soon');
-                    }}
-                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 w-full sm:w-auto"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import Suggestions
-                  </button>
-                  <button
-                    onClick={() => {
-                      toast.info('AI generation coming soon');
-                    }}
-                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 w-full sm:w-auto"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    AI Generate
-                  </button>
-                </div>
+                <button
+                  onClick={clearFilters}
+                  className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
+                >
+                  Clear Filters
+                </button>
               </div>
             ) : filteredSuggestions.length === 0 ? (
               // Filtered Empty State - No suggestions match filters

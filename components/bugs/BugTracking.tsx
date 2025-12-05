@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BugWithCreator, BugSeverity, BugStatus } from '@/types/bug.types';
-import { Grid, List, Code, Search, AlertTriangle, Filter, Plus, Sparkles, Upload } from 'lucide-react';
+import { Grid, List, Code, Search, AlertTriangle, Filter, Plus, Sparkles, Upload, Bug } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -22,10 +22,12 @@ import { BugDetailsDrawer } from './BugDetailsDrawer';
 import { MiniBugView } from './MiniBugView';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
 import { Pagination } from '@/components/shared/Pagination';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 interface BugTrackingProps {
   suiteId: string;
   onRefresh?: () => void;
+  onCreateClick?: () => void;
 }
 
 type ViewMode = 'grid' | 'table' | 'mini';
@@ -96,7 +98,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   );
 };
 
-export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
+export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingProps) {
   const [bugs, setBugs] = useState<BugWithCreator[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -495,6 +497,40 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
     );
   }
 
+  if (!loading && bugs.length === 0) {
+    return (
+      <>
+        <EmptyState
+          icon={Bug}
+          iconSize={64}
+          title="No bugs yet"
+          description="Track and manage bugs for this test suite"
+          actions={[
+            {
+              label: 'Create Bug Report',
+              onClick: onCreateClick || (() => console.log('Create bug')),
+              variant: 'primary',
+              icon: Plus,
+            },
+            {
+              label: 'Import Bugs',
+              onClick: () => toast.info('Import feature coming soon'),
+              variant: 'secondary',
+              icon: Upload,
+            },
+            {
+              label: 'AI Generate',
+              onClick: () => toast.info('AI generation coming soon'),
+              variant: 'accent',
+              icon: Sparkles,
+            },
+          ]}
+        />
+      </>
+    );
+  }
+
+
   return (
     <>
       <div className="space-y-6 pb-24">
@@ -601,8 +637,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                       onClick={() => setViewMode('grid')}
                       disabled={loading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Grid View"
                     >
@@ -612,8 +648,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                       onClick={() => setViewMode('table')}
                       disabled={loading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Table View"
                     >
@@ -623,8 +659,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                       onClick={() => setViewMode('mini')}
                       disabled={loading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'mini'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Developer Mini View"
                     >
@@ -731,8 +767,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                         onClick={() => setViewMode('grid')}
                         disabled={loading}
                         className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           }`}
                         title="Grid View"
                       >
@@ -742,8 +778,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                         onClick={() => setViewMode('table')}
                         disabled={loading}
                         className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           }`}
                         title="Table View"
                       >
@@ -753,8 +789,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                         onClick={() => setViewMode('mini')}
                         disabled={loading}
                         className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'mini'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           }`}
                         title="Developer Mini View"
                       >
@@ -793,8 +829,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                           key={status}
                           onClick={() => toggleStatusFilter(status)}
                           className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterStatus.includes(status)
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
                             }`}
                         >
                           {status.replace('_', ' ')}
@@ -814,8 +850,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                           key={severity}
                           onClick={() => toggleSeverityFilter(severity)}
                           className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterSeverity.includes(severity)
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
                             }`}
                         >
                           {severity}
@@ -909,47 +945,8 @@ export function BugTracking({ suiteId, onRefresh }: BugTrackingProps) {
                   </div>
                 )}
               </div>
-            ) : bugs.length === 0 ? (
-              // Empty State - No bugs at all
-              <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
-                <Plus className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">No bugs yet</h3>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Track and manage bugs for this test suite
-                </p>
-                <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap justify-center">
-                  <button
-                    onClick={() => {
-                      setShowEditForm(true);
-                      setEditingBug(null);
-                    }}
-                    className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold w-full sm:w-auto"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Bug Report
-                  </button>
-                  <button
-                    onClick={() => {
-                      toast.info('Import feature coming soon');
-                    }}
-                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 w-full sm:w-auto"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import Bugs
-                  </button>
-                  <button
-                    onClick={() => {
-                      toast.info('AI generation coming soon');
-                    }}
-                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 w-full sm:w-auto"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    AI Generate
-                  </button>
-                </div>
-              </div>
             ) : filteredBugs.length === 0 ? (
-              // Filtered Empty State - No bugs match filters
+              // Filtered Empty State - No bugs match filters (bugs exist but filtered out)
               <div className="flex flex-col items-center justify-center py-12 text-center px-4">
                 <Filter className="h-12 w-12 text-muted-foreground mb-3" />
                 <h3 className="text-lg font-medium text-foreground mb-1">

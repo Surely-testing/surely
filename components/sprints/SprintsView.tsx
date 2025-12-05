@@ -7,6 +7,7 @@
 import React, { useState, useMemo } from 'react';
 import { SprintBoard } from './SprintBoard';
 import { SprintTable } from './SprintTable';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Pagination } from '@/components/shared/Pagination';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
 import SprintForm from './SprintForm';
@@ -323,19 +324,37 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   // Empty state
   if (sprints.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
-        <Plus className="h-16 w-16 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-medium text-foreground mb-2">No sprints yet</h3>
-        <p className="text-sm text-muted-foreground mb-6">Create your first sprint to organize your testing workflow</p>
-        {canAdmin && (
-          <button
-            onClick={handleCreateSprint}
-            className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Sprint
-          </button>
-        )}
+      <div className="space-y-6 pb-24">
+        {/* Header - Keep this visible */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+                Sprints
+              </h1>
+              <span className="text-sm text-muted-foreground">
+                (0)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Empty State Component */}
+        <EmptyState
+          icon={Plus}
+          iconSize={64}
+          title="No sprints yet"
+          description="Create your first sprint to organize your testing workflow"
+          actions={canAdmin ? [
+            {
+              label: 'Create Sprint',
+              onClick: handleCreateSprint,
+              variant: 'primary',
+              icon: Plus
+            }
+          ] : undefined}
+          minHeight="400px"
+        />
       </div>
     );
   }
@@ -488,8 +507,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
                       onClick={() => setViewMode('grid')}
                       disabled={isLoading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Grid View"
                     >
@@ -499,8 +518,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
                       onClick={() => setViewMode('table')}
                       disabled={isLoading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Table View"
                     >
@@ -586,8 +605,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
                         onClick={() => setViewMode('grid')}
                         disabled={isLoading}
                         className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           }`}
                         title="Grid View"
                       >
@@ -597,8 +616,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
                         onClick={() => setViewMode('table')}
                         disabled={isLoading}
                         className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                           }`}
                         title="Table View"
                       >
@@ -637,8 +656,8 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
                           key={status}
                           onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
                           className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${statusFilter === status
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
                             }`}
                         >
                           {status}

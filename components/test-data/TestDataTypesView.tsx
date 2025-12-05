@@ -11,6 +11,7 @@ import Pagination from '@/components/shared/Pagination'
 import EnhancedBulkActionsBar from '@/components/shared/BulkActionBar'
 import { Input } from '@/components/ui/Input'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/shared/EmptyState';
 
 interface TestDataTypesViewProps {
   suiteId: string
@@ -65,6 +66,51 @@ export default function TestDataTypesView({
     } else {
       setSelectedTypeIds(paginatedTypes.map((type) => type.id))
     }
+  }
+
+  // Empty state check BEFORE main return
+  if (types.length === 0 && !isLoading) {
+    return (
+      <div className="min-h-screen">
+        <div>
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+                Test Data Library
+              </h1>
+              <span className="text-sm text-muted-foreground">(0)</span>
+            </div>
+          </div>
+
+          {/* Empty State */}
+          <EmptyState
+            icon={Database}
+            iconSize={64}
+            title="No test data types yet"
+            description="Get started by creating your first test data type to organize your test data."
+            actions={[
+              {
+                label: 'Create Test Data Type',
+                onClick: onCreateNew,
+                variant: 'primary',
+                icon: Plus
+              }
+            ]}
+            minHeight="400px"
+          />
+        </div>
+
+        {/* Bulk Actions Bar */}
+        <EnhancedBulkActionsBar
+          selectedItems={selectedTypeIds}
+          onClearSelection={() => setSelectedTypeIds([])}
+          assetType="testData"
+          onAction={handleTypeAction}
+          portalId="test-data-types-bulk-actions"
+        />
+      </div>
+    );
   }
 
   return (
@@ -267,28 +313,17 @@ export default function TestDataTypesView({
                 </div>
               )
             ) : paginatedTypes.length === 0 ? (
-              // Empty State
+              // Filtered Empty State (no results from search)
               <div className="text-center py-20">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
                   <Database className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {search ? 'No types found' : 'No test data types yet'}
+                  No types found
                 </h3>
                 <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  {search
-                    ? 'Try adjusting your search criteria to find what you\'re looking for.'
-                    : 'Get started by creating your first test data type to organize your test data.'}
+                  Try adjusting your search criteria to find what you're looking for.
                 </p>
-                {!search && (
-                  <button
-                    onClick={onCreateNew}
-                    className="btn-primary inline-flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Create Test Data Type
-                  </button>
-                )}
               </div>
             ) : view === 'grid' ? (
               // Grid View

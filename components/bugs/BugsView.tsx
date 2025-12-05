@@ -205,10 +205,19 @@ export function BugsView({ suiteId }: BugsViewProps) {
               key={refreshTrigger}
               suiteId={suiteId} 
               onRefresh={handleRefresh}
+              onCreateClick={handleNewBug} // Add this prop
             />
           )}
           {activeTab === 'suggestions' && (
-            <Suggestions suiteId={suiteId} onRefresh={handleRefresh} />
+            <Suggestions 
+              suiteId={suiteId} 
+              onRefresh={handleRefresh}
+              onCreateClick={() => {
+                // Handle suggestion creation
+                // You might want to add a state to show suggestion form
+                console.log('Create suggestion clicked');
+              }}
+            />
           )}
         </div>
       </div>
