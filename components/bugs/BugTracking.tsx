@@ -321,15 +321,18 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
     setShowEditForm(false);
     setEditingBug(null);
     fetchBugs();
-    toast.success('Bug updated successfully');
   };
 
   const handleUpdateBug = async (updatedBug: BugWithCreator) => {
     try {
       const supabase = createClient();
+
+      // Remove fields that don't exist in the database table
+      const { creator, ...bugData } = updatedBug;
+
       const { error } = await supabase
         .from('bugs')
-        .update(updatedBug)
+        .update(bugData)
         .eq('id', updatedBug.id);
 
       if (error) throw error;

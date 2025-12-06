@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/test-runs/TestRunsView.tsx
-// Complete Test Runs View with Grid/Table Display Toggle
+// Updated to work with simplified TestRunForm
 // ============================================
 'use client';
 
@@ -18,16 +18,12 @@ import { cn } from '@/lib/utils/cn';
 interface TestRunsViewProps {
   suiteId: string;
   testRuns: any[];
-  testCases: any[];
-  sprints?: any[];
   onRefresh?: () => void;
 }
 
 export default function TestRunsView({ 
   suiteId, 
-  testRuns, 
-  testCases, 
-  sprints = [],
+  testRuns,
   onRefresh 
 }: TestRunsViewProps) {
   const [showForm, setShowForm] = useState(false);
@@ -196,32 +192,15 @@ export default function TestRunsView({
 
   // If showing form, render it instead of the main view
   if (showForm) {
-    // Use simple form without sprints if sprints is empty or undefined
-    const formProps = {
-      suiteId,
-      testCases,
-      initialData: editingRun,
-      onSuccess: handleSuccess,
-      onCancel: () => {
-        setShowForm(false);
-        setEditingRun(null);
-      }
-    };
-
-    // Only add sprints if we have valid sprint data
-    if (sprints && sprints.length > 0) {
-      return (
-        <TestRunForm
-          {...formProps}
-          sprints={sprints}
-        />
-      );
-    }
-
     return (
       <TestRunForm
-        {...formProps}
-        sprints={[]}
+        suiteId={suiteId}
+        initialData={editingRun}
+        onSuccess={handleSuccess}
+        onCancel={() => {
+          setShowForm(false);
+          setEditingRun(null);
+        }}
       />
     );
   }

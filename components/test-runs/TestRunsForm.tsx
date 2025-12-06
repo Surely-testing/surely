@@ -1,71 +1,39 @@
 // ============================================
-// Fixed Test Run Form - Displays All Test Cases
+// Test Run Form - Simplified with Asset Linker
 // ============================================
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { useCreateTestRun, useUpdateTestRun } from '@/lib/hooks/useTestRuns';
-import {
-  Play, Calendar, FileText, Settings, ArrowLeft,
-  Search, X, Plus, Package, CheckSquare, AlertCircle, Layers
-} from 'lucide-react';
+import { Play, ArrowLeft, Calendar, Settings, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils/cn';
-
-interface Sprint {
-  id: string;
-  name: string;
-  description?: string;
-  test_case_ids?: string[];
-}
-
-interface TestCase {
-  id: string;
-  title: string;
-  description?: string;
-  priority?: 'critical' | 'high' | 'medium' | 'low';
-  sprint_id?: string; // Test case might have sprint_id
-}
+import { createClient } from '@/lib/supabase/client';
+import { relationshipsApi } from '@/lib/api/relationships';
+import { getTestCases, getSprints, getSprintTestCases } from '@/lib/api/testCases';
+import { TestRun, TestCase, Sprint } from '@/types/testRun.types';
 
 interface TestRunFormProps {
   suiteId: string;
-  testCases: TestCase[];
-  sprints: Sprint[];
-  initialData?: any;
+  initialData?: TestRun;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
 export default function TestRunForm({
   suiteId,
-  testCases,
-  sprints,
   initialData,
   onSuccess,
   onCancel
 }: TestRunFormProps) {
-  const createTestRun = useCreateTestRun(suiteId);
-  const updateTestRun = useUpdateTestRun(suiteId);
+  const [loading, setLoading] = useState(false);
+  const [selectedSprints, setSelectedSprints] = useState<string[]>([]);
+  const [selectedTestCases, setSelectedTestCases] = useState<string[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [sprintTestCases, setSprintTestCases] = useState<Map<string, TestCase[]>>(new Map());
 
-  const [selectedSprints, setSelectedSprints] = useState<string[]>(
-    initialData?.metadata?.sprint_ids || []
-  );
-
-  const [selectedTestCases, setSelectedTestCases] = useState<string[]>(
-    initialData?.test_case_ids || []
-  );
-
-  const [sprintSearch, setSprintSearch] = useState('');
-  const [caseSearch, setCaseSearch] = useState('');
-  const [showSprintSelector, setShowSprintSelector] = useState(false);
-  const [showCaseSelector, setShowCaseSelector] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors }
-  } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: initialData || {
       name: '',
       description: '',
@@ -73,124 +41,133 @@ export default function TestRunForm({
       test_type: 'manual',
       assigned_to: '',
       scheduled_date: '',
-      notes: '',
+      notes: ''
     }
   });
 
-  // Debug logging
   useEffect(() => {
-    console.log('=== TEST RUN FORM DATA ===');
-    console.log('Sprints:', sprints);
-    console.log('Test Cases:', testCases);
-    console.log('Selected Sprints:', selectedSprints);
-    console.log('Selected Test Cases:', selectedTestCases);
-    console.log('========================');
-  }, [sprints, testCases, selectedSprints, selectedTestCases]);
+    loadData();
+  }, [suiteId]);
 
-  // Get test cases for a sprint (using BOTH sprint.test_case_ids AND testCase.sprint_id)
-  const getSprintTestCases = (sprintId: string) => {
-    const sprint = sprints.find(s => s.id === sprintId);
-    if (!sprint) return [];
-
-    // Method 1: If sprint has test_case_ids array
-    if (sprint.test_case_ids && sprint.test_case_ids.length > 0) {
-      return testCases.filter(tc => sprint.test_case_ids!.includes(tc.id));
+  useEffect(() => {
+    if (initialData?.id) {
+      loadExistingRelationships();
     }
+  }, [initialData]);
 
-    // Method 2: If test cases have sprint_id field
-    return testCases.filter(tc => tc.sprint_id === sprintId);
+  const loadData = async () => {
+    try {
+      const [sprintsData, testCasesData] = await Promise.all([
+        getSprints(suiteId),
+        getTestCases(suiteId)
+      ]);
+      setSprints(sprintsData);
+      setTestCases(testCasesData);
+
+      // Load test cases for each sprint
+      const sprintTCMap = new Map<string, TestCase[]>();
+      for (const sprint of sprintsData) {
+        const cases = await getSprintTestCases(sprint.id);
+        sprintTCMap.set(sprint.id, cases);
+      }
+      setSprintTestCases(sprintTCMap);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Failed to load test cases and sprints');
+    }
   };
 
-  // Get test cases NOT in any selected sprint
-  const independentTestCases = useMemo(() => {
-    // Get all test case IDs that are in selected sprints
-    const sprintCaseIds = new Set<string>();
-    
-    selectedSprints.forEach(sprintId => {
-      const sprintCases = getSprintTestCases(sprintId);
-      sprintCases.forEach(tc => sprintCaseIds.add(tc.id));
+  const loadExistingRelationships = async () => {
+    if (!initialData?.id) return;
+
+    try {
+      const relationships = await relationshipsApi.getLinkedAssets('test_run' as any, initialData.id);
+
+      const sprintIds: string[] = [];
+      const testCaseIds: string[] = [];
+
+      relationships.forEach(rel => {
+        if (rel.asset_type === 'sprint') {
+          sprintIds.push(rel.asset_id);
+        } else if (rel.asset_type === 'test_case') {
+          testCaseIds.push(rel.asset_id);
+        }
+      });
+
+      setSelectedSprints(sprintIds);
+      setSelectedTestCases(testCaseIds);
+    } catch (error) {
+      console.error('Error loading relationships:', error);
+    }
+  };
+
+  const handleSprintSelection = (sprintIds: string[]) => {
+    setSelectedSprints(sprintIds);
+
+    // Auto-add all test cases from selected sprints
+    const allSprintTestCaseIds = new Set<string>();
+    sprintIds.forEach(sprintId => {
+      const cases = sprintTestCases.get(sprintId) || [];
+      cases.forEach(tc => allSprintTestCaseIds.add(tc.id));
     });
 
-    // Return test cases not in any selected sprint
-    return testCases.filter(tc => !sprintCaseIds.has(tc.id));
-  }, [testCases, selectedSprints, sprints]);
+    // Keep manually selected test cases that aren't in any sprint
+    const orphanedTestCaseIds = selectedTestCases.filter(tcId => {
+      return !Array.from(allSprintTestCaseIds).includes(tcId);
+    });
 
-  // Filtered sprints
-  const filteredSprints = useMemo(() => {
-    if (!sprintSearch) return sprints;
-    const search = sprintSearch.toLowerCase();
-    return sprints.filter(sprint =>
-      sprint.name.toLowerCase().includes(search) ||
-      sprint.description?.toLowerCase().includes(search)
-    );
-  }, [sprints, sprintSearch]);
+    // Combine sprint test cases with orphaned selections
+    setSelectedTestCases([...Array.from(allSprintTestCaseIds), ...orphanedTestCaseIds]);
+  };
 
-  // Filtered independent cases
-  const filteredIndependentCases = useMemo(() => {
-    if (!caseSearch) return independentTestCases;
-    const search = caseSearch.toLowerCase();
-    return independentTestCases.filter(tc =>
-      tc.title.toLowerCase().includes(search) ||
-      tc.description?.toLowerCase().includes(search)
-    );
-  }, [independentTestCases, caseSearch]);
+  const handleTestCaseSelection = (testCaseIds: string[]) => {
+    setSelectedTestCases(testCaseIds);
+  };
 
-  // Handle sprint selection
-  const toggleSprint = (sprintId: string) => {
-    const sprintCases = getSprintTestCases(sprintId);
+  const createRelationships = async (testRunId: string, userId: string) => {
+    const relationshipsToCreate = [];
 
-    if (selectedSprints.includes(sprintId)) {
-      // Deselecting sprint
-      setSelectedSprints(prev => prev.filter(id => id !== sprintId));
-      setSelectedTestCases(prev =>
-        prev.filter(caseId => !sprintCases.find(tc => tc.id === caseId))
-      );
-    } else {
-      // Selecting sprint
-      setSelectedSprints(prev => [...prev, sprintId]);
-      setSelectedTestCases(prev => [
-        ...prev,
-        ...sprintCases.map(tc => tc.id).filter(id => !prev.includes(id))
-      ]);
+    // Link sprints
+    for (const sprintId of selectedSprints) {
+      relationshipsToCreate.push({
+        source_type: 'test_run' as any,
+        source_id: testRunId,
+        target_type: 'sprint' as any,
+        target_id: sprintId,
+        relationship_type: 'related_to' as any,
+        created_by: userId,
+        suite_id: suiteId
+      });
     }
+
+    // Link test cases
+    for (const testCaseId of selectedTestCases) {
+      relationshipsToCreate.push({
+        source_type: 'test_run' as any,
+        source_id: testRunId,
+        target_type: 'test_case' as any,
+        target_id: testCaseId,
+        relationship_type: 'tests' as any,
+        created_by: userId,
+        suite_id: suiteId
+      });
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('asset_relationships')
+      .insert(relationshipsToCreate);
+
+    if (error) throw error;
   };
 
-  // Toggle individual test case
-  const toggleTestCase = (caseId: string) => {
-    setSelectedTestCases(prev =>
-      prev.includes(caseId)
-        ? prev.filter(id => id !== caseId)
-        : [...prev, caseId]
-    );
-  };
-
-  // Remove entire sprint
-  const removeSprint = (sprintId: string) => {
-    const sprintCases = getSprintTestCases(sprintId);
-
-    setSelectedSprints(prev => prev.filter(id => id !== sprintId));
-    setSelectedTestCases(prev =>
-      prev.filter(caseId => !sprintCases.find(tc => tc.id === caseId))
-    );
-  };
-
-  // Select all cases from a sprint
-  const selectAllSprintCases = (sprintId: string) => {
-    const sprintCases = getSprintTestCases(sprintId);
-
-    setSelectedTestCases(prev => [
-      ...prev,
-      ...sprintCases.map(tc => tc.id).filter(id => !prev.includes(id))
-    ]);
-  };
-
-  // Deselect all cases from a sprint
-  const deselectAllSprintCases = (sprintId: string) => {
-    const sprintCases = getSprintTestCases(sprintId);
-
-    setSelectedTestCases(prev =>
-      prev.filter(caseId => !sprintCases.find(tc => tc.id === caseId))
-    );
+  const deleteExistingRelationships = async (testRunId: string) => {
+    const supabase = createClient();
+    await supabase
+      .from('asset_relationships')
+      .delete()
+      .eq('source_type', 'test_run')
+      .eq('source_id', testRunId);
   };
 
   const onSubmit = async (data: any) => {
@@ -200,123 +177,133 @@ export default function TestRunForm({
     }
 
     try {
+      setLoading(true);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        toast.error('You must be logged in');
+        return;
+      }
+
       const payload = {
+        suite_id: suiteId,
         name: data.name,
-        description: data.description || undefined,
+        description: data.description || null,
         environment: data.environment,
         test_type: data.test_type,
-        assigned_to: data.assigned_to || undefined,
-        scheduled_date: data.scheduled_date || undefined,
-        notes: data.notes || undefined,
-        test_case_ids: selectedTestCases,
+        assigned_to: data.assigned_to || null,
+        scheduled_date: data.scheduled_date || null,
+        notes: data.notes || null,
+        status: 'pending',
+        created_by: user.id
       };
 
-      console.log('Submitting payload:', payload);
+      let testRunId: string;
 
       if (initialData?.id) {
-        await updateTestRun.mutateAsync({
-          id: initialData.id,
-          data: payload
-        });
+        const { error } = await supabase
+          .from('test_runs')
+          .update(payload)
+          .eq('id', initialData.id);
+
+        if (error) throw error;
+        testRunId = initialData.id;
+
+        await deleteExistingRelationships(testRunId);
       } else {
-        await createTestRun.mutateAsync(payload);
+        const { data: newRun, error } = await supabase
+          .from('test_runs')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) throw error;
+        testRunId = newRun.id;
       }
+
+      await createRelationships(testRunId, user.id);
+
+      toast.success(
+        initialData
+          ? 'Test run updated successfully'
+          : `Test run created with ${selectedTestCases.length} test case(s)`
+      );
 
       onSuccess();
     } catch (error: any) {
       console.error('Error saving test run:', error);
       toast.error(error.message || 'Failed to save test run');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getPriorityColor = (priority?: string) => {
-    const colors = {
-      critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-      high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-      medium: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-      low: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-    };
-    return colors[priority as keyof typeof colors] || colors.low;
-  };
-
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <button
+        type="button"
         onClick={onCancel}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to Test Runs
+        Back
       </button>
 
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-foreground">
-          {initialData ? 'Edit Test Run' : 'Create New Test Run'}
+          {initialData ? 'Edit Test Run' : 'Create Test Run'}
         </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Select test cases for execution (Total available: {testCases.length})
-        </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-        {/* Basic Information */}
-        <section className="bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Basic Info */}
+        <section className="bg-card rounded-lg border border-border p-6 space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
             <FileText className="w-5 h-5" />
             Basic Information
           </h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Test Run Name *
-              </label>
-              <input
-                {...register('name', { required: 'Test run name is required' })}
-                placeholder="Sprint 1 Regression, Release 2.0 Testing..."
-                className={cn(
-                  "w-full px-4 py-2.5 border rounded-lg bg-background text-foreground",
-                  "placeholder:text-muted-foreground",
-                  "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
-                  errors.name ? "border-red-500" : "border-border"
-                )}
-              />
-              {errors.name && (
-                <p className="text-sm text-red-500 mt-1">{errors.name.message as string}</p>
-              )}
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Description
-              </label>
-              <textarea
-                {...register('description')}
-                placeholder="Brief description of this test run..."
-                rows={3}
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Name *</label>
+            <input
+              {...register('name', { required: 'Name is required' })}
+              className={cn(
+                "w-full px-4 py-2.5 border rounded-lg bg-background",
+                "focus:outline-none focus:ring-2 focus:ring-primary",
+                errors.name ? "border-red-500" : "border-border"
+              )}
+              placeholder="Sprint 1 Regression"
+            />
+            {errors.name && (
+              <p className="text-sm text-red-500 mt-1">{errors.name.message as string}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Description</label>
+            <textarea
+              {...register('description')}
+              rows={3}
+              className="w-full px-4 py-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="Brief description..."
+            />
           </div>
         </section>
 
         {/* Configuration */}
-        <section className="bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+        <section className="bg-card rounded-lg border border-border p-6 space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
             <Settings className="w-5 h-5" />
-            Test Configuration
+            Configuration
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Environment *
-              </label>
+              <label className="block text-sm font-medium mb-2">Environment *</label>
               <select
-                {...register('environment', { required: 'Environment is required' })}
-                className={cn(
-                  "w-full px-4 py-2.5 border rounded-lg bg-background text-foreground",
-                  "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
-                  errors.environment ? "border-red-500" : "border-border"
-                )}
+                {...register('environment')}
+                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="development">Development</option>
                 <option value="staging">Staging</option>
@@ -326,14 +313,12 @@ export default function TestRunForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Test Type
-              </label>
+              <label className="block text-sm font-medium mb-2">Test Type</label>
               <select
                 {...register('test_type')}
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="manual">Manual Testing</option>
+                <option value="manual">Manual</option>
                 <option value="automated">Automated</option>
                 <option value="exploratory">Exploratory</option>
                 <option value="regression">Regression</option>
@@ -344,301 +329,68 @@ export default function TestRunForm({
         </section>
 
         {/* Execution Details */}
-        <section className="bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+        <section className="bg-card rounded-lg border border-border p-6 space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Execution Details
+            Execution
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Assigned To
-              </label>
+              <label className="block text-sm font-medium mb-2">Assigned To</label>
               <input
                 {...register('assigned_to')}
-                placeholder="Enter email or name"
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Email or name"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Scheduled Date
-              </label>
+              <label className="block text-sm font-medium mb-2">Scheduled Date</label>
               <input
                 type="datetime-local"
                 {...register('scheduled_date')}
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full px-4 py-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           </div>
         </section>
 
         {/* Sprint Selection */}
-        {sprints.length > 0 && (
-          <section className="bg-card rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Select from Sprints ({sprints.length} available)
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowSprintSelector(!showSprintSelector)}
-                className="text-sm text-primary hover:underline flex items-center gap-1"
-              >
-                <Plus className="w-4 h-4" />
-                {showSprintSelector ? 'Hide' : 'Browse Sprints'}
-              </button>
-            </div>
+        <section className="bg-card rounded-lg border border-border p-6">
+          <SprintSelector
+            sprints={sprints}
+            selectedSprints={selectedSprints}
+            sprintTestCases={sprintTestCases}
+            onSelectionChange={handleSprintSelection}
+          />
+        </section>
 
-            {/* Sprint Selector */}
-            {showSprintSelector && (
-              <div className="border border-border rounded-lg overflow-hidden mb-4">
-                <div className="p-3 bg-muted border-b border-border">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      placeholder="Search sprints..."
-                      value={sprintSearch}
-                      onChange={(e) => setSprintSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-                <div className="max-h-64 overflow-y-auto divide-y divide-border">
-                  {filteredSprints.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground text-sm">
-                      No sprints found
-                    </div>
-                  ) : (
-                    filteredSprints.map(sprint => {
-                      const sprintCases = getSprintTestCases(sprint.id);
-                      return (
-                        <label
-                          key={sprint.id}
-                          className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedSprints.includes(sprint.id)}
-                            onChange={() => toggleSprint(sprint.id)}
-                            className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary"
-                          />
-                          <div className="flex-1">
-                            <p className="font-medium text-foreground">{sprint.name}</p>
-                            <span className="text-xs text-muted-foreground">
-                              {sprintCases.length} test cases
-                            </span>
-                          </div>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Selected Sprints */}
-            {selectedSprints.map(sprintId => {
-              const sprint = sprints.find(s => s.id === sprintId);
-              if (!sprint) return null;
-
-              const sprintCases = getSprintTestCases(sprintId);
-              const selectedCount = sprintCases.filter(tc =>
-                selectedTestCases.includes(tc.id)
-              ).length;
-
-              return (
-                <div key={sprint.id} className="mb-4 border border-border rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between p-4 bg-primary/5">
-                    <div className="flex items-center gap-3 flex-1">
-                      <Layers className="w-5 h-5 text-primary" />
-                      <div>
-                        <p className="font-semibold text-foreground">{sprint.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {selectedCount} of {sprintCases.length} selected
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => selectAllSprintCases(sprint.id)}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Select All
-                      </button>
-                      <span className="text-muted-foreground">•</span>
-                      <button
-                        type="button"
-                        onClick={() => deselectAllSprintCases(sprint.id)}
-                        className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        Deselect All
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeSprint(sprint.id)}
-                        className="ml-2 p-1 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {sprintCases.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-muted-foreground">
-                      No test cases in this sprint
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-border">
-                      {sprintCases.map(tc => (
-                        <label
-                          key={tc.id}
-                          className="flex items-start gap-3 p-3 hover:bg-muted/30 cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedTestCases.includes(tc.id)}
-                            onChange={() => toggleTestCase(tc.id)}
-                            className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-foreground text-sm">{tc.title}</p>
-                              {tc.priority && (
-                                <span className={cn(
-                                  "text-xs px-2 py-0.5 rounded-full",
-                                  getPriorityColor(tc.priority)
-                                )}>
-                                  {tc.priority}
-                                </span>
-                              )}
-                            </div>
-                            {tc.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                                {tc.description}
-                              </p>
-                            )}
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </section>
-        )}
-
-        {/* Individual Test Cases */}
-        <section className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <CheckSquare className="w-5 h-5" />
-              Select Individual Test Cases ({independentTestCases.length} available)
-            </h3>
-            <button
-              type="button"
-              onClick={() => setShowCaseSelector(!showCaseSelector)}
-              className="text-sm text-primary hover:underline flex items-center gap-1"
-            >
-              <Plus className="w-4 h-4" />
-              {showCaseSelector ? 'Hide' : 'Browse Cases'}
-            </button>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 dark:bg-blue-900/20 dark:border-blue-800">
-            <div className="flex gap-2">
-              <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-900 dark:text-blue-100">
-                Select test cases not in any sprint, or add more cases individually.
-              </p>
-            </div>
-          </div>
-
-          {showCaseSelector && (
-            <div className="border border-border rounded-lg overflow-hidden">
-              <div className="p-3 bg-muted border-b border-border">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Search test cases..."
-                    value={caseSearch}
-                    onChange={(e) => setCaseSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-              <div className="max-h-96 overflow-y-auto divide-y divide-border">
-                {filteredIndependentCases.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">
-                    {independentTestCases.length === 0
-                      ? 'All test cases are in selected sprints'
-                      : 'No test cases found'}
-                  </div>
-                ) : (
-                  filteredIndependentCases.map(tc => (
-                    <label
-                      key={tc.id}
-                      className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedTestCases.includes(tc.id)}
-                        onChange={() => toggleTestCase(tc.id)}
-                        className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-foreground text-sm">{tc.title}</p>
-                          {tc.priority && (
-                            <span className={cn(
-                              "text-xs px-2 py-0.5 rounded-full",
-                              getPriorityColor(tc.priority)
-                            )}>
-                              {tc.priority}
-                            </span>
-                          )}
-                        </div>
-                        {tc.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                            {tc.description}
-                          </p>
-                        )}
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
+        {/* Test Case Selection */}
+        <section className="bg-card rounded-lg border border-border p-6">
+          <TestCaseSelector
+            testCases={testCases}
+            selectedTestCases={selectedTestCases}
+            selectedSprints={selectedSprints}
+            sprintTestCases={sprintTestCases}
+            onSelectionChange={handleTestCaseSelection}
+          />
         </section>
 
         {/* Summary */}
-        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">Total Selected Test Cases:</span>
-            <span className="text-2xl font-bold text-primary">{selectedTestCases.length}</span>
-          </div>
-          {selectedTestCases.length === 0 && (
-            <p className="text-xs text-destructive mt-2">⚠️ Please select at least one test case</p>
-          )}
+        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 flex items-center justify-between">
+          <span className="text-sm font-medium">Total Selected:</span>
+          <span className="text-2xl font-bold text-primary">{selectedTestCases.length}</span>
         </div>
 
         {/* Notes */}
-        <section className="bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">
-            Additional Notes
-          </h3>
+        <section className="bg-card rounded-lg border border-border p-6">
+          <label className="block text-sm font-medium mb-2">Additional Notes</label>
           <textarea
             {...register('notes')}
-            placeholder="Any additional information, prerequisites, or special instructions..."
             rows={4}
-            className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none"
+            className="w-full px-4 py-2.5 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            placeholder="Prerequisites, special instructions..."
           />
         </section>
 
@@ -647,21 +399,17 @@ export default function TestRunForm({
           <button
             type="button"
             onClick={onCancel}
-            disabled={createTestRun.isPending || updateTestRun.isPending}
-            className="px-6 py-2.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all disabled:opacity-50"
+            disabled={loading}
+            className="px-6 py-2.5 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-all disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={
-              createTestRun.isPending ||
-              updateTestRun.isPending ||
-              selectedTestCases.length === 0
-            }
+            disabled={loading || selectedTestCases.length === 0}
             className="inline-flex items-center px-6 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg transition-all disabled:opacity-50"
           >
-            {(createTestRun.isPending || updateTestRun.isPending) ? (
+            {loading ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -672,12 +420,162 @@ export default function TestRunForm({
             ) : (
               <>
                 <Play className="h-4 w-4 mr-2" />
-                {initialData ? 'Update Test Run' : 'Create Test Run'}
+                {initialData ? 'Update' : 'Create'} Test Run
               </>
             )}
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// Sprint Selector Component
+function SprintSelector({
+  sprints,
+  selectedSprints,
+  sprintTestCases,
+  onSelectionChange
+}: any) {
+  const [showSelector, setShowSelector] = useState(false);
+
+  const toggleSprint = (sprintId: string) => {
+    const newSelection = selectedSprints.includes(sprintId)
+      ? selectedSprints.filter((id: string) => id !== sprintId)
+      : [...selectedSprints, sprintId];
+    onSelectionChange(newSelection);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium">Sprints ({sprints.length})</label>
+        <button
+          type="button"
+          onClick={() => setShowSelector(!showSelector)}
+          className="text-sm text-primary hover:underline"
+        >
+          {showSelector ? 'Hide' : 'Browse'}
+        </button>
+      </div>
+
+      {showSelector && (
+        <div className="border border-border rounded-lg max-h-64 overflow-y-auto divide-y divide-border">
+          {sprints.map((sprint: Sprint) => {
+            const cases = sprintTestCases.get(sprint.id) || [];
+            return (
+              <label
+                key={sprint.id}
+                className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSprints.includes(sprint.id)}
+                  onChange={() => toggleSprint(sprint.id)}
+                  className="h-4 w-4 rounded border-border text-primary"
+                />
+                <div>
+                  <p className="font-medium text-sm">{sprint.name}</p>
+                  <p className="text-xs text-muted-foreground">{cases.length} test cases</p>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {selectedSprints.length > 0 && (
+        <div className="text-xs text-muted-foreground">
+          {selectedSprints.length} sprint{selectedSprints.length > 1 ? 's' : ''} selected
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Test Case Selector Component
+function TestCaseSelector({
+  testCases,
+  selectedTestCases,
+  selectedSprints,
+  sprintTestCases,
+  onSelectionChange
+}: any) {
+  const [showSelector, setShowSelector] = useState(false);
+
+  // Filter out test cases that are already in selected sprints
+  const availableTestCases = useMemo(() => {
+    const sprintTestCaseIds = new Set<string>();
+    selectedSprints.forEach((sprintId: string) => {
+      const cases = sprintTestCases.get(sprintId) || [];
+      cases.forEach((tc: any) => sprintTestCaseIds.add(tc.id));
+    });
+
+    return testCases.filter((tc: any) => !sprintTestCaseIds.has(tc.id));
+  }, [testCases, selectedSprints, sprintTestCases]);
+
+  const toggleTestCase = (testCaseId: string) => {
+    const newSelection = selectedTestCases.includes(testCaseId)
+      ? selectedTestCases.filter((id: string) => id !== testCaseId)
+      : [...selectedTestCases, testCaseId];
+    onSelectionChange(newSelection);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium">
+          Additional Test Cases ({availableTestCases.length} available)
+        </label>
+        <button
+          type="button"
+          onClick={() => setShowSelector(!showSelector)}
+          className="text-sm text-primary hover:underline"
+          disabled={availableTestCases.length === 0}
+        >
+          {showSelector ? 'Hide' : 'Browse'}
+        </button>
+      </div>
+
+      {availableTestCases.length === 0 && selectedSprints.length > 0 && (
+        <p className="text-xs text-muted-foreground italic">
+          All test cases are included in the selected sprint(s)
+        </p>
+      )}
+
+      {showSelector && availableTestCases.length > 0 && (
+        <div className="border border-border rounded-lg max-h-96 overflow-y-auto divide-y divide-border">
+          {availableTestCases.map((tc: TestCase) => (
+            <label
+              key={tc.id}
+              className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={selectedTestCases.includes(tc.id)}
+                onChange={() => toggleTestCase(tc.id)}
+                className="h-4 w-4 rounded border-border text-primary"
+              />
+              <div>
+                <p className="font-medium text-sm">{tc.title}</p>
+                {tc.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-1">{tc.description}</p>
+                )}
+              </div>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {selectedTestCases.filter((id: string) => 
+        availableTestCases.some((tc: any) => tc.id === id)
+      ).length > 0 && (
+        <div className="text-xs text-muted-foreground">
+          {selectedTestCases.filter((id: string) => 
+            availableTestCases.some((tc: any) => tc.id === id)
+          ).length} additional test case(s) selected
+        </div>
+      )}
     </div>
   );
 }

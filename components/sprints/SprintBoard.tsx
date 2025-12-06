@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/sprints/SprintBoard.tsx
-// Fixed to support hideSelectAll prop
+// COMPLETE FIX - Delete dialog working properly
 // ============================================
 
 'use client';
@@ -11,7 +11,7 @@ import { Calendar, Target, CheckSquare, Bug, FileText, MoreVertical, Edit, Trash
 import { format, differenceInDays } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface SprintBoardProps {
   sprints: any[];
@@ -19,6 +19,8 @@ interface SprintBoardProps {
   selectedSprints?: string[];
   onSelectionChange?: (selected: string[]) => void;
   hideSelectAll?: boolean;
+  onEdit?: (sprint: any) => void;
+  onDelete?: (sprintId: string) => void;
 }
 
 function useSprintStatsForBoard(sprintId: string) {
@@ -54,9 +56,24 @@ function useSprintStatsForBoard(sprintId: string) {
 
 function SprintCard({ sprint, onEdit, onDelete, isSelected, onToggleSelection }: any) {
   const [showOptions, setShowOptions] = useState(false);
+  const optionsRef = useRef<HTMLDivElement>(null);
   const { data: stats } = useSprintStatsForBoard(sprint.id);
   
   const daysRemaining = sprint.end_date ? differenceInDays(new Date(sprint.end_date), new Date()) : null;
+
+  // Close options menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (optionsRef.current && !optionsRef.current.contains(event.target as Node)) {
+        setShowOptions(false);
+      }
+    };
+
+    if (showOptions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showOptions]);
 
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -74,6 +91,16 @@ function SprintCard({ sprint, onEdit, onDelete, isSelected, onToggleSelection }:
   };
 
   const statusInfo = getStatusInfo(sprint.status || 'planning');
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowOptions(false);
+    console.log('SprintCard: Delete clicked for sprint:', sprint.id);
+    if (onDelete) {
+      onDelete(sprint.id);
+    }
+  };
 
   return (
     <div className="bg-card rounded-lg border border-border p-4 hover:shadow-lg transition-all relative group">
@@ -110,8 +137,9 @@ function SprintCard({ sprint, onEdit, onDelete, isSelected, onToggleSelection }:
               <span className={statusInfo.color}>{statusInfo.label}</span>
             </div>
             
-            <div className="relative">
+            <div className="relative" ref={optionsRef}>
               <button
+                type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -123,32 +151,39 @@ function SprintCard({ sprint, onEdit, onDelete, isSelected, onToggleSelection }:
               </button>
               
               {showOptions && (
-                <div className="absolute right-0 top-8 bg-card border border-border shadow-lg rounded-lg py-1 z-10 min-w-32">
-                  <button
+                <>
+                  <div 
+                    className="fixed inset-0 z-[9]"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       setShowOptions(false);
-                      onEdit?.(sprint);
                     }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center space-x-2 text-foreground"
-                  >
-                    <Edit className="h-4 w-4" />
-                    <span>Edit</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowOptions(false);
-                      onDelete?.(sprint);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center space-x-2 text-red-600 dark:text-red-400"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Delete</span>
-                  </button>
-                </div>
+                  />
+                  <div className="absolute right-0 top-8 bg-card border border-border shadow-lg rounded-lg py-1 z-10 min-w-32">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowOptions(false);
+                        onEdit?.(sprint);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center space-x-2 text-foreground"
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteClick}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center space-x-2 text-red-600 dark:text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -235,7 +270,15 @@ function SprintCard({ sprint, onEdit, onDelete, isSelected, onToggleSelection }:
   );
 }
 
-export function SprintBoard({ sprints, suiteId, selectedSprints = [], onSelectionChange, hideSelectAll = false }: SprintBoardProps) {
+export function SprintBoard({ 
+  sprints, 
+  suiteId, 
+  selectedSprints = [], 
+  onSelectionChange, 
+  hideSelectAll = false,
+  onEdit,
+  onDelete
+}: SprintBoardProps) {
   const handleToggleSelection = (sprintId: string) => {
     if (!onSelectionChange) return;
     
@@ -280,6 +323,8 @@ export function SprintBoard({ sprints, suiteId, selectedSprints = [], onSelectio
             sprint={sprint}
             isSelected={selectedSprints.includes(sprint.id)}
             onToggleSelection={showSelection ? handleToggleSelection : undefined}
+            onEdit={onEdit}
+            onDelete={onDelete}
           />
         ))}
       </div>

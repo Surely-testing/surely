@@ -1,10 +1,10 @@
 // ============================================
 // lib/actions/sprints.ts
+// FIXED - Removed revalidatePath for client component compatibility
 // ============================================
 
 import type { SprintFormData } from '@/types/sprint.types';
 import { createClient } from '../supabase/client';
-import { revalidatePath } from 'next/cache';
 
 export async function createSprint(suiteId: string, data: SprintFormData) {
   const supabase = await createClient();
@@ -32,7 +32,6 @@ export async function createSprint(suiteId: string, data: SprintFormData) {
     return { error: error.message };
   }
 
-  revalidatePath(`/[suiteId]/sprints`);
   return { data: sprint };
 }
 
@@ -55,8 +54,6 @@ export async function updateSprint(sprintId: string, data: Partial<SprintFormDat
     return { error: error.message };
   }
 
-  revalidatePath(`/[suiteId]/sprints`);
-  revalidatePath(`/[suiteId]/sprints/[sprintId]`);
   return { data: sprint };
 }
 
@@ -68,6 +65,26 @@ export async function deleteSprint(sprintId: string) {
     return { error: 'Unauthorized' };
   }
 
+  // Check sprint status before deletion
+  const { data: sprint, error: fetchError } = await supabase
+    .from('sprints')
+    .select('status')
+    .eq('id', sprintId)
+    .single();
+
+  if (fetchError) {
+    return { error: fetchError.message };
+  }
+
+  if (!sprint) {
+    return { error: 'Sprint not found' };
+  }
+
+  // Handle null status and validate
+  if (!sprint.status || !['planning', 'archived', 'on-hold'].includes(sprint.status)) {
+    return { error: 'Cannot delete active or completed sprints' };
+  }
+
   const { error } = await supabase
     .from('sprints')
     .delete()
@@ -77,7 +94,6 @@ export async function deleteSprint(sprintId: string) {
     return { error: error.message };
   }
 
-  revalidatePath(`/[suiteId]/sprints`);
   return { success: true };
 }
 
@@ -100,7 +116,6 @@ export async function updateSprintStatus(sprintId: string, status: 'planning' | 
     return { error: error.message };
   }
 
-  revalidatePath(`/[suiteId]/sprints`);
   return { data: sprint };
 }
 
@@ -123,8 +138,5 @@ export async function assignToSprint(itemType: 'test_case' | 'bug', itemId: stri
     return { error: error.message };
   }
 
-  revalidatePath(`/[suiteId]/sprints`);
-  revalidatePath(`/[suiteId]/test-cases`);
-  revalidatePath(`/[suiteId]/bugs`);
   return { success: true };
 }

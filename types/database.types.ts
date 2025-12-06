@@ -840,7 +840,6 @@ export type Database = {
       }
       recordings: {
         Row: {
-          [x: string]: any
           created_at: string | null
           created_by: string
           duration: number | null
@@ -1161,6 +1160,7 @@ export type Database = {
           implemented_at: string | null
           priority: string
           rationale: string | null
+          sprint_id: string | null
           status: string
           suite_id: string
           tags: string[] | null
@@ -1184,6 +1184,7 @@ export type Database = {
           implemented_at?: string | null
           priority: string
           rationale?: string | null
+          sprint_id?: string | null
           status?: string
           suite_id: string
           tags?: string[] | null
@@ -1207,6 +1208,7 @@ export type Database = {
           implemented_at?: string | null
           priority?: string
           rationale?: string | null
+          sprint_id?: string | null
           status?: string
           suite_id?: string
           tags?: string[] | null
@@ -1228,6 +1230,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestions_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
             referencedColumns: ["id"]
           },
           {

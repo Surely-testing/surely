@@ -34,8 +34,6 @@ interface TestCasesViewProps {
 }
 
 type ViewMode = 'grid' | 'table'
-
-// Add these type definitions after the existing types
 type SortField = 'created_at' | 'updated_at' | 'title' | 'priority';
 type SortOrder = 'asc' | 'desc';
 type GroupBy = 'none' | 'priority' | 'status';
@@ -104,6 +102,22 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     return () => { supabase.removeChannel(channel) }
   }, [suiteId, supabase])
 
+  // Show form if creating/editing - PLACE THIS BEFORE ANY OTHER RETURNS
+  if (isCreateModalOpen) {
+    return (
+      <div className="space-y-4 md:space-y-6">
+        <TestCaseForm
+          suiteId={suiteId}
+          onSuccess={() => {
+            setIsCreateModalOpen(false)
+            fetchTestCases()
+          }}
+          onCancel={() => setIsCreateModalOpen(false)}
+        />
+      </div>
+    )
+  }
+
   const getFilteredAndSortedTestCases = () => {
     let filtered = testCases.filter(tc => {
       const matchesSearch = tc.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -140,7 +154,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
   const filteredTestCases = getFilteredAndSortedTestCases();
 
-  // Helper function to convert TestCase[] to TestCaseRow[]
   const convertToTestCaseRows = (testCases: TestCase[]): TestCaseRow[] => {
     return testCases.map(tc => ({
       id: tc.id,
@@ -348,10 +361,18 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
   const activeFiltersCount = (priorityFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
 
+  const handleAIGenerate = () => {
+    setIsOpen(true)
+    setTimeout(() => {
+      sendMessage(
+        `I need to generate test cases for suite ID: ${suiteId}. Please help me create comprehensive test cases. Ask me about the feature or functionality I want to test, and then generate appropriate test cases with titles, descriptions, steps, expected results, and priorities.`
+      )
+    }, 100)
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4 md:space-y-6">
-        {/* Header Skeleton */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-8 w-48 bg-muted animate-pulse rounded" />
@@ -362,8 +383,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             <div className="h-10 w-10 bg-muted animate-pulse rounded-lg" />
           </div>
         </div>
-
-        {/* Controls Skeleton */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
           <div className="h-4 w-32 bg-muted animate-pulse rounded" />
           <div className="flex items-center gap-3">
@@ -371,8 +390,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
           </div>
         </div>
-
-        {/* Content Skeleton */}
         <div className="space-y-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
@@ -398,7 +415,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       },
       {
         label: 'AI Generate',
-        onClick: () => router.push('/dashboard/test-cases/ai-generate'),
+        onClick: handleAIGenerate,
         variant: 'accent' as const,
         icon: Sparkles,
       },
@@ -406,7 +423,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
     return (
       <>
-        {/* Page Title - Always Visible */}
         <div className="flex items-center gap-3 mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             Test Cases
@@ -415,8 +431,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             (0)
           </span>
         </div>
-
-        {/* Empty State */}
         <EmptyState
           icon={FileQuestion}
           iconSize={64}
@@ -424,27 +438,8 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           description="Create your first test case to start testing"
           actions={emptyStateActions}
         />
-
-        {/* Create Modal */}
-        {isCreateModalOpen && (
-          <TestCaseForm
-            suiteId={suiteId}
-            onSuccess={() => setIsCreateModalOpen(false)}
-            onCancel={() => setIsCreateModalOpen(false)}
-          />
-        )}
       </>
     )
-  }
-
-  const handleAIGenerate = () => {
-    setIsOpen(true)
-    // Small delay to ensure the assistant opens before sending the message
-    setTimeout(() => {
-      sendMessage(
-        `I need to generate test cases for suite ID: ${suiteId}. Please help me create comprehensive test cases. Ask me about the feature or functionality I want to test, and then generate appropriate test cases with titles, descriptions, steps, expected results, and priorities.`
-      )
-    }, 100)
   }
 
   return (
@@ -462,13 +457,12 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
         {/* Action Buttons Container */}
         <div className="flex items-center justify-end gap-2">
-          {/* Actions Dropdown */}
           {canWrite && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center px-3 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+                  className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
                 >
                   <Plus className="h-4 w-4 lg:mr-2" />
                   <span className="hidden lg:inline">Actions</span>
@@ -491,46 +485,42 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             </DropdownMenu>
           )}
 
-          {/* Test Runs Button */}
           <Link
             href="/dashboard/test-runs"
-            className="inline-flex items-center justify-center px-3 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+            className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
           >
             <Play className="h-4 w-4 lg:mr-2" />
             <span className="hidden lg:inline">Test Runs</span>
           </Link>
 
-          {/* AI Generate Button */}
           {canWrite && (
             <button
               type="button"
               onClick={handleAIGenerate}
-              className="inline-flex items-center justify-center px-3 lg:px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 whitespace-nowrap"
+              className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 whitespace-nowrap"
             >
               <Sparkles className="h-4 w-4 lg:mr-2" />
-              <span className="hidden lg:inline">AI</span>
+              <span className="hidden lg:inline">AI Generate</span>
             </button>
           )}
 
-          {/* Refresh Button */}
           <button
             type="button"
             onClick={fetchTestCases}
             disabled={isLoading}
-            className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Controls Bar - Mobile First, Desktop Preserved */}
+      {/* Controls Bar */}
       <div className="bg-card border-b border-border">
         <div className="px-3 py-2">
           <div className="flex flex-col gap-3 lg:gap-0">
-            {/* Mobile Layout (< lg screens) */}
+            {/* Mobile Layout */}
             <div className="lg:hidden space-y-3">
-              {/* Row 1: Search (Full Width) */}
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
@@ -543,9 +533,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                 />
               </div>
 
-              {/* Row 2: Filter, Sort, Grouping */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {/* Filter Button */}
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   disabled={isLoading}
@@ -560,7 +548,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                   )}
                 </button>
 
-                {/* Sort Dropdown */}
                 <Select
                   value={`${sortField}-${sortOrder}`}
                   onValueChange={(value) => {
@@ -584,7 +571,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                   </SelectContent>
                 </Select>
 
-                {/* Group By Dropdown */}
                 <Select
                   value={groupBy}
                   onValueChange={(value) => setGroupBy(value as GroupBy)}
@@ -601,7 +587,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                 </Select>
               </div>
 
-              {/* Row 3: Select All (Left) | View Toggle (Right) */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <input
@@ -616,7 +601,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                   </span>
                 </div>
 
-                {/* View Toggle */}
                 <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                   <button
                     onClick={() => setViewMode('grid')}
@@ -944,15 +928,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             );
           })}
         </div>
-      )}
-
-      {/* Create Modal */}
-      {isCreateModalOpen && (
-        <TestCaseForm
-          suiteId={suiteId}
-          onSuccess={() => setIsCreateModalOpen(false)}
-          onCancel={() => setIsCreateModalOpen(false)}
-        />
       )}
     </div>
   )

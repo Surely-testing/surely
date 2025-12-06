@@ -1,7 +1,6 @@
 // ============================================
 // components/bugs/BugsView.tsx
 // Main container with tabs: Bug Tracking | Suggestions
-// Mobile-first responsive aligned with TestCasesView design
 // ============================================
 'use client';
 
@@ -11,6 +10,7 @@ import { BugTracking } from './BugTracking';
 import { Suggestions } from './Suggestions';
 import { BugForm } from './BugForm';
 import { createClient } from '@/lib/supabase/client';
+import { SuggestionForm } from '../suggestions/SuggestionForm';
 
 interface BugsViewProps {
   suiteId: string;
@@ -25,6 +25,7 @@ export function BugsView({ suiteId }: BugsViewProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [bugsCount, setBugsCount] = useState(0);
+  const [showSuggestionForm, setShowSuggestionForm] = useState(false);
 
   const tabs = [
     { id: 'tracking', label: 'Bug Tracking' },
@@ -72,6 +73,10 @@ export function BugsView({ suiteId }: BugsViewProps) {
     setShowBugForm(true);
   };
 
+  const handleNewSuggestion = () => {
+    setShowSuggestionForm(true);
+  };
+
   const handleFormSuccess = () => {
     setShowBugForm(false);
     handleRefresh();
@@ -99,6 +104,25 @@ export function BugsView({ suiteId }: BugsViewProps) {
     );
   }
 
+  // If suggestion form is open, show only the suggestion form
+  if (showSuggestionForm) {
+    return (
+      <div className="space-y-4 md:space-y-6">
+        <SuggestionForm
+          suiteId={suiteId}
+          suggestion={null}
+          onSuccess={() => {
+            setShowSuggestionForm(false);
+            handleRefresh();
+          }}
+          onCancel={() => {
+            setShowSuggestionForm(false);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header with Action Buttons - Matching TestCasesView */}
@@ -115,59 +139,65 @@ export function BugsView({ suiteId }: BugsViewProps) {
         {/* Action Buttons Container - Matching TestCasesView */}
         <div className="relative overflow-hidden">
           <div className="flex items-center justify-end gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
-            {/* Sliding Drawer */}
-            <div
-              className="flex items-center gap-2 transition-all duration-300 ease-in-out"
-              style={{
-                maxWidth: isDrawerOpen ? '1000px' : '0px',
-                opacity: isDrawerOpen ? 1 : 0,
-                marginRight: isDrawerOpen ? '0.5rem' : '0',
-                pointerEvents: isDrawerOpen ? 'auto' : 'none',
-              }}
-            >
-              <button
-                type="button"
-                onClick={handleTraceability}
-                className="inline-flex items-center justify-center px-3 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+            {/* Sliding Drawer - Only show for Bug Tracking tab */}
+            {activeTab === 'tracking' && (
+              <div
+                className="flex items-center gap-2 transition-all duration-300 ease-in-out"
+                style={{
+                  maxWidth: isDrawerOpen ? '1000px' : '0px',
+                  opacity: isDrawerOpen ? 1 : 0,
+                  marginRight: isDrawerOpen ? '0.5rem' : '0',
+                  pointerEvents: isDrawerOpen ? 'auto' : 'none',
+                }}
               >
-                <Network className="h-4 w-4 lg:mr-2" />
-                <span className="hidden lg:inline">Traceability</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={handleTraceability}
+                  className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+                >
+                  <Network className="h-4 w-4 lg:mr-2" />
+                  <span className="hidden lg:inline">Traceability</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleImport}
-                className="inline-flex items-center justify-center px-3 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
-              >
-                <Upload className="h-4 w-4 lg:mr-2" />
-                <span className="hidden lg:inline">Import</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={handleImport}
+                  className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+                >
+                  <Upload className="h-4 w-4 lg:mr-2" />
+                  <span className="hidden lg:inline">Import</span>
+                </button>
+              </div>
+            )}
 
             {/* Always Visible Buttons */}
-            <button
-              type="button"
-              onClick={handleToggleDrawer}
-              className="inline-flex items-center justify-center p-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
-              aria-label="Toggle menu"
-            >
-              <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
-            </button>
+            {activeTab === 'tracking' && (
+              <button
+                type="button"
+                onClick={handleToggleDrawer}
+                className="inline-flex items-center justify-center py-1.5 text-foreground bg-card border border-border rounded-md hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
+                aria-label="Toggle menu"
+              >
+                <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
+              </button>
+            )}
 
             <button
               type="button"
-              onClick={handleNewBug}
-              className="btn-primary inline-flex items-center justify-center px-3 lg:px-4 py-2 text-sm font-semibold whitespace-nowrap"
+              onClick={activeTab === 'tracking' ? handleNewBug : handleNewSuggestion}
+              className="btn-primary inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-semibold whitespace-nowrap"
             >
               <Plus className="h-4 w-4 lg:mr-2" />
-              <span className="hidden lg:inline">New Bug</span>
+              <span className="hidden lg:inline">
+                {activeTab === 'tracking' ? 'New Bug' : 'New Suggestion'}
+              </span>
             </button>
 
             <button
               type="button"
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -205,18 +235,13 @@ export function BugsView({ suiteId }: BugsViewProps) {
               key={refreshTrigger}
               suiteId={suiteId} 
               onRefresh={handleRefresh}
-              onCreateClick={handleNewBug} // Add this prop
+              onCreateClick={handleNewBug}
             />
           )}
           {activeTab === 'suggestions' && (
             <Suggestions 
               suiteId={suiteId} 
               onRefresh={handleRefresh}
-              onCreateClick={() => {
-                // Handle suggestion creation
-                // You might want to add a state to show suggestion form
-                console.log('Create suggestion clicked');
-              }}
             />
           )}
         </div>

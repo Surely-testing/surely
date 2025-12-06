@@ -24,7 +24,6 @@ import { Pagination } from '@/components/shared/Pagination';
 interface SuggestionsProps {
   suiteId: string;
   onRefresh?: () => void;
-  onCreateClick?: () => void;
 }
 
 type ViewMode = 'grid' | 'table';
@@ -32,7 +31,7 @@ type SortField = 'created_at' | 'updated_at' | 'title' | 'upvotes' | 'priority' 
 type SortOrder = 'asc' | 'desc';
 type GroupBy = 'none' | 'status' | 'priority' | 'category' | 'sprint';
 
-export function Suggestions({ suiteId, onRefresh, onCreateClick }: SuggestionsProps) {
+export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
   const [suggestions, setSuggestions] = useState<SuggestionWithCreator[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -253,6 +252,10 @@ export function Suggestions({ suiteId, onRefresh, onCreateClick }: SuggestionsPr
     }
   };
 
+  const handleCreateClick = () => {
+    setShowForm(true);
+  };
+
   // Apply filters, sorting
   const getFilteredAndSortedSuggestions = () => {
     let filtered = [...suggestions];
@@ -423,7 +426,7 @@ export function Suggestions({ suiteId, onRefresh, onCreateClick }: SuggestionsPr
           actions={[
             {
               label: 'Create Suggestion',
-              onClick: onCreateClick || (() => setShowForm(true)),
+              onClick: handleCreateClick,
               variant: 'primary',
               icon: Plus,
             },
@@ -837,24 +840,7 @@ export function Suggestions({ suiteId, onRefresh, onCreateClick }: SuggestionsPr
                 )}
               </div>
             ) : filteredSuggestions.length === 0 ? (
-              // Filtered Empty State - No suggestions match filters
-              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                <Filter className="h-12 w-12 text-muted-foreground mb-3" />
-                <h3 className="text-lg font-medium text-foreground mb-1">
-                  No suggestions found
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Try adjusting your filters or search query
-                </p>
-                <button
-                  onClick={clearFilters}
-                  className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            ) : filteredSuggestions.length === 0 ? (
-              // Filtered Empty State - No suggestions match filters
+              // Filtered Empty State
               <div className="flex flex-col items-center justify-center py-12 text-center px-4">
                 <Filter className="h-12 w-12 text-muted-foreground mb-3" />
                 <h3 className="text-lg font-medium text-foreground mb-1">
@@ -944,7 +930,6 @@ export function Suggestions({ suiteId, onRefresh, onCreateClick }: SuggestionsPr
                   )
                 )}
 
-
                 {/* Pagination - Only show when not grouped */}
                 {groupBy === 'none' && (
                   <Pagination
@@ -984,7 +969,6 @@ export function Suggestions({ suiteId, onRefresh, onCreateClick }: SuggestionsPr
             assetType="recommendations"
             onAction={handleBulkAction}
           />
-
         </div>
       </div>
     </>
