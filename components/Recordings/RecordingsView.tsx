@@ -1,6 +1,5 @@
 // ============================================
 // components/recordings/RecordingsView.tsx
-// Mobile-First Responsive - Aligned with TestCasesView
 // ============================================
 
 'use client';

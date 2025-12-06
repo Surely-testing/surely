@@ -1,6 +1,6 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/edit/page.tsx
-// Test Run Edit Page - FIXED
+// Test Run Edit Page - FIXED (Remove testCases and sprints props)
 // ============================================
 'use client'
 
