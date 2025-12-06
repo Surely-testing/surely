@@ -1,6 +1,6 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/edit/page.tsx
-// Test Run Edit Page
+// Test Run Edit Page - FIXED
 // ============================================
 'use client'
 
@@ -19,7 +19,6 @@ export default function TestRunEditPage({
   const router = useRouter()
   const { supabase } = useSupabase()
   const [testRun, setTestRun] = useState<any | null>(null)
-  const [testCases, setTestCases] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [suiteId, setSuiteId] = useState<string>('')
 
@@ -40,16 +39,7 @@ export default function TestRunEditPage({
       if (runError) throw runError
 
       setSuiteId(runData.suite_id)
-
-      const { data: cases, error: casesError } = await supabase
-        .from('test_cases')
-        .select('*')
-        .eq('suite_id', runData.suite_id)
-
-      if (casesError) throw casesError
-
       setTestRun(runData)
-      setTestCases(cases || [])
     } catch (error) {
       console.error('Error fetching data:', error)
       toast.error('Failed to load test run')
@@ -97,11 +87,11 @@ export default function TestRunEditPage({
   return (
     <div className="container mx-auto px-4 py-8">
       <TestRunForm
-              suiteId={suiteId}
-              testCases={testCases}
-              initialData={testRun}
-              onSuccess={handleSuccess}
-              onCancel={handleCancel} sprints={[]}      />
+        suiteId={suiteId}
+        initialData={testRun}
+        onSuccess={handleSuccess}
+        onCancel={handleCancel}
+      />
     </div>
   )
 }

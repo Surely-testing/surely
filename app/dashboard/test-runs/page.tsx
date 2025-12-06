@@ -1,14 +1,12 @@
 // ============================================
 // FILE: app/dashboard/test-runs/page.tsx
-// Fixed version with proper sprint fetching
+// Fixed version - only passing props that TestRunsView expects
 // ============================================
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { useTestRuns } from '@/lib/hooks/useTestRuns'
-import { useTestCases } from '@/lib/hooks/useTestCases'
-import { useSprints } from '@/lib/hooks/useSprints' // Use existing hook
 import { toast } from 'sonner'
 import TestRunsView from '@/components/test-runs/TestRunsView'
 import { Loader2 } from 'lucide-react'
@@ -42,12 +40,10 @@ export default function TestRunsPage() {
     fetchSuiteId()
   }, [supabase])
 
-  // Use React Query hooks - they will wait until suiteId is set
+  // Use React Query hook for test runs
   const { data: testRuns, isLoading: runsLoading, refetch: refetchRuns } = useTestRuns(suiteId)
-  const { data: testCases, isLoading: casesLoading } = useTestCases(suiteId)
-  const { data: sprints, isLoading: sprintsLoading } = useSprints(suiteId)
 
-  const isLoading = isLoadingSuite || runsLoading || casesLoading || sprintsLoading
+  const isLoading = isLoadingSuite || runsLoading
 
   const handleRefresh = async () => {
     await refetchRuns()
@@ -73,15 +69,11 @@ export default function TestRunsPage() {
     )
   }
 
-  console.log('Sprints data:', sprints) // Debug log to see what's being fetched
-
   return (
     <div className="container mx-auto px-4 py-8">
       <TestRunsView
         suiteId={suiteId}
         testRuns={testRuns || []}
-        testCases={testCases || []}
-        sprints={sprints || []}
         onRefresh={handleRefresh}
       />
     </div>

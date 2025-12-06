@@ -1,10 +1,17 @@
 // ============================================
 // types/recording.types.ts
+// Added thumbnail_url and additional fields
 // ============================================
 
 import { Tables } from "./database.types";
 
-export type Recording = Tables<'recordings'>;
+// Extend the base Recording type with additional fields
+export type Recording = Tables<'recordings'> & {
+  thumbnail_url?: string | null;
+  logs_count?: number;
+  requests_count?: number;
+  description?: string | null;
+};
 
 export interface RecordingFormData {
   title: string;
@@ -13,6 +20,8 @@ export interface RecordingFormData {
   metadata?: Record<string, any>;
   sprint_id?: string | null;
   suite_id: string;
+  thumbnail_url?: string | null;
+  description?: string | null;
 }
 
 export interface RecordingMetadata {
@@ -23,6 +32,9 @@ export interface RecordingMetadata {
   consoleLogsUrl?: string;
   networkLogsUrl?: string;
   screenshotUrls?: string[];
+  thumbnail_url?: string;
+  logs_count?: number;
+  requests_count?: number;
 }
 
 export interface ConsoleLog {
@@ -60,6 +72,7 @@ export interface RecordingPreview {
   networkLogs: NetworkLog[];
   screenshots: string[];
   metadata: RecordingMetadata;
+  thumbnail_url?: string;
 }
 
 export interface RecordingFilters {
