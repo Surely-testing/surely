@@ -1,12 +1,13 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/execute/page.tsx
-// Test Run Execution Page
+// Fixed to use asset_relationships and correct status values
 // ============================================
 'use client'
 
 import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
+import { relationshipsApi } from '@/lib/api/relationships'
 import { toast } from 'sonner'
 import TestRunExecutionView from '@/components/test-runs/TestRunExecutionView'
 
@@ -30,6 +31,7 @@ export default function TestRunExecutionPage({
     try {
       setIsLoading(true)
 
+      // Fetch test run
       const { data: runData, error: runError } = await supabase
         .from('test_runs')
         .select('*')
@@ -37,22 +39,43 @@ export default function TestRunExecutionPage({
         .single()
 
       if (runError) throw runError
-
-      const { data: resultsData, error: resultsError } = await supabase
-        .from('test_run_results')
-        .select(`
-          *,
-          test_case:test_cases(*)
-        `)
-        .eq('test_run_id', testRunId)
-
-      if (resultsError) throw resultsError
-
-      const cases = resultsData?.map((result: any) => result.test_case).filter(Boolean) || []
-
       setTestRun(runData)
-      setTestCases(cases)
 
+      // Fetch linked test cases from relationships
+      const linkedAssets = await relationshipsApi.getLinkedAssets('test_run' as any, testRunId)
+      const testCaseAssets = linkedAssets.filter(asset => asset.asset_type === 'test_case')
+      
+      if (testCaseAssets.length > 0) {
+        const testCaseIds = testCaseAssets.map(asset => asset.asset_id)
+        
+        // Fetch full test case details
+        const { data: casesData, error: casesError } = await supabase
+          .from('test_cases')
+          .select('*')
+          .in('id', testCaseIds)
+
+        if (casesError) throw casesError
+        setTestCases(casesData || [])
+
+        // Create test_run_results for each test case if they don't exist
+        const resultsToCreate = (casesData || []).map(tc => ({
+          test_run_id: testRunId,
+          test_case_id: tc.id,
+          status: 'not_executed',
+          executed_at: null,
+          duration: null,
+          notes: null
+        }))
+
+        await supabase
+          .from('test_run_results')
+          .upsert(resultsToCreate, { 
+            onConflict: 'test_run_id,test_case_id',
+            ignoreDuplicates: true 
+          })
+      }
+
+      // Update test run status if pending
       if (runData.status === 'pending') {
         await supabase
           .from('test_runs')

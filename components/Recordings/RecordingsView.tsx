@@ -9,8 +9,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Recording, RecordingFilters } from '@/types/recording.types';
 import { RecordingGrid } from './RecordingGrid';
 import { RecordingToolbar } from './RecordingToolbar';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select,
   SelectContent,
@@ -319,16 +318,29 @@ export function RecordingsView({
     );
   }
 
-  if (recordings.length === 0) {
+  if (recordings.length === 0 && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
-        <Play className="h-16 w-16 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-medium text-foreground mb-2">No recordings yet</h3>
-        <p className="text-sm text-muted-foreground mb-6">Start recording test sessions to see them here</p>
-        <RecordingToolbar
-          suiteId={suiteId}
-          onRecordingSaved={fetchRecordings}
-        />
+      <div className="space-y-4 md:space-y-6">
+        {/* ONLY Page Title */}
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            Recordings
+          </h1>
+          <span className="text-sm text-muted-foreground">(0)</span>
+        </div>
+
+        {/* ONLY Empty State with Recording Button */}
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
+          <Play className="h-16 w-16 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">No recordings yet</h3>
+          <p className="text-sm text-muted-foreground mb-6">Start recording test sessions to see them here</p>
+
+          {/* Recording Toolbar Button */}
+          <RecordingToolbar
+            suiteId={suiteId}
+            onRecordingSaved={fetchRecordings}
+          />
+        </div>
       </div>
     );
   }
@@ -474,8 +486,8 @@ export function RecordingsView({
                     onClick={() => setViewMode('grid')}
                     disabled={isLoading}
                     className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     title="Grid View"
                   >
@@ -485,8 +497,8 @@ export function RecordingsView({
                     onClick={() => setViewMode('list')}
                     disabled={isLoading}
                     className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'list'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     title="List View"
                   >
@@ -572,8 +584,8 @@ export function RecordingsView({
                       onClick={() => setViewMode('grid')}
                       disabled={isLoading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="Grid View"
                     >
@@ -583,8 +595,8 @@ export function RecordingsView({
                       onClick={() => setViewMode('list')}
                       disabled={isLoading}
                       className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'list'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                       title="List View"
                     >
@@ -624,8 +636,8 @@ export function RecordingsView({
                           key={sprint.id}
                           onClick={() => handleFilterChange('sprint_id', filters.sprint_id === sprint.id ? undefined : sprint.id)}
                           className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filters.sprint_id === sprint.id
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
                             }`}
                         >
                           {sprint.name}
@@ -646,8 +658,8 @@ export function RecordingsView({
                         key={status}
                         onClick={() => setStatusFilter(status)}
                         className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${statusFilter === status
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background text-foreground border-border hover:border-primary'
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:border-primary'
                           }`}
                       >
                         {status === 'all' ? 'All' : status === 'recent' ? 'Recent (7 days)' : 'Archived'}
@@ -667,8 +679,8 @@ export function RecordingsView({
                         key={range}
                         onClick={() => setDateRangeFilter(range)}
                         className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${dateRangeFilter === range
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background text-foreground border-border hover:border-primary'
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:border-primary'
                           }`}
                       >
                         {range === 'all' ? 'All Time' : range === 'today' ? 'Today' : range === 'week' ? 'This Week' : 'This Month'}

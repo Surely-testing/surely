@@ -245,7 +245,7 @@ export function BugForm({
       if (error) throw error;
       
       setExistingAttachments(existingAttachments.filter(a => a.id !== attachmentId));
-      toast.success('Attachment deleted');
+      // toast.success('Attachment deleted');
     } catch (error: any) {
       console.error('Error deleting attachment:', error);
       toast.error('Failed to delete attachment');

@@ -18,6 +18,7 @@ import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components
 import { Pagination } from '@/components/shared/Pagination';
 import { useReports } from '@/lib/hooks/useReports';
 import { useReportSchedules } from '@/lib/hooks/useReportSchedules';
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select,
   SelectContent,
@@ -301,6 +302,110 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
 
   const isLoading = activeTab === 'reports' ? reportsLoading : schedulesLoading;
 
+  // Empty state check BEFORE main return
+  if (reports.length === 0 && schedules.length === 0 && !isLoading) {
+    return (
+      <>
+        <div className="min-h-screen pb-24">
+          <div className="mx-auto lg:px-2">
+            {/* Header */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Reports</h1>
+              </div>
+            </div>
+
+            {/* Tabs Navigation */}
+            <div className="rounded-lg mb-6">
+              <div>
+                <nav className="flex overflow-x-auto">
+                  {tabs.map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as TabType)}
+                        className={`flex-1 min-w-[120px] px-6 py-4 text-sm font-semibold border-b-2 transition-all duration-200 whitespace-nowrap ${isActive
+                          ? 'border-primary text-primary bg-primary/5'
+                          : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                          }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            </div>
+
+            {/* Empty State */}
+            {activeTab === 'reports' && (
+              <EmptyState
+                icon={FileText}
+                iconSize={64}
+                title="No reports yet"
+                description="Generate your first report to get insights on test execution, bugs, coverage, and performance"
+                actions={[
+                  {
+                    label: 'Generate Report',
+                    onClick: () => setIsGenerateOpen(true),
+                    variant: 'primary',
+                    icon: Plus
+                  }
+                ]}
+                minHeight="400px"
+              />
+            )}
+
+            {activeTab === 'schedules' && (
+              <EmptyState
+                icon={Calendar}
+                iconSize={64}
+                title="No schedules yet"
+                description="Schedule reports to be automatically generated on a recurring basis"
+                actions={[
+                  {
+                    label: 'Schedule Report',
+                    onClick: () => setIsScheduleOpen(true),
+                    variant: 'primary',
+                    icon: Plus
+                  }
+                ]}
+                minHeight="400px"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Dialogs */}
+        <GenerateReportDialog
+          isOpen={isGenerateOpen}
+          onClose={() => setIsGenerateOpen(false)}
+          onGenerate={handleGenerateReport}
+          isGenerating={!!generating}
+        />
+
+        <ScheduleReportDialog
+          isOpen={isScheduleOpen}
+          onClose={handleCloseScheduleDialog}
+          onSchedule={handleScheduleReport}
+          existingSchedule={editingSchedule}
+        />
+
+        {selectedReport && (
+          <ReportDetailsDialog
+            report={selectedReport}
+            onClose={() => setSelectedReport(null)}
+            onRegenerate={() => {
+              regenerateReport(selectedReport.id);
+              setSelectedReport(null);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <div className="min-h-screen pb-24">
@@ -485,8 +590,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                               onClick={() => setViewMode('grid')}
                               disabled={isLoading}
                               className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                 }`}
                               title="Grid View"
                             >
@@ -496,8 +601,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                               onClick={() => setViewMode('table')}
                               disabled={isLoading}
                               className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                 }`}
                               title="Table View"
                             >
@@ -612,8 +717,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                                 onClick={() => setViewMode('grid')}
                                 disabled={isLoading}
                                 className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                                    ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                   }`}
                                 title="Grid View"
                               >
@@ -623,8 +728,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                                 onClick={() => setViewMode('table')}
                                 disabled={isLoading}
                                 className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                                    ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                   }`}
                                 title="Table View"
                               >
@@ -672,8 +777,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                                     key={status}
                                     onClick={() => setFilterStatus(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status])}
                                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterStatus.includes(status)
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-background text-foreground border-border hover:border-primary'
+                                      ? 'bg-primary text-primary-foreground border-primary'
+                                      : 'bg-background text-foreground border-border hover:border-primary'
                                       }`}
                                   >
                                     {status}
@@ -693,8 +798,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                                     key={type}
                                     onClick={() => setFilterType(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type])}
                                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterType.includes(type)
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-background text-foreground border-border hover:border-primary'
+                                      ? 'bg-primary text-primary-foreground border-primary'
+                                      : 'bg-background text-foreground border-border hover:border-primary'
                                       }`}
                                   >
                                     {type.replace('_', ' ')}
@@ -716,8 +821,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                                     key={status}
                                     onClick={() => setFilterScheduleStatus(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status])}
                                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterScheduleStatus.includes(status)
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-background text-foreground border-border hover:border-primary'
+                                      ? 'bg-primary text-primary-foreground border-primary'
+                                      : 'bg-background text-foreground border-border hover:border-primary'
                                       }`}
                                   >
                                     {status}
@@ -737,8 +842,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                                     key={frequency}
                                     onClick={() => setFilterFrequency(prev => prev.includes(frequency) ? prev.filter(f => f !== frequency) : [...prev, frequency])}
                                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterFrequency.includes(frequency)
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-background text-foreground border-border hover:border-primary'
+                                      ? 'bg-primary text-primary-foreground border-primary'
+                                      : 'bg-background text-foreground border-border hover:border-primary'
                                       }`}
                                   >
                                     {frequency}
@@ -754,41 +859,6 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
 
                   {/* Content Area */}
                   <div className="pt-6">
-                    {/* Empty States */}
-                    {activeTab === 'reports' && filteredReports.length === 0 && reports.length === 0 && !isLoading && (
-                      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
-                        <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium text-foreground mb-2">No reports yet</h3>
-                        <p className="text-sm text-muted-foreground mb-6 max-w-md">
-                          Generate your first report to get insights on test execution, bugs, coverage, and performance
-                        </p>
-                        <button
-                          onClick={() => setIsGenerateOpen(true)}
-                          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Generate Report
-                        </button>
-                      </div>
-                    )}
-
-                    {activeTab === 'schedules' && filteredSchedules.length === 0 && schedules.length === 0 && !isLoading && (
-                      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
-                        <Calendar className="h-16 w-16 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium text-foreground mb-2">No schedules yet</h3>
-                        <p className="text-sm text-muted-foreground mb-6 max-w-md">
-                          Schedule reports to be automatically generated on a recurring basis
-                        </p>
-                        <button
-                          onClick={() => setIsScheduleOpen(true)}
-                          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Schedule Report
-                        </button>
-                      </div>
-                    )}
-
                     {/* No Results After Filtering */}
                     {activeTab === 'reports' && filteredReports.length === 0 && reports.length > 0 && !isLoading && (
                       <div className="flex flex-col items-center justify-center py-12 text-center px-4">

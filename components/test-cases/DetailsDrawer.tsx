@@ -1580,10 +1580,9 @@ export function DetailsDrawer({
                                             onRun(testCase.id)
                                             onClose()
                                         }}
-                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+                                        className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
                                     >
                                         <Play className="w-4 h-4" />
-                                        Run Test
                                     </button>
                                 )}
                                 {onDuplicate && (
@@ -1592,10 +1591,9 @@ export function DetailsDrawer({
                                             onDuplicate(testCase.id)
                                             onClose()
                                         }}
-                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+                                        className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
                                     >
-                                        <Copy className="w-4 h-4" />
-                                        Duplicate
+                                        <Copy className="w-4 h-4" /> 
                                     </button>
                                 )}
                                 {onArchive && (
@@ -1604,10 +1602,9 @@ export function DetailsDrawer({
                                             onArchive(testCase.id)
                                             onClose()
                                         }}
-                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+                                        className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
                                     >
                                         <Archive className="w-4 h-4" />
-                                        Archive
                                     </button>
                                 )}
                                 {onDelete && (
@@ -1616,10 +1613,9 @@ export function DetailsDrawer({
                                             onDelete(testCase.id)
                                             onClose()
                                         }}
-                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-error bg-card border border-error/30 rounded-lg hover:bg-error/10 transition-colors"
+                                        className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-error bg-card border border-error/30 rounded-lg hover:bg-error/10 transition-colors"
                                     >
                                         <Trash2 className="w-4 h-4" />
-                                        Delete
                                     </button>
                                 )}
                             </div>

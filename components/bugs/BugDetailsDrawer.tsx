@@ -348,7 +348,8 @@ export function BugDetailsDrawer({
             toast.success(`${field} updated`)
 
             if (onUpdateBug) {
-                await onUpdateBug({ ...bug, [field]: value } as BugWithCreator)
+                const { creator, ...bugData } = bug;
+                await onUpdateBug({ ...bugData, [field]: value } as BugWithCreator)
             }
 
             try {

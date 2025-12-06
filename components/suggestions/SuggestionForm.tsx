@@ -3,9 +3,12 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { SuggestionWithCreator, SuggestionCategory, SuggestionPriority, SuggestionImpact } from '@/types/suggestion.types';
-import { X, Tag } from 'lucide-react';
+import { X, Tag, ArrowLeft, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 
 interface SuggestionFormProps {
   suiteId: string;
@@ -80,6 +83,7 @@ export function SuggestionForm({ suiteId, suggestion, onSuccess, onCancel }: Sug
           .eq('id', suggestion.id);
         
         if (error) throw error;
+        toast.success('Suggestion updated successfully');
       } else {
         // Create new suggestion
         const { error } = await supabase
@@ -104,6 +108,7 @@ export function SuggestionForm({ suiteId, suggestion, onSuccess, onCancel }: Sug
           });
         
         if (error) throw error;
+        toast.success('Suggestion created successfully');
       }
 
       onSuccess();
@@ -128,155 +133,227 @@ export function SuggestionForm({ suiteId, suggestion, onSuccess, onCancel }: Sug
   };
 
   return (
-    <div className="bg-card max-w-4xl rounded-lg border border-border p-6 mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-foreground">
-          {suggestion ? 'Edit Suggestion' : 'New Suggestion'}
-        </h2>
-        <button onClick={onCancel} className="text-muted-foreground hover:text-foreground transition-colors">
-          <X className="w-5 h-5" />
-        </button>
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-6 flex items-start gap-4">
+        <Button variant="outline" size="sm" onClick={onCancel} className="mt-1">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">
+            {suggestion ? 'Edit Suggestion' : 'New Suggestion'}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {suggestion ? 'Update the suggestion details below' : 'Share your ideas to improve this test suite'}
+          </p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Title <span className="text-error">*</span>
-          </label>
-          <input
-            type="text"
-            required
-            value={formData.title}
-            onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-            className="w-full px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Brief title for your suggestion"
-            maxLength={200}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">{formData.title.length}/200 characters</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Description <span className="text-error">*</span>
-          </label>
-          <textarea
-            required
-            rows={4}
-            value={formData.description}
-            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            className="w-full px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Detailed description of your suggestion..."
-            maxLength={1000}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">{formData.description.length}/1000 characters</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Rationale</label>
-          <textarea
-            rows={3}
-            value={formData.rationale}
-            onChange={(e) => setFormData(prev => ({ ...prev, rationale: e.target.value }))}
-            className="w-full px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Why is this suggestion important?"
-            maxLength={500}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">{formData.rationale.length}/500 characters</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Category</label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value as SuggestionCategory }))}
-              className="w-full px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="feature">Feature</option>
-              <option value="improvement">Improvement</option>
-              <option value="performance">Performance</option>
-              <option value="ui_ux">UI/UX</option>
-              <option value="testing">Testing</option>
-              <option value="documentation">Documentation</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Priority</label>
-            <select
-              value={formData.priority}
-              onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as SuggestionPriority }))}
-              className="w-full px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Expected Impact</label>
-            <select
-              value={formData.impact}
-              onChange={(e) => setFormData(prev => ({ ...prev, impact: e.target.value as SuggestionImpact }))}
-              className="w-full px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="low">Low Impact</option>
-              <option value="medium">Medium Impact</option>
-              <option value="high">High Impact</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Effort Estimate</label>
-            <input
-              type="text"
-              value={formData.effort_estimate}
-              onChange={(e) => setFormData(prev => ({ ...prev, effort_estimate: e.target.value }))}
-              className="w-full px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="e.g., 2-3 days, 1 week"
-              maxLength={50}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Tags (max 10)</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
-              className="flex-1 px-3 py-2 bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Add a tag..."
-              maxLength={20}
-            />
-            <Button type="button" onClick={handleAddTag} variant="outline" disabled={!tagInput.trim() || formData.tags.length >= 10}>
-              Add
-            </Button>
-          </div>
-          {formData.tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {formData.tags.map((tag, index) => (
-                <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs bg-primary/10 text-primary gap-1">
-                  <Tag className="w-3 h-3" />{tag}
-                  <button type="button" onClick={() => handleRemoveTag(tag)} className="text-primary hover:text-primary/80">×</button>
-                </span>
-              ))}
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Basic Information */}
+        <section>
+          <h3 className="text-lg font-semibold text-foreground mb-4">Basic Information</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Title <span className="text-error">*</span>
+              </label>
+              <Input
+                type="text"
+                required
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Brief title for your suggestion"
+                maxLength={200}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{formData.title.length}/200 characters</p>
             </div>
-          )}
-        </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-border">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>Cancel</Button>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Description <span className="text-error">*</span>
+              </label>
+              <Textarea
+                required
+                rows={4}
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Detailed description of your suggestion..."
+                maxLength={1000}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{formData.description.length}/1000 characters</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Rationale
+              </label>
+              <Textarea
+                rows={3}
+                value={formData.rationale}
+                onChange={(e) => setFormData(prev => ({ ...prev, rationale: e.target.value }))}
+                placeholder="Why is this suggestion important? What problem does it solve?"
+                maxLength={500}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{formData.rationale.length}/500 characters</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Classification */}
+        <section>
+          <h3 className="text-lg font-semibold text-foreground mb-4">Classification</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Category
+              </label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, category: value as SuggestionCategory }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="feature">Feature</SelectItem>
+                  <SelectItem value="improvement">Improvement</SelectItem>
+                  <SelectItem value="performance">Performance</SelectItem>
+                  <SelectItem value="ui_ux">UI/UX</SelectItem>
+                  <SelectItem value="testing">Testing</SelectItem>
+                  <SelectItem value="documentation">Documentation</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Priority
+              </label>
+              <Select
+                value={formData.priority}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value as SuggestionPriority }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Expected Impact
+              </label>
+              <Select
+                value={formData.impact}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, impact: value as SuggestionImpact }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low Impact</SelectItem>
+                  <SelectItem value="medium">Medium Impact</SelectItem>
+                  <SelectItem value="high">High Impact</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Effort Estimate
+              </label>
+              <Input
+                type="text"
+                value={formData.effort_estimate}
+                onChange={(e) => setFormData(prev => ({ ...prev, effort_estimate: e.target.value }))}
+                placeholder="e.g., 2-3 days, 1 week"
+                maxLength={50}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Tags */}
+        <section>
+          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Tag className="w-5 h-5" />
+            Tags
+          </h3>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Tags (max 10)
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyPress={(e) => { 
+                  if (e.key === 'Enter') { 
+                    e.preventDefault(); 
+                    handleAddTag(); 
+                  } 
+                }}
+                placeholder="Add a tag..."
+                maxLength={20}
+                className="flex-1"
+              />
+              <Button 
+                type="button" 
+                onClick={handleAddTag} 
+                variant="outline" 
+                disabled={!tagInput.trim() || formData.tags.length >= 10}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </div>
+            {formData.tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {formData.tags.map((tag, index) => (
+                  <span 
+                    key={index} 
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary border border-primary/20 gap-2"
+                  >
+                    <Tag className="w-3 h-3" />
+                    {tag}
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemoveTag(tag)} 
+                      className="text-primary hover:text-primary/80 ml-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              {formData.tags.length}/10 tags
+            </p>
+          </div>
+        </section>
+
+        {/* Form Actions */}
+        <div className="flex justify-end gap-3 pt-6 border-t border-border">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+            Cancel
+          </Button>
           <Button type="submit" disabled={isSubmitting || !formData.title.trim() || !formData.description.trim()}>
             {isSubmitting ? (
-              <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Saving...</>
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Saving...
+              </>
             ) : (
-              <>{suggestion ? 'Update' : 'Create'} Suggestion</>
+              <>{suggestion ? 'Update Suggestion' : 'Create Suggestion'}</>
             )}
           </Button>
         </div>

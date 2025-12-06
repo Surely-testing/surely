@@ -4,9 +4,13 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Loader2, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash } from 'lucide-react'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select'
 import type { TestCase, TestCaseFormData, TestCasePriority } from '@/types/test-case.types'
 import type { Json } from '@/types/database.types'
 
@@ -47,6 +51,10 @@ export function TestCaseForm({ suiteId, testCase, onSuccess, onCancel }: TestCas
   }
 
   const removeStep = (index: number) => {
+    if (steps.length === 1) {
+      toast.error('At least one step is required')
+      return
+    }
     const newSteps = steps.filter((_, i) => i !== index)
     setSteps(newSteps)
   }
@@ -80,6 +88,7 @@ export function TestCaseForm({ suiteId, testCase, onSuccess, onCancel }: TestCas
             priority: formData.priority,
             expected_result: formData.expected_result,
             steps: steps as Json,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', testCase.id)
 
@@ -96,6 +105,9 @@ export function TestCaseForm({ suiteId, testCase, onSuccess, onCancel }: TestCas
             expected_result: formData.expected_result,
             steps: steps as Json,
             created_by: user.id,
+            status: 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
 
         if (createError) throw createError
@@ -114,160 +126,142 @@ export function TestCaseForm({ suiteId, testCase, onSuccess, onCancel }: TestCas
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {testCase ? 'Edit Test Case' : 'Create New Test Case'}
-            </h2>
-            <button
-              onClick={onCancel}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <X className="h-5 w-5 text-gray-500" />
-            </button>
-          </div>
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-6 flex items-start gap-4">
+        <Button variant="outline" size="sm" onClick={onCancel} className="mt-1">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">
+            {testCase ? 'Edit Test Case' : 'Create New Test Case'}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {testCase ? 'Update the test case details below' : 'Fill in the details to create a new test case'}
+          </p>
         </div>
+      </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Title */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900 dark:text-white">
-              Test Case Title *
-            </label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              placeholder="e.g., User can login with valid credentials"
-              required
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900 dark:text-white">
-              Description
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Describe what this test case covers..."
-              rows={3}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-            />
-          </div>
-
-          {/* Priority */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900 dark:text-white">
-              Priority
-            </label>
-            <select
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
-          </div>
-
-          {/* Test Steps */}
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-900 dark:text-white">
-              Test Steps *
-            </label>
-            <div className="space-y-3">
-              {steps.map((step, index) => (
-                <div key={index} className="flex gap-2 items-start">
-                  <div className="flex-shrink-0 w-8 h-10 flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      {index + 1}.
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      placeholder={`Step ${index + 1}`}
-                      value={step.step}
-                      onChange={(e) => handleStepChange(index, e.target.value)}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  {steps.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeStep(index)}
-                      className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </button>
-                  )}
-                </div>
-              ))}
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Basic Information */}
+        <section>
+          <h3 className="text-lg font-semibold text-foreground mb-4">Basic Information</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Test Case Title <span className="text-error">*</span>
+              </label>
+              <Input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                placeholder="e.g., User can login with valid credentials"
+                required
+              />
             </div>
-            <button
-              type="button"
-              onClick={addStep}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Step
-            </button>
-          </div>
 
-          {/* Expected Result */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900 dark:text-white">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Description
+              </label>
+              <Textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Describe what this test case covers..."
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Priority <span className="text-error">*</span>
+              </label>
+              <Select 
+                value={formData.priority} 
+                onValueChange={(value) => setFormData({ ...formData, priority: value as TestCasePriority })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </section>
+
+        {/* Test Steps */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-foreground">
+              Test Steps <span className="text-error">*</span>
+            </h3>
+            <Button type="button" variant="outline" size="sm" onClick={addStep}>
+              <Plus className="w-4 h-4 mr-1" />
+              Add Step
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {steps.map((step, index) => (
+              <div key={index} className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-medium mt-2">
+                  {index + 1}
+                </span>
+                <Input
+                  type="text"
+                  placeholder={`Step ${index + 1}`}
+                  value={step.step}
+                  onChange={(e) => handleStepChange(index, e.target.value)}
+                  className="flex-1"
+                />
+                {steps.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeStep(index)}
+                    className="mt-2"
+                  >
+                    <Trash className="w-4 h-4 text-error" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Expected Result */}
+        <section>
+          <h3 className="text-lg font-semibold text-foreground mb-4">Expected Result</h3>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
               Expected Result
             </label>
-            <textarea
+            <Textarea
               name="expected_result"
               value={formData.expected_result}
               onChange={handleChange}
               placeholder="What should happen when this test passes..."
-              rows={3}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              rows={4}
             />
           </div>
+        </section>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isLoading}
-              className="flex-1 px-6 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex-1 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                testCase ? 'Update Test Case' : 'Create Test Case'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
+        {/* Form Actions */}
+        <div className="flex justify-end gap-3 pt-6 border-t border-border">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Saving...' : testCase ? 'Update Test Case' : 'Create Test Case'}
+          </Button>
+        </div>
+      </form>
     </div>
   )
 }

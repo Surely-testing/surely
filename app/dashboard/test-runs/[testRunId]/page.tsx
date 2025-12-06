@@ -1,6 +1,6 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/page.tsx
-// Test Run Details View with Execution Tracking
+// Fixed to use asset_relationships
 // ============================================
 'use client'
 
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSupabase } from '@/providers/SupabaseProvider'
+import { relationshipsApi } from '@/lib/api/relationships'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
 
@@ -25,6 +26,8 @@ export default function TestRunDetailsPage({
   const router = useRouter()
   const { supabase } = useSupabase()
   const [testRun, setTestRun] = useState<any | null>(null)
+  const [testCases, setTestCases] = useState<any[]>([])
+  const [testRunResults, setTestRunResults] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isExecuting, setIsExecuting] = useState(false)
 
@@ -36,20 +39,41 @@ export default function TestRunDetailsPage({
     try {
       setIsLoading(true)
       
-      const { data, error } = await supabase
+      // Fetch test run
+      const { data: runData, error: runError } = await supabase
         .from('test_runs')
-        .select(`
-          *,
-          test_run_results (
-            *,
-            test_case:test_cases (*)
-          )
-        `)
+        .select('*')
         .eq('id', testRunId)
         .single()
 
-      if (error) throw error
-      setTestRun(data)
+      if (runError) throw runError
+      setTestRun(runData)
+
+      // Fetch linked test cases from relationships
+      const linkedAssets = await relationshipsApi.getLinkedAssets('test_run' as any, testRunId)
+      const testCaseAssets = linkedAssets.filter(asset => asset.asset_type === 'test_case')
+      
+      if (testCaseAssets.length > 0) {
+        const testCaseIds = testCaseAssets.map(asset => asset.asset_id)
+        
+        // Fetch full test case details
+        const { data: casesData, error: casesError } = await supabase
+          .from('test_cases')
+          .select('*')
+          .in('id', testCaseIds)
+
+        if (casesError) throw casesError
+        setTestCases(casesData || [])
+      }
+
+      // Fetch test run results if they exist
+      const { data: resultsData } = await supabase
+        .from('test_run_results')
+        .select('*')
+        .eq('test_run_id', testRunId)
+
+      setTestRunResults(resultsData || [])
+
     } catch (error) {
       console.error('Error fetching test run:', error)
       toast.error('Failed to load test run details')
@@ -59,29 +83,46 @@ export default function TestRunDetailsPage({
   }
 
   const handleStartExecution = async () => {
-  setIsExecuting(true)
-  try {
-    const { error } = await supabase
-      .from('test_runs')
-      .update({ 
-        status: 'in-progress',
-        executed_at: new Date().toISOString()
-      })
-      .eq('id', testRunId)
+    setIsExecuting(true)
+    try {
+      // Create test_run_results for each test case if they don't exist
+      if (testCases.length > 0) {
+        const resultsToCreate = testCases.map(tc => ({
+          test_run_id: testRunId,
+          test_case_id: tc.id,
+          status: 'not_executed',
+          executed_at: null,
+          duration: null,
+          notes: null
+        }))
 
-    if (error) throw error
-    
-    toast.success('Starting test execution...')
-    
-    // Navigate to execution interface
-    router.push(`/dashboard/test-runs/${testRunId}/execute`)
-    
-  } catch (error) {
-    console.error('Error starting test run:', error)
-    toast.error('Failed to start test run')
-    setIsExecuting(false)
+        await supabase
+          .from('test_run_results')
+          .upsert(resultsToCreate, { 
+            onConflict: 'test_run_id,test_case_id',
+            ignoreDuplicates: true 
+          })
+      }
+
+      const { error } = await supabase
+        .from('test_runs')
+        .update({ 
+          status: 'in-progress',
+          executed_at: new Date().toISOString()
+        })
+        .eq('id', testRunId)
+
+      if (error) throw error
+      
+      toast.success('Starting test execution...')
+      router.push(`/dashboard/test-runs/${testRunId}/execute`)
+      
+    } catch (error) {
+      console.error('Error starting test run:', error)
+      toast.error('Failed to start test run')
+      setIsExecuting(false)
+    }
   }
-}
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this test run?')) return
@@ -108,6 +149,7 @@ export default function TestRunDetailsPage({
         return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
       case 'failed':
         return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+      case 'in_progress':
       case 'in-progress':
         return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
       case 'blocked':
@@ -138,6 +180,7 @@ export default function TestRunDetailsPage({
         return <CheckCircle className="h-5 w-5 text-green-600" />
       case 'failed':
         return <XCircle className="h-5 w-5 text-red-600" />
+      case 'in_progress':
       case 'in-progress':
         return <Play className="h-5 w-5 text-blue-600" />
       case 'blocked':
@@ -173,9 +216,10 @@ export default function TestRunDetailsPage({
     )
   }
 
-  const passedCount = testRun.test_run_results?.filter((r: any) => r.status === 'passed').length || 0
-  const failedCount = testRun.test_run_results?.filter((r: any) => r.status === 'failed').length || 0
-  const totalCount = testRun.test_run_results?.length || 0
+  // Calculate stats from results
+  const passedCount = testRunResults.filter(r => r.status === 'passed').length
+  const failedCount = testRunResults.filter(r => r.status === 'failed').length
+  const totalCount = testCases.length
   const passRate = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0
 
   return (
@@ -198,7 +242,7 @@ export default function TestRunDetailsPage({
                 "px-3 py-1 rounded-full text-sm font-medium capitalize",
                 getStatusColor(testRun.status)
               )}>
-                {testRun.status}
+                {testRun.status.replace('_', ' ')}
               </span>
             </div>
             {testRun.description && (
@@ -210,8 +254,8 @@ export default function TestRunDetailsPage({
             {testRun.status === 'pending' && (
               <button
                 onClick={handleStartExecution}
-                disabled={isExecuting}
-                className="btn-primary inline-flex items-center px-4 py-2 text-sm font-semibold"
+                disabled={isExecuting || testCases.length === 0}
+                className="btn-primary inline-flex items-center px-4 py-2 text-sm font-semibold disabled:opacity-50"
               >
                 <Play className="h-4 w-4 mr-2" />
                 Start Execution
@@ -275,43 +319,54 @@ export default function TestRunDetailsPage({
           {/* Test Cases */}
           <div className="bg-card rounded-xl border border-border p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">
-              Test Cases ({testRun.test_run_results?.length || 0})
+              Test Cases ({testCases.length})
             </h2>
             
-            <div className="space-y-3">
-              {testRun.test_run_results?.map((result: any) => (
-                <div
-                  key={result.id}
-                  className="flex items-start gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                >
-                  <div className="mt-0.5">
-                    {getStatusIcon(result.status)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-medium text-foreground">{result.test_case?.title || 'Unknown Test Case'}</h3>
-                      {result.test_case?.priority && (
-                        <span className={cn(
-                          "text-xs px-2 py-0.5 rounded-full capitalize",
-                          getPriorityColor(result.test_case.priority)
-                        )}>
-                          {result.test_case.priority}
-                        </span>
-                      )}
+            {testCases.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No test cases linked to this test run</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {testCases.map((testCase: any) => {
+                  const result = testRunResults.find(r => r.test_case_id === testCase.id)
+                  const status = result?.status || 'not_executed'
+                  
+                  return (
+                    <div
+                      key={testCase.id}
+                      className="flex items-start gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="mt-0.5">
+                        {getStatusIcon(status)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-medium text-foreground">{testCase.title}</h3>
+                          {testCase.priority && (
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full capitalize",
+                              getPriorityColor(testCase.priority)
+                            )}>
+                              {testCase.priority}
+                            </span>
+                          )}
+                        </div>
+                        {testCase.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">{testCase.description}</p>
+                        )}
+                      </div>
+                      <span className={cn(
+                        "text-xs px-2 py-1 rounded-full capitalize flex-shrink-0",
+                        getStatusColor(status)
+                      )}>
+                        {status.replace('_', ' ')}
+                      </span>
                     </div>
-                    {result.test_case?.description && (
-                      <p className="text-sm text-muted-foreground">{result.test_case.description}</p>
-                    )}
-                  </div>
-                  <span className={cn(
-                    "text-xs px-2 py-1 rounded-full capitalize flex-shrink-0",
-                    getStatusColor(result.status)
-                  )}>
-                    {result.status}
-                  </span>
-                </div>
-              ))}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Notes */}
