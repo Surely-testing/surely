@@ -173,7 +173,7 @@ export default function TestDataItemsView({ type, onBack }: TestDataItemsViewPro
                 <button
                   onClick={handleRandomGenerate}
                   disabled={createItems.isPending && !isAIGenerating}
-                  className="btn-primary inline-flex items-center justify-center px-5 py-2.5 gap-2 flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary inline-flex items-center justify-center px-4 py-2 gap-2 flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {(createItems.isPending && !isAIGenerating) ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -186,7 +186,7 @@ export default function TestDataItemsView({ type, onBack }: TestDataItemsViewPro
                 <button
                   onClick={() => setIsAIOpen(true)}
                   disabled={isAIGenerating}
-                  className="relative inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white overflow-hidden flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 bg-gradient-accent shadow-glow-accent hover:shadow-glow-accent"
+                  className="relative inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold text-white overflow-hidden flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 bg-gradient-accent shadow-glow-accent hover:shadow-glow-accent"
                 >
                   {isAIGenerating ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

@@ -199,7 +199,7 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-3 md:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg border transition-all ${showFilters
+                        className={`flex items-center gap-2 px-4 md:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border transition-all ${showFilters
                             ? 'bg-primary/10 border-primary text-primary'
                             : 'bg-card border-border text-foreground hover:bg-muted'
                             }`}
@@ -210,7 +210,7 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                     <button
                         onClick={handleRefresh}
                         disabled={isRefreshing}
-                        className="flex items-center gap-2 px-3 md:px-4 py-1.5 text-xs sm:text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-all"
+                        className="flex items-center gap-2 px-4 md:px-4 py-2 text-xs sm:text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-all"
                     >
                         <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                         <span className="hidden sm:inline">Refresh</span>

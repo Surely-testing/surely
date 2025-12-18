@@ -205,6 +205,7 @@ export default function CreateTestDataTypeForm({
           <Button
             type="button"
             variant="outline"
+            className='px-3 py-2'
             onClick={onCancel}
             disabled={createType.isPending}
           >
@@ -212,6 +213,7 @@ export default function CreateTestDataTypeForm({
           </Button>
           <Button
             type="submit"
+            className='btn-primary py-2 px-3'
             disabled={createType.isPending}
           >
             {createType.isPending ? 'Creating...' : 'Create Type'}

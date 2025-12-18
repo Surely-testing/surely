@@ -422,7 +422,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                 {activeTab === 'reports' ? (
                   <button
                     onClick={() => setIsGenerateOpen(true)}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Generate Report</span>
@@ -430,7 +430,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                 ) : (
                   <button
                     onClick={() => setIsScheduleOpen(true)}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white btn-primary rounded-lg hover:bg-primary/90 transition-all duration-200"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Schedule Report</span>
