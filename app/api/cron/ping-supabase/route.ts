@@ -12,7 +12,7 @@ export async function GET() {
     
     // Simple query to keep the database active
     const { data, error } = await supabase
-      .from('user_sessions')
+      .from('profiles')
       .select('*')
       .limit(1)
 
