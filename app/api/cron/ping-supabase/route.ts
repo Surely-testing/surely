@@ -1,17 +1,19 @@
-// Create this file: app/api/cron/ping-supabase/route.ts
+// app/api/cron/ping-supabase/route.ts
 
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function GET() {
   try {
+    const supabase = createClient() // Create client instance
+    
     // Simple query to keep the database active
     const { data, error } = await supabase
-      .from('users')
-      .select('count')
+      .from('user_sessions')
+      .select('*')
       .limit(1)
 
     if (error) {
