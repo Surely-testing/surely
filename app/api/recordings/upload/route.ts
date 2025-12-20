@@ -1,15 +1,13 @@
 // ============================================
-// app/api/recordings/upload/route.ts
+// app/api/recordings/upload/route.ts - SUPABASE VERSION
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { youtube, getYouTubeAuth } from '@/lib/youtube-client';
-import { Readable } from 'stream';
 
 /**
  * POST /api/recordings/upload
- * Upload video recording to YouTube (App-level authentication)
+ * Upload video recording to Supabase Storage
  */
 export async function POST(request: NextRequest) {
   try {
@@ -22,6 +20,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      console.error('Auth error:', authError);
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -42,6 +41,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('Upload request:', {
+      fileName: videoFile.name,
+      fileSize: `${(videoFile.size / 1024 / 1024).toFixed(2)} MB`,
+      fileType: videoFile.type,
+      title,
+      suiteId,
+    });
+
     // Verify user has access to the suite
     const { data: suite, error: suiteError } = await supabase
       .from('test_suites')
@@ -50,6 +57,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (suiteError || !suite) {
+      console.error('Suite error:', suiteError);
       return NextResponse.json(
         { error: 'Test suite not found' },
         { status: 404 }
@@ -68,55 +76,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get authenticated YouTube client
-    const auth = await getYouTubeAuth();
+    // Generate unique filename
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(2, 15);
+    const fileName = `${suiteId}/${timestamp}-${randomId}.webm`;
 
-    // Convert File to Buffer
+    // Convert File to ArrayBuffer for Supabase
     const arrayBuffer = await videoFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const stream = Readable.from(buffer)
+    const buffer = new Uint8Array(arrayBuffer);
 
-    // Get user's name for video description
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('name, email')
-      .eq('id', user.id)
-      .single();
+    // Upload to Supabase Storage
+    console.log('Uploading to Supabase Storage...');
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('recordings') // Bucket name
+      .upload(fileName, buffer, {
+        contentType: 'video/webm',
+        cacheControl: '3600',
+        upsert: false,
+      });
 
-    // Enhanced description with metadata
-    const enhancedDescription = `${description}
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      return NextResponse.json(
+        { error: `Upload failed: ${uploadError.message}` },
+        { status: 500 }
+      );
+    }
 
----
-Test Suite: ${suite.name}
-Recorded by: ${profile?.name || profile?.email || 'Unknown'}
-Timestamp: ${new Date().toISOString()}
-Test Management System Recording
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('recordings')
+      .getPublicUrl(fileName);
 
-${description ? '\n' + description : ''}`;
+    const videoUrl = urlData.publicUrl;
 
-    // Upload to YouTube
-    const response = await youtube.videos.insert({
-      auth,
-      part: ['snippet', 'status'],
-      requestBody: {
-        snippet: {
-          title: `[${suite.name}] ${title}`,
-          description: enhancedDescription,
-          categoryId: '28', // Science & Technology
-          tags: ['test-recording', 'qa', 'testing', suite.name.toLowerCase()],
-        },
-        status: {
-          privacyStatus: 'unlisted',
-          selfDeclaredMadeForKids: false,
-        },
-      },
-      media: {
-        body: stream,
-      },
-    });
-
-    const videoId = response.data.id;
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log('Upload successful:', videoUrl);
 
     // Log activity
     await supabase.from('activity_logs').insert({
@@ -124,49 +118,51 @@ ${description ? '\n' + description : ''}`;
       action: 'recording_uploaded',
       resource_type: 'recording',
       metadata: {
-        videoId,
+        fileName,
         title,
         suiteId,
         suiteName: suite.name,
+        fileSize: videoFile.size,
       },
     });
 
     return NextResponse.json({
       success: true,
       url: videoUrl,
-      videoId,
-      embedUrl: `https://www.youtube.com/embed/${videoId}`,
+      fileName,
+      fileSize: videoFile.size,
     });
 
   } catch (error) {
     console.error('Upload error:', error);
 
-    // Handle specific YouTube API errors
-    if (error && typeof error === 'object' && 'code' in error) {
-      const err = error as { code: number; message: string };
+    if (error && typeof error === 'object') {
+      const err = error as any;
       
-      if (err.code === 401) {
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        stack: err.stack,
+      });
+      
+      if (err.message) {
         return NextResponse.json(
-          { error: 'Authentication failed. Please contact administrator.' },
+          { error: `Upload failed: ${err.message}` },
           { status: 500 }
-        );
-      }
-      
-      if (err.code === 403) {
-        return NextResponse.json(
-          { error: 'YouTube API quota exceeded. Please try again later.' },
-          { status: 503 }
         );
       }
     }
 
     return NextResponse.json(
-      { error: 'Failed to save recording' },
+      { error: 'Failed to save recording. Please try again.' },
       { status: 500 }
     );
   }
 }
 
-
-
-
+// No special config needed for Supabase uploads
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};

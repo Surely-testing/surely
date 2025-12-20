@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useAI } from './AIAssistantProvider'
-import { X, Maximize2, Minimize2, Send, Sparkles, Bot, User, Save, Trash2, FileText, Bug, AlertCircle } from 'lucide-react'
+import { X, Maximize2, Minimize2, Send, Bot, User, Save, Trash2, FileText, Bug, AlertCircle, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function AIAssistant() {
@@ -245,16 +245,9 @@ export function AIAssistant() {
     )
   }
 
+  // Don't render anything when closed - AIFloatingButton handles that
   if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground rounded-2xl p-4 shadow-2xl hover:shadow-primary/25 transition-all duration-300 hover:scale-105 z-50 group"
-        aria-label="Open AI Assistant"
-      >
-        <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-      </button>
-    )
+    return null
   }
 
   // Regular window mode (mobile-first)

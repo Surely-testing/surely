@@ -72,11 +72,11 @@ export async function POST(request: NextRequest) {
     const fileName = `${suiteId}/${recordingId}/${type}-logs.json`;
     const logsJson = JSON.stringify(logs, null, 2);
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage with text/plain content type
     const { data, error: uploadError } = await supabase.storage
       .from('recording-logs')
       .upload(fileName, logsJson, {
-        contentType: 'application/json',
+        contentType: 'text/plain', // Changed from application/json to text/plain
         upsert: true,
       });
 
