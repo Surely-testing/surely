@@ -41,7 +41,7 @@ export function BugForm({
 }: BugFormProps) {
   const { user } = useSupabase();
   const supabase = createClient();
-  
+
   // Basic fields
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -49,40 +49,40 @@ export function BugForm({
   const [priority, setPriority] = useState('medium');
   const [status, setStatus] = useState('open');
   const [sprintId, setSprintId] = useState<string | null>(null);
-  
+
   // Reproduction details
   const [steps, setSteps] = useState<ReproductionStep[]>([
     { id: '1', order: 1, description: '' },
   ]);
   const [expectedBehavior, setExpectedBehavior] = useState('');
   const [actualBehavior, setActualBehavior] = useState('');
-  
+
   // Environment details
   const [environment, setEnvironment] = useState('');
   const [browser, setBrowser] = useState('');
   const [os, setOs] = useState('');
   const [version, setVersion] = useState('');
-  
+
   // Organization
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [module, setModule] = useState('');
   const [component, setComponent] = useState('');
   const [tags, setTags] = useState('');
-  
+
   // Linked assets
   const [linkedRecordingId, setLinkedRecordingId] = useState<string | null>(null);
   const [linkedTestCaseId, setLinkedTestCaseId] = useState<string | null>(null);
-  
+
   // Attachments
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
-  
+
   // Reference data
   const [sprints, setSprints] = useState<any[]>([]);
   const [recordings, setRecordings] = useState<any[]>([]);
   const [testCases, setTestCases] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load initial data if editing
@@ -105,12 +105,12 @@ export function BugForm({
       setComponent(bug.component || '');
       setLinkedRecordingId(bug.linked_recording_id || null);
       setLinkedTestCaseId(bug.linked_test_case_id || null);
-      
+
       // Handle tags
       if (bug.tags && Array.isArray(bug.tags)) {
         setTags(bug.tags.join(', '));
       }
-      
+
       // Handle steps
       if (bug.steps_to_reproduce) {
         if (Array.isArray(bug.steps_to_reproduce)) {
@@ -124,9 +124,63 @@ export function BugForm({
           setSteps([{ id: '1', order: 1, description: bug.steps_to_reproduce }]);
         }
       }
-      
+
       // Load existing attachments
       fetchExistingAttachments(bug.id);
+    }
+  }, [bug]);
+
+  useEffect(() => {
+    // Check for prefilled data from AI Insights
+    const prefillData = sessionStorage.getItem('bugPrefillData');
+
+    if (prefillData && !bug) { // Only prefill for new bugs, not edits
+      try {
+        const data = JSON.parse(prefillData);
+
+        // Populate form fields
+        if (data.title) setTitle(data.title);
+        if (data.description) setDescription(data.description);
+        if (data.severity) setSeverity(data.severity);
+        if (data.priority) setPriority(data.priority);
+        if (data.status) setStatus(data.status);
+        if (data.expected_behavior) setExpectedBehavior(data.expected_behavior);
+        if (data.actual_behavior) setActualBehavior(data.actual_behavior);
+        if (data.environment) setEnvironment(data.environment);
+        if (data.browser) setBrowser(data.browser);
+        if (data.os) setOs(data.os);
+        if (data.linked_recording_id) setLinkedRecordingId(data.linked_recording_id);
+
+        // Handle tags
+        if (data.tags && Array.isArray(data.tags)) {
+          setTags(data.tags.join(', '));
+        }
+
+        // Handle steps to reproduce
+        if (data.steps_to_reproduce && Array.isArray(data.steps_to_reproduce)) {
+          const prefillSteps = data.steps_to_reproduce.map((step: any) => ({
+            id: step.id || `step_${Date.now()}_${Math.random()}`,
+            order: step.order || 1,
+            description: typeof step === 'string' ? step : step.description || ''
+          }));
+
+          if (prefillSteps.length > 0) {
+            setSteps(prefillSteps);
+          }
+        }
+
+        // Clear the session storage after loading
+        sessionStorage.removeItem('bugPrefillData');
+
+        // Show success toast
+        toast.success('Bug form pre-filled with AI-generated details', {
+          description: 'Review and adjust the details before submitting'
+        });
+
+      } catch (error) {
+        console.error('Error loading prefilled bug data:', error);
+        sessionStorage.removeItem('bugPrefillData');
+      }
     }
   }, [bug]);
 
@@ -172,7 +226,7 @@ export function BugForm({
             )
           `)
           .eq('suite_id', suiteId);
-        
+
         if (membersError) {
           console.error('Error fetching team members:', membersError);
           // Fallback: fetch without profiles if join fails
@@ -180,7 +234,7 @@ export function BugForm({
             .from('suite_members')
             .select('user_id')
             .eq('suite_id', suiteId);
-          
+
           setTeamMembers(fallbackData?.map(m => ({
             id: m.user_id,
             name: 'User',
@@ -208,7 +262,7 @@ export function BugForm({
         .from('bug_attachments')
         .select('*')
         .eq('bug_id', bugId);
-      
+
       setExistingAttachments(data || []);
     } catch (error) {
       console.error('Error fetching attachments:', error);
@@ -243,7 +297,7 @@ export function BugForm({
         .eq('id', attachmentId);
 
       if (error) throw error;
-      
+
       setExistingAttachments(existingAttachments.filter(a => a.id !== attachmentId));
       // toast.success('Attachment deleted');
     } catch (error: any) {
@@ -327,7 +381,7 @@ export function BugForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!title.trim()) {
       toast.error('Title is required');
       return;
@@ -649,8 +703,8 @@ export function BugForm({
               <label className="block text-sm font-medium text-foreground mb-2">
                 Assigned To
               </label>
-              <Select 
-                value={assignedTo || 'unassigned'} 
+              <Select
+                value={assignedTo || 'unassigned'}
                 onValueChange={(value) => setAssignedTo(value === 'unassigned' ? null : value)}
               >
                 <SelectTrigger>
@@ -670,8 +724,8 @@ export function BugForm({
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Sprint
                 </label>
-                <Select 
-                  value={sprintId || 'no-sprint'} 
+                <Select
+                  value={sprintId || 'no-sprint'}
                   onValueChange={(value) => setSprintId(value === 'no-sprint' ? null : value)}
                 >
                   <SelectTrigger>
@@ -737,8 +791,8 @@ export function BugForm({
                   <Video className="w-4 h-4" />
                   Link to Recording
                 </label>
-                <Select 
-                  value={linkedRecordingId || 'no-recording'} 
+                <Select
+                  value={linkedRecordingId || 'no-recording'}
                   onValueChange={(value) => setLinkedRecordingId(value === 'no-recording' ? null : value)}
                 >
                   <SelectTrigger>
@@ -761,8 +815,8 @@ export function BugForm({
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Link to Test Case
                 </label>
-                <Select 
-                  value={linkedTestCaseId || 'no-testcase'} 
+                <Select
+                  value={linkedTestCaseId || 'no-testcase'}
                   onValueChange={(value) => setLinkedTestCaseId(value === 'no-testcase' ? null : value)}
                 >
                   <SelectTrigger>
@@ -786,7 +840,7 @@ export function BugForm({
             <Upload className="w-5 h-5" />
             Attachments
           </h3>
-          
+
           {/* Existing Attachments */}
           {existingAttachments.length > 0 && (
             <div className="mb-4">
@@ -841,8 +895,8 @@ export function BugForm({
                   <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div className="flex items-center gap-3">
                       {attachment.preview ? (
-                        <img 
-                          src={attachment.preview} 
+                        <img
+                          src={attachment.preview}
                           alt={attachment.file.name}
                           className="w-10 h-10 object-cover rounded"
                         />

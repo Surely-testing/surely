@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Recording, ConsoleLog, NetworkLog } from '@/types/recording.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
@@ -10,17 +11,16 @@ import { Badge } from '@/components/ui/Badge';
 import {
   Share2,
   Download,
-  Calendar,
-  Clock,
-  Monitor,
-  Activity,
-  Network,
-  Image,
   ExternalLink,
   Play,
+  Bot,
+  Brain,
+  Bug as BugIcon,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { AIInsights, AIInsight } from '@/components/ai/AIInsights';
+import { convertInsightToBugData } from '../../lib/helpers/bugPrefillHelper';
 
 interface RecordingPlayerProps {
   recording: Recording;
@@ -51,10 +51,14 @@ const getYouTubeVideoId = (url: string | null): string | null => {
 };
 
 export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerProps) {
+  const router = useRouter();
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const [networkLogs, setNetworkLogs] = useState<NetworkLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  
+  // AI Insights state
+  const [showAIInsights, setShowAIInsights] = useState(true);
 
   useEffect(() => {
     loadLogs();
@@ -152,6 +156,45 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
     return url.match(/\.(mp4|webm|ogg)$/i) !== null;
   };
 
+  // Handle AI Insights callbacks
+  const handleSaveInsights = (insights: AIInsight[]) => {
+    console.log('Saved insights:', insights);
+    toast.success(`Saved ${insights.length} AI insights`);
+  };
+
+  const handleCreateTestCase = (insight: AIInsight) => {
+    console.log('Creating test case from insight:', insight);
+    toast.info('Test case creation not implemented yet');
+    // TODO: Navigate to test case creation page with pre-filled data
+    // router.push(`/dashboard/${suite.id}/test-cases/new?from_insight=${insight.id}`);
+  };
+
+  const handleCreateBug = (insight: AIInsight) => {
+    try {
+      const metadata = recording.metadata as any;
+      
+      // Convert AI insight to bug form data
+      const bugData = convertInsightToBugData(insight, recording.id, {
+        browser: metadata?.browser,
+        os: metadata?.os,
+        environment: metadata?.environment || 'production',
+        consoleLogs,
+        networkLogs
+      });
+
+      // Store in sessionStorage for the bug form to pick up
+      sessionStorage.setItem('bugPrefillData', JSON.stringify(bugData));
+      
+      // Navigate to bug creation page
+      router.push(`/dashboard/${suite.id}/bugs/new?from_recording=${recording.id}&insight_id=${insight.id}`);
+      
+      toast.success('Opening bug form with AI-generated details...');
+    } catch (error) {
+      console.error('Error creating bug from insight:', error);
+      toast.error('Failed to prepare bug data');
+    }
+  };
+
   const metadata = recording.metadata as any;
   const createdAt = recording.created_at ? new Date(recording.created_at) : new Date();
   const embedUrl = getVideoEmbedUrl();
@@ -165,10 +208,21 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
           <ExternalLink className="h-4 w-4 rotate-180" />
           Back
         </Button>
-        <Button variant="outline" size="sm" onClick={handleShare} className="gap-2">
-          <Share2 className="h-4 w-4" />
-          Share
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => router.push(`/dashboard/${suite.id}/bugs/new?from_recording=${recording.id}`)}
+            className="gap-2"
+          >
+            <BugIcon className="h-4 w-4" />
+            Report Bug
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleShare} className="gap-2">
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
+        </div>
       </div>
 
       {/* YouTube-style Layout */}
@@ -255,14 +309,24 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="info">{suite.name}</Badge>
               {sprint && <Badge variant="primary">{sprint.name}</Badge>}
+              {consoleLogs.length > 0 && (
+                <Badge variant="warning">{consoleLogs.filter(l => l.type === 'error').length} Errors</Badge>
+              )}
+              {networkLogs.length > 0 && (
+                <Badge variant="default">{networkLogs.length} Network Requests</Badge>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right Column - Logs Tabs (30%) */}
+        {/* Right Column - AI Insights & Logs Tabs (30%) */}
         <div className="lg:w-[30%]">
-          <Tabs defaultValue="info" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-4">
+          <Tabs defaultValue="ai-insights" className="w-full">
+            <TabsList className="grid w-full grid-cols-5 mb-4">
+              <TabsTrigger value="ai-insights" className="text-xs gap-1">
+                <Bot className="h-3 w-3" />
+                <span className="hidden sm:inline">AI</span>
+              </TabsTrigger>
               <TabsTrigger value="info" className="text-xs">
                 Info
               </TabsTrigger>
@@ -276,6 +340,40 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
                 Shots
               </TabsTrigger>
             </TabsList>
+
+            {/* AI Insights Tab */}
+            <TabsContent value="ai-insights" className="mt-0">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Brain className="h-4 w-4 text-purple-500" />
+                      AI Insights
+                    </CardTitle>
+                    <Button
+                      onClick={() => setShowAIInsights(!showAIInsights)}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                    >
+                      {showAIInsights ? 'Hide' : 'Show'}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <AIInsights
+                    consoleLogs={consoleLogs}
+                    networkLogs={networkLogs}
+                    detectedIssues={[]}
+                    duration={recording.duration || 0}
+                    isEnabled={showAIInsights}
+                    onSaveHighlights={handleSaveInsights}
+                    onCreateTestCase={handleCreateTestCase}
+                    onCreateBug={handleCreateBug}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             <TabsContent value="info" className="mt-0">
               <Card>

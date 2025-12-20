@@ -462,7 +462,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+                  className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
                 >
                   <Plus className="h-4 w-4 lg:mr-2" />
                   <span className="hidden lg:inline">Actions</span>
@@ -487,7 +487,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
           <Link
             href="/dashboard/test-runs"
-            className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+            className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
           >
             <Play className="h-4 w-4 lg:mr-2" />
             <span className="hidden lg:inline">Test Runs</span>
@@ -497,7 +497,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             <button
               type="button"
               onClick={handleAIGenerate}
-              className="inline-flex items-center justify-center px-3 lg:px-4 py-1.5 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 whitespace-nowrap"
+              className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 whitespace-nowrap"
             >
               <Sparkles className="h-4 w-4 lg:mr-2" />
               <span className="hidden lg:inline">AI Generate</span>
@@ -508,7 +508,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             type="button"
             onClick={fetchTestCases}
             disabled={isLoading}
-            className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
