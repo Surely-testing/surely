@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * POST /api/recordings/logs/upload
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Log upload error:', error);
+    logger.log('Log upload error:', error);
     return NextResponse.json(
       { error: 'Failed to upload logs' },
       { status: 500 }

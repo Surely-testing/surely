@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { aiLogger } from '@/lib/ai/ai-logger'
+import { logger } from '@/lib/utils/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(stats)
 
   } catch (error: any) {
-    console.error('Usage Stats API Error:', error)
+    logger.log('Usage Stats API Error:', error)
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

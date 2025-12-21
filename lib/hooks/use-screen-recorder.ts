@@ -4,6 +4,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { RecordingPreview, ConsoleLog, NetworkLog, RecordingMetadata } from '@/types/recording.types';
+import { logger } from '@/lib/utils/logger';
 
 export function useScreenRecorder() {
   const [isRecording, setIsRecording] = useState(false);
@@ -145,7 +146,7 @@ export function useScreenRecorder() {
       }, 1000);
 
     } catch (err) {
-      console.error('Error starting recording:', err);
+      logger.log('Error starting recording:', err);
       setError(
         err instanceof Error 
           ? err.message 
@@ -313,7 +314,7 @@ export function useScreenRecorder() {
       // Cleanup
       video.srcObject = null;
     } catch (err) {
-      console.error('Error taking screenshot:', err);
+      logger.log('Error taking screenshot:', err);
       setError('Failed to capture screenshot');
     }
   }, []);

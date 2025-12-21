@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ReportWithCreator, ReportFormData } from '@/types/report.types'
 import { toast } from 'sonner'
+import { logger } from '@/lib/utils/logger';
 
 export function useReports(suiteId?: string) {
   const [reports, setReports] = useState<ReportWithCreator[]>([])
@@ -73,7 +74,7 @@ export function useReports(suiteId?: string) {
       
       setReports(validReports)
     } catch (err: any) {
-      console.error('Error fetching reports:', err)
+      logger.log('Error fetching reports:', err)
       toast.error('Failed to load reports', { description: err.message })
     } finally {
       setLoading(false)
@@ -118,7 +119,7 @@ export function useReports(suiteId?: string) {
       await fetchReports()
       return data
     } catch (err: any) {
-      console.error('Error generating report:', err)
+      logger.log('Error generating report:', err)
       toast.error('Failed to generate report', { description: err.message })
       throw err
     } finally {
@@ -161,7 +162,7 @@ export function useReports(suiteId?: string) {
       toast.success('Report regenerated successfully')
       await fetchReports()
     } catch (err: any) {
-      console.error('Error regenerating report:', err)
+      logger.log('Error regenerating report:', err)
       toast.error('Failed to regenerate report', { description: err.message })
     } finally {
       setGenerating(null)
@@ -182,7 +183,7 @@ export function useReports(suiteId?: string) {
       toast.success('Report deleted')
       await fetchReports()
     } catch (err: any) {
-      console.error('Error deleting report:', err)
+      logger.log('Error deleting report:', err)
       toast.error('Failed to delete report', { description: err.message })
     }
   }

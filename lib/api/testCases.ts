@@ -4,6 +4,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { TestCase, Sprint } from '@/types/testRun.types';
+import { logger } from '@/lib/utils/logger';
 
 export async function getTestCases(suiteId: string): Promise<TestCase[]> {
   const supabase = createClient();
@@ -42,7 +43,7 @@ export async function getSprintTestCases(sprintId: string): Promise<TestCase[]> 
     .eq('sprint_id', sprintId);
 
   if (error) {
-    console.error('Error fetching sprint test cases:', error);
+    logger.log('Error fetching sprint test cases:', error);
     throw error;
   }
 

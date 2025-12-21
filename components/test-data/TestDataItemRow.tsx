@@ -5,6 +5,7 @@ import React, { useState } from 'react'
 import { TestDataItem } from '@/types/test-data'
 import { Copy, Check } from 'lucide-react'
 import { TableRow, TableGrid, TableCell, TableCheckbox } from '@/components/ui/Table'
+import { logger } from '@/lib/utils/logger';
 
 interface TestDataItemRowProps {
   item: TestDataItem
@@ -27,7 +28,7 @@ export default function TestDataItemRow({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error('Failed to copy:', err)
+      logger.log('Failed to copy:', err)
     }
   }
 

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { setCurrentSuite } from '@/lib/suites/session' // Import suite session helper
 import { toast } from 'sonner'
+import { logger } from '@/lib/utils/logger';
 import {
   Building2, Globe, Users, Loader2, CheckCircle2,
   ArrowRight, Sparkles, Folder, X, Plus
@@ -55,7 +56,7 @@ export default function OnboardingPage() {
 
       // ✅ If already completed onboarding, redirect to dashboard
       if (profileData.registration_completed) {
-        console.log('✅ Onboarding already complete, redirecting to dashboard')
+        logger.log('✅ Onboarding already complete, redirecting to dashboard')
         router.push('/dashboard')
         return
       }
@@ -76,7 +77,7 @@ export default function OnboardingPage() {
       }
 
     } catch (error) {
-      console.error('Error loading profile:', error)
+      logger.log('Error loading profile:', error)
       toast.error('Failed to load profile')
     } finally {
       setLoading(false)
@@ -177,7 +178,7 @@ export default function OnboardingPage() {
           .insert(invitations)
 
         if (inviteError) {
-          console.error('Invitation error:', inviteError)
+          logger.log('Invitation error:', inviteError)
           toast.error('Some invitations failed to send')
         } else {
           toast.success(`Sent ${validEmails.length} invitation${validEmails.length > 1 ? 's' : ''}!`)
@@ -215,7 +216,7 @@ export default function OnboardingPage() {
         ? (profile.organization_id || user.id)
         : user.id
 
-      console.log('Creating suite with:', { ownerType, ownerId, userId: user.id })
+      logger.log('Creating suite with:', { ownerType, ownerId, userId: user.id })
 
       // ✅ Include admins and members for organization suites
       const suiteData: any = {
@@ -241,15 +242,15 @@ export default function OnboardingPage() {
         .single()
 
       if (suiteError) {
-        console.error('Suite creation error:', suiteError)
+        logger.log('Suite creation error:', suiteError)
         throw suiteError
       }
 
-      console.log('✅ Suite created successfully:', suite)
+      logger.log('✅ Suite created successfully:', suite)
 
       // ✅ CRITICAL: Set this suite as the current suite in session
       await setCurrentSuite(suite.id)
-      console.log('✅ Set current suite in session:', suite.id)
+      logger.log('✅ Set current suite in session:', suite.id)
 
       // ✅ Mark onboarding as complete
       const { error: updateError } = await supabase
@@ -258,7 +259,7 @@ export default function OnboardingPage() {
         .eq('id', user.id)
 
       if (updateError) {
-        console.error('Profile update error:', updateError)
+        logger.log('Profile update error:', updateError)
         throw updateError
       }
 
@@ -283,7 +284,7 @@ export default function OnboardingPage() {
       router.push('/dashboard')
       router.refresh()
     } catch (error: any) {
-      console.error('Suite creation error:', error)
+      logger.log('Suite creation error:', error)
       toast.error(error.message || 'Failed to create test suite')
     } finally {
       setSaving(false)

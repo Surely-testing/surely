@@ -20,6 +20,8 @@ import { AssetLinkerCompact } from '@/components/relationships/AssetLinkerCompac
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/utils/logger';
+
 
 interface BugTableProps {
   bugs: BugWithCreator[];
@@ -56,7 +58,7 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
       toast.success('Status updated');
       onRefresh?.();
     } catch (error: any) {
-      console.error('Error updating status:', error);
+      logger.log('Error updating status:', error);
       toast.error('Failed to update status', { description: error.message });
     } finally {
       setUpdatingStatus(null);

@@ -29,8 +29,6 @@ export function DashboardShell({ user, profile, suites, children }: DashboardShe
   
   const { suite: currentSuite } = useSuiteContext()
 
-  console.log('DashboardShell - Current suite:', currentSuite?.id, currentSuite?.name)
-
   return (
     <RecordingProvider>
       <AIAssistantProvider

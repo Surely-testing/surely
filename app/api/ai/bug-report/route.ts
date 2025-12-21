@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { aiService } from '@/lib/ai/ai-service'
+import { logger } from '@/lib/utils/logger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('🐛 Generating bug report for:', prompt)
+    logger.log('🐛 Generating bug report for:', prompt)
 
     // Generate bug report using AI
     const result = await aiService.generateBugReport(
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
                    ''
     }
 
-    console.log('✅ Normalized bug report:', normalizedBugReport)
+    logger.log('✅ Normalized bug report:', normalizedBugReport)
 
     return NextResponse.json({ 
       success: true, 
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ Bug report generation error:', error)
+    logger.log('❌ Bug report generation error:', error)
     return NextResponse.json({ 
       success: false, 
       error: error.message || 'Internal server error',

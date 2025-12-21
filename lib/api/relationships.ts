@@ -4,6 +4,7 @@
 // ============================================
 
 import { createClient } from '@/lib/supabase/client';
+import { logger } from '@/lib/utils/logger';
 import { 
   AssetRelationship, 
   AssetRelationshipWithDetails, 
@@ -40,7 +41,7 @@ export const relationshipsApi = {
       if (error) throw error;
       return (data || []) as LinkedAsset[];
     } catch (error) {
-      console.error('Error fetching linked assets:', error);
+      logger.log('Error fetching linked assets:', error);
       return [] as LinkedAsset[];
     }
   },
@@ -59,7 +60,7 @@ export const relationshipsApi = {
       if (error) throw error;
       return data as AssetRelationshipWithDetails;
     } catch (error) {
-      console.error('Error fetching relationship:', error);
+      logger.log('Error fetching relationship:', error);
       throw error;
     }
   },
@@ -103,7 +104,7 @@ export const relationshipsApi = {
       if (error) throw error;
       return (data || 0) as number;
     } catch (error) {
-      console.error('Error fetching relationship count:', error);
+      logger.log('Error fetching relationship count:', error);
       return 0;
     }
   },
@@ -121,7 +122,7 @@ export const relationshipsApi = {
       if (error) throw error;
       return (data || []) as { relationship_type: string; count: number }[];
     } catch (error) {
-      console.error('Error fetching suite stats:', error);
+      logger.log('Error fetching suite stats:', error);
       return [] as { relationship_type: string; count: number }[];
     }
   }

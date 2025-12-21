@@ -23,6 +23,7 @@ import { MiniBugView } from './MiniBugView';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
 import { Pagination } from '@/components/shared/Pagination';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { logger } from '@/lib/utils/logger';
 
 interface BugTrackingProps {
   suiteId: string;
@@ -161,7 +162,7 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
       const { data: bugsData, error: bugsError } = await query;
 
       if (bugsError) {
-        console.error('Error fetching bugs:', bugsError);
+        logger.log('Error fetching bugs:', bugsError);
         setError(bugsError.message);
         toast.error('Failed to fetch bugs', {
           description: bugsError.message
@@ -198,7 +199,7 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
 
       setBugs(transformedData);
     } catch (error: any) {
-      console.error('Error in fetchBugs:', error);
+      logger.log('Error in fetchBugs:', error);
       setError(error?.message || 'Failed to fetch bugs');
     } finally {
       setLoading(false);
@@ -236,7 +237,7 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
           setConfirmDialog({ ...confirmDialog, isOpen: false });
           toast.success('Bug deleted successfully');
         } catch (error: any) {
-          console.error('Error deleting bug:', error);
+          logger.log('Error deleting bug:', error);
           toast.error('Failed to delete bug', {
             description: error?.message
           });
@@ -310,7 +311,7 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
       }
       setSelectedBugIds([]);
     } catch (error: any) {
-      console.error('Bulk action error:', error);
+      logger.log('Bulk action error:', error);
       toast.error('Bulk action failed', {
         description: error?.message
       });
@@ -340,7 +341,7 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
       fetchBugs();
       toast.success('Bug updated successfully');
     } catch (error: any) {
-      console.error('Error updating bug:', error);
+      logger.log('Error updating bug:', error);
       toast.error('Failed to update bug', {
         description: error?.message
       });
@@ -511,7 +512,7 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
           actions={[
             {
               label: 'Create Bug Report',
-              onClick: onCreateClick || (() => console.log('Create bug')),
+              onClick: onCreateClick || (() => logger.log('Create bug')),
               variant: 'primary',
               icon: Plus,
             },

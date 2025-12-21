@@ -5,6 +5,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { toast } from 'sonner';
+import { logger } from '@/lib/utils/logger';
 
 // ============================================
 // Fetch Test Runs
@@ -131,7 +132,7 @@ export function useCreateTestRun(suiteId: string) {
       toast.success('Test run created successfully');
     },
     onError: (error: any) => {
-      console.error('Error creating test run:', error);
+      logger.log('Error creating test run:', error);
       toast.error('Failed to create test run');
     },
   });
@@ -212,7 +213,7 @@ export function useUpdateTestRun(suiteId: string) {
       toast.success('Test run updated successfully');
     },
     onError: (error: any) => {
-      console.error('Error updating test run:', error);
+      logger.log('Error updating test run:', error);
       toast.error('Failed to update test run');
     },
   });
@@ -239,7 +240,7 @@ export function useDeleteTestRun(suiteId: string) {
       toast.success('Test run deleted successfully');
     },
     onError: (error: any) => {
-      console.error('Error deleting test run:', error);
+      logger.log('Error deleting test run:', error);
       toast.error('Failed to delete test run');
     },
   });
@@ -312,7 +313,7 @@ export function useUpdateTestRunResult(testRunId: string) {
       toast.success('Test result updated');
     },
     onError: (error: any) => {
-      console.error('Error updating test result:', error);
+      logger.log('Error updating test result:', error);
       toast.error('Failed to update test result');
     },
   });
@@ -346,7 +347,7 @@ export function useExecuteTestRun() {
       toast.success('Test run started');
     },
     onError: (error: any) => {
-      console.error('Error executing test run:', error);
+      logger.log('Error executing test run:', error);
       toast.error('Failed to start test run');
     },
   });

@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * POST /api/recordings/upload
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.error('Auth error:', authError);
+      logger.log('Auth error:', authError);
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Upload request:', {
+    logger.log('Upload request:', {
       fileName: videoFile.name,
       fileSize: `${(videoFile.size / 1024 / 1024).toFixed(2)} MB`,
       fileType: videoFile.type,
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (suiteError || !suite) {
-      console.error('Suite error:', suiteError);
+      logger.log('Suite error:', suiteError);
       return NextResponse.json(
         { error: 'Test suite not found' },
         { status: 404 }
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     const buffer = new Uint8Array(arrayBuffer);
 
     // Upload to Supabase Storage
-    console.log('Uploading to Supabase Storage...');
+    logger.log('Uploading to Supabase Storage...');
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('recordings') // Bucket name
       .upload(fileName, buffer, {
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
+      logger.log('Upload error:', uploadError);
       return NextResponse.json(
         { error: `Upload failed: ${uploadError.message}` },
         { status: 500 }
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     const videoUrl = urlData.publicUrl;
 
-    console.log('Upload successful:', videoUrl);
+    logger.log('Upload successful:', videoUrl);
 
     // Log activity
     await supabase.from('activity_logs').insert({
@@ -134,12 +135,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    logger.log('Upload error:', error);
 
     if (error && typeof error === 'object') {
       const err = error as any;
       
-      console.error('Error details:', {
+      logger.log('Error details:', {
         message: err.message,
         code: err.code,
         stack: err.stack,

@@ -5,6 +5,7 @@
 
 import { useEffect } from 'react'
 import { Button } from '../components/ui/Button'
+import { logger } from '@/lib/utils/logger';
 
 export default function RootError({
   error,
@@ -14,7 +15,7 @@ export default function RootError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Root error:', error)
+    logger.log('Root error:', error)
   }, [error])
 
   return (

@@ -5,6 +5,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
+import { logger } from '@/lib/utils/logger';
 import { 
   MoreVertical, 
   Calendar, 
@@ -210,7 +211,7 @@ export function TestCaseTable({
         onSelectionChange([])
       }
     } catch (error) {
-      console.error('Bulk action failed:', error)
+      logger.log('Bulk action failed:', error)
     } finally {
       setLoadingActions(prev => prev.filter(a => a !== actionId))
     }

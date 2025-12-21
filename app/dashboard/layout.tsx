@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentSuiteFromSession } from '@/lib/suites/session'
 import { SuiteContextProvider } from '@/providers/SuiteContextProvider'
 import { DashboardShell } from '@/components/dashboard/DashboardShell'
+import { logger } from '@/lib/utils/logger';
 
 export default async function DashboardLayout({
   children,
@@ -20,8 +21,6 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  console.log('Dashboard Layout - User:', user.id)
-
   // ✅ Get user profile to check registration status
   const { data: profile } = await supabase
     .from('profiles')
@@ -32,14 +31,12 @@ export default async function DashboardLayout({
   // ✅ If registration not complete, redirect to onboarding
   // This should never happen if login/middleware work correctly, but it's a safety check
   if (!profile || !profile.registration_completed) {
-    console.log('Registration not complete, redirecting to onboarding')
+    logger.log('Registration not complete, redirecting to onboarding')
     redirect('/onboarding')
   }
 
   // ✅ Get current suite from session
   const suiteId = await getCurrentSuiteFromSession()
-
-  console.log('uite ID from session:', suiteId)
 
   // ✅ Get all accessible test suites for suite switcher
   const { data: suites, error: suitesError } = await supabase
@@ -48,11 +45,11 @@ export default async function DashboardLayout({
     .or(`owner_id.eq.${user.id},admins.cs.{${user.id}},members.cs.{${user.id}}`)
     .order('created_at', { ascending: false })
 
-  console.log('All suites:', suites?.length || 0, 'Error:', suitesError)
+  logger.log('All suites:', suites?.length || 0, 'Error:', suitesError)
 
   // ✅ If no suites exist at all, something went wrong - redirect to onboarding
   if (!suites || suites.length === 0) {
-    console.log('No suites found, redirecting to onboarding')
+    logger.log('No suites found, redirecting to onboarding')
     redirect('/onboarding')
   }
 
@@ -62,7 +59,7 @@ export default async function DashboardLayout({
   if (!suiteIdToFetch || !suites.find(s => s.id === suiteIdToFetch)) {
     // Use the first available suite if no valid suite from session
     suiteIdToFetch = suites[0].id
-    console.log('Using first available suite:', suiteIdToFetch)
+    logger.log('Using first available suite:', suiteIdToFetch)
   }
 
   // ✅ Fetch full suite details with all required fields
@@ -72,10 +69,8 @@ export default async function DashboardLayout({
     .eq('id', suiteIdToFetch)
     .single()
 
-  console.log('Suite details:', suite?.id, suite?.name, 'Error:', suiteError)
-
   if (!suite) {
-    console.log('Failed to fetch suite details')
+    logger.log('Failed to fetch suite details')
     redirect('/onboarding')
   }
 

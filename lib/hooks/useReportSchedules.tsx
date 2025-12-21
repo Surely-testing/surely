@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ReportScheduleWithReport, ReportScheduleFormData } from '@/types/report.types'
 import { toast } from 'sonner'
+import { logger } from '@/lib/utils/logger';
 
 export function useReportSchedules(suiteId?: string) {
   const [schedules, setSchedules] = useState<ReportScheduleWithReport[]>([])
@@ -40,7 +41,7 @@ export function useReportSchedules(suiteId?: string) {
       
       setSchedules(validSchedules)
     } catch (error: any) {
-      console.error('Error fetching schedules:', error)
+      logger.log('Error fetching schedules:', error)
       toast.error('Failed to load schedules', { description: error.message })
     } finally {
       setLoading(false)
@@ -78,7 +79,7 @@ export function useReportSchedules(suiteId?: string) {
       await fetchSchedules()
       return data
     } catch (error: any) {
-      console.error('Error creating schedule:', error)
+      logger.log('Error creating schedule:', error)
       toast.error('Failed to create schedule', { description: error.message })
       return null
     }
@@ -107,7 +108,7 @@ export function useReportSchedules(suiteId?: string) {
       toast.success('Schedule updated')
       await fetchSchedules()
     } catch (error: any) {
-      console.error('Error updating schedule:', error)
+      logger.log('Error updating schedule:', error)
       toast.error('Failed to update schedule', { description: error.message })
     }
   }
@@ -124,7 +125,7 @@ export function useReportSchedules(suiteId?: string) {
       toast.success(isActive ? 'Schedule activated' : 'Schedule paused')
       await fetchSchedules()
     } catch (error: any) {
-      console.error('Error toggling schedule:', error)
+      logger.log('Error toggling schedule:', error)
       toast.error('Failed to toggle schedule', { description: error.message })
     }
   }
@@ -143,7 +144,7 @@ export function useReportSchedules(suiteId?: string) {
       toast.success('Schedule deleted')
       await fetchSchedules()
     } catch (error: any) {
-      console.error('Error deleting schedule:', error)
+      logger.log('Error deleting schedule:', error)
       toast.error('Failed to delete schedule', { description: error.message })
     }
   }
@@ -171,7 +172,7 @@ export function useReportSchedules(suiteId?: string) {
       toast.success('Report scheduled for generation')
       await fetchSchedules()
     } catch (error: any) {
-      console.error('Error running schedule:', error)
+      logger.log('Error running schedule:', error)
       toast.error('Failed to run schedule', { description: error.message })
     }
   }

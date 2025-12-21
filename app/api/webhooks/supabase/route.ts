@@ -4,6 +4,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/utils/logger';
 
 // Verify webhook signature (you should add a secret to env)
 const WEBHOOK_SECRET = process.env.SUPABASE_WEBHOOK_SECRET
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
     switch (table) {
       case 'profiles': {
         if (type === 'INSERT') {
-          console.log('New profile created:', record.id)
+          logger.log('New profile created:', record.id)
           // Add any post-registration logic here
         }
         break
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
 
       case 'test_suites': {
         if (type === 'INSERT') {
-          console.log('New test suite created:', record.id)
+          logger.log('New test suite created:', record.id)
           // You could trigger notifications, analytics, etc.
         }
         break
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
 
       case 'bugs': {
         if (type === 'INSERT') {
-          console.log('New bug reported:', record.id)
+          logger.log('New bug reported:', record.id)
           // Could send notifications to assigned users
         }
         break
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
         if (type === 'UPDATE') {
           // Handle subscription status changes
           if (old_record.status !== record.status) {
-            console.log(`Subscription ${record.id} status changed: ${old_record.status} -> ${record.status}`)
+            logger.log(`Subscription ${record.id} status changed: ${old_record.status} -> ${record.status}`)
             
             // Handle trial expiration
             if (record.status === 'trialing' && record.current_period_end) {
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
               
               if (expirationDate <= now) {
                 // Trial expired - downgrade to free tier or handle accordingly
-                console.log('Trial expired for user:', record.user_id)
+                logger.log('Trial expired for user:', record.user_id)
               }
             }
           }
@@ -73,12 +74,12 @@ export async function POST(req: Request) {
       }
 
       default:
-        console.log(`Unhandled table: ${table}`)
+        logger.log(`Unhandled table: ${table}`)
     }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('Supabase webhook error:', error)
+    logger.log('Supabase webhook error:', error)
     return NextResponse.json(
       { error: 'Webhook handler failed', message: error.message },
       { status: 500 }

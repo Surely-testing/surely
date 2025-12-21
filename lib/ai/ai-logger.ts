@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import type { AIUsageLogInput, UsageStats } from './types'
+import { logger } from '@/lib/utils/logger';
 
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,14 +54,14 @@ export class AILogger {
         .single()
 
       if (error) {
-        console.error('Failed to log AI usage:', error)
+        logger.log('Failed to log AI usage:', error)
         return { success: false, error: error.message }
       }
 
-      console.log('✅ AI usage logged:', log.id)
+      logger.log('✅ AI usage logged:', log.id)
       return { success: true, id: data.id }
     } catch (error: any) {
-      console.error('Exception logging AI usage:', error)
+      logger.log('Exception logging AI usage:', error)
       return { success: false, error: error.message }
     }
   }
@@ -108,7 +109,7 @@ export class AILogger {
 
       return { success: true, data: stats }
     } catch (error: any) {
-      console.error('Failed to get usage stats:', error)
+      logger.log('Failed to get usage stats:', error)
       return { success: false, error: error.message }
     }
   }
@@ -148,7 +149,7 @@ export class AILogger {
 
       return { success: true, data: stats }
     } catch (error: any) {
-      console.error('Failed to get user stats:', error)
+      logger.log('Failed to get user stats:', error)
       return { success: false, error: error.message }
     }
   }
@@ -167,7 +168,7 @@ export class AILogger {
 
       return { success: true, data }
     } catch (error: any) {
-      console.error('Failed to get recent operations:', error)
+      logger.log('Failed to get recent operations:', error)
       return { success: false, error: error.message }
     }
   }
@@ -195,7 +196,7 @@ export class AILogger {
 
       return { success: true, data: grouped }
     } catch (error: any) {
-      console.error('Failed to get cost breakdown:', error)
+      logger.log('Failed to get cost breakdown:', error)
       return { success: false, error: error.message }
     }
   }

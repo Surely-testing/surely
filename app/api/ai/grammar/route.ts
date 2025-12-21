@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { aiService } from '@/lib/ai/ai-service'
+import { logger } from '@/lib/utils/logger';
 
 // ============================================
 // FILE: app/api/ai/grammar/route.ts
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
 
   } catch (error: any) {
-    console.error('Grammar Check API Error:', error)
+    logger.log('Grammar Check API Error:', error)
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

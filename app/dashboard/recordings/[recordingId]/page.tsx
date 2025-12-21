@@ -6,8 +6,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { RecordingPlayer } from '@/components/Recordings/RecordingPlayer';
-import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { logger } from '@/lib/utils/logger';
 
 interface PageProps {
   params: Promise<{ recordingId: string }>;
@@ -37,7 +36,7 @@ export default async function RecordingDetailPage({ params }: PageProps) {
     .single();
 
   if (recordingError || !recording) {
-    console.error('Recording fetch error:', recordingError);
+    logger.log('Recording fetch error:', recordingError);
     notFound();
   }
 
@@ -49,7 +48,7 @@ export default async function RecordingDetailPage({ params }: PageProps) {
     .single();
 
   if (suiteError || !suite) {
-    console.error('Suite fetch error:', suiteError);
+    logger.log('Suite fetch error:', suiteError);
     notFound();
   }
 

@@ -7,6 +7,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { RecordingPreview, ConsoleLog, NetworkLog, RecordingMetadata } from '@/types/recording.types';
 import { toast } from 'sonner';
+import { logger } from '@/lib/utils/logger';
 
 // CONFIGURATION
 const MAX_RECORDING_DURATION = 300; // 5 minutes in seconds
@@ -183,9 +184,9 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
           },
         });
         micStreamRef.current = micStream;
-        console.log('✓ Microphone access granted');
+        logger.log('✓ Microphone access granted');
       } catch (micError) {
-        console.error('Microphone access denied:', micError);
+        logger.log('Microphone access denied:', micError);
         throw new Error('Microphone access is required for recording. Please allow microphone permissions and try again.');
       }
 
@@ -217,9 +218,9 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
           new MediaStream(systemAudioTracks)
         );
         systemAudioSource.connect(destination);
-        console.log('✓ System audio mixed');
+        logger.log('✓ System audio mixed');
       } else {
-        console.log('ℹ No system audio from tab/window');
+        logger.log('ℹ No system audio from tab/window');
       }
 
       // Add microphone audio with gain control for muting
@@ -234,7 +235,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         micSourceRef.current = micSource;
         micGainRef.current = micGain;
         
-        console.log('✓ Microphone audio mixed');
+        logger.log('✓ Microphone audio mixed');
       }
 
       // Create combined stream with video + mixed audio
@@ -250,7 +251,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         combinedStream.addTrack(track);
       });
 
-      console.log('Combined stream:', {
+      logger.log('Combined stream:', {
         video: combinedStream.getVideoTracks().length,
         audio: combinedStream.getAudioTracks().length,
       });
@@ -298,7 +299,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       }, 1000);
 
     } catch (err) {
-      console.error('Error starting recording:', err);
+      logger.log('Error starting recording:', err);
       setError(
         err instanceof Error 
           ? err.message 
@@ -379,7 +380,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
           metadata,
         };
 
-        console.log('Recording complete:', {
+        logger.log('Recording complete:', {
           duration: finalDuration,
           size: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
           resolution,

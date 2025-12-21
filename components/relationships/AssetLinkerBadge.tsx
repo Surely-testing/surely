@@ -7,9 +7,9 @@
 import React, { useState, useEffect } from 'react';
 import { relationshipsApi } from '@/lib/api/relationships';
 import { LinkedAsset, AssetType } from '@/types/relationships.types';
-import { Badge } from '@/components/ui/Badge';
 import { Link as LinkIcon, ExternalLink, Plus } from 'lucide-react';
 import LinkAssetModal from './LinkAssetsModal';
+import { logger } from '@/lib/utils/logger';
 
 interface AssetLinkerCompactProps {
   assetType: AssetType;
@@ -40,7 +40,7 @@ export function AssetLinkerCompact({
       const assets = await relationshipsApi.getLinkedAssets(assetType, assetId);
       setLinkedAssets(assets);
     } catch (error) {
-      console.error('Error fetching linked assets:', error);
+      logger.log('Error fetching linked assets:', error);
     } finally {
       setLoading(false);
     }

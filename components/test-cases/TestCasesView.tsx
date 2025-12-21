@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Search, RefreshCw, Filter, Upload, Sparkles, Play, GitBranch, ChevronLeft, Grid, List, FileQuestion } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { logger } from '@/lib/utils/logger';
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { TestCaseForm } from './TestCaseForm'
@@ -68,7 +69,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       if (error) throw error
       setTestCases(data || [])
     } catch (err: any) {
-      console.error('Error fetching test cases:', err)
+      logger.log('Error fetching test cases:', err)
       toast.error('Failed to load test cases', { description: err.message })
     } finally {
       setIsLoading(false)
@@ -267,7 +268,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       await fetchTestCases()
       setSelectedIds([])
     } catch (error: any) {
-      console.error('Bulk action failed:', error)
+      logger.log('Bulk action failed:', error)
       toast.error('Action failed', { description: error.message })
     }
   }
@@ -288,7 +289,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       if (error) throw error
       toast.success('Test case deleted')
     } catch (error: any) {
-      console.error('Delete failed:', error)
+      logger.log('Delete failed:', error)
       toast.error('Failed to delete test case', { description: error.message })
     }
   }
@@ -303,7 +304,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       if (error) throw error
       toast.success('Test case archived')
     } catch (error: any) {
-      console.error('Archive failed:', error)
+      logger.log('Archive failed:', error)
       toast.error('Failed to archive test case', { description: error.message })
     }
   }
@@ -331,7 +332,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       if (insertError) throw insertError
       toast.success('Test case duplicated')
     } catch (error: any) {
-      console.error('Duplicate failed:', error)
+      logger.log('Duplicate failed:', error)
       toast.error('Failed to duplicate test case', { description: error.message })
     }
   }

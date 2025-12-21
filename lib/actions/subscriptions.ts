@@ -6,6 +6,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe/server'
+import { logger } from '@/lib/utils/logger';
 
 export async function createCheckoutSession(priceId: string) {
   const supabase = await createClient()
@@ -47,7 +48,7 @@ export async function createCheckoutSession(priceId: string) {
 
     return { success: true, url: session.url }
   } catch (error: any) {
-    console.error('Checkout session error:', error)
+    logger.log('Checkout session error:', error)
     return { error: error.message || 'Failed to create checkout session' }
   }
 }
@@ -78,7 +79,7 @@ export async function createPortalSession() {
 
     return { success: true, url: session.url }
   } catch (error: any) {
-    console.error('Portal session error:', error)
+    logger.log('Portal session error:', error)
     return { error: error.message || 'Failed to create portal session' }
   }
 }
@@ -121,7 +122,7 @@ export async function cancelSubscription() {
     revalidatePath('/settings/organization')
     return { success: true }
   } catch (error: any) {
-    console.error('Cancel subscription error:', error)
+    logger.log('Cancel subscription error:', error)
     return { error: error.message || 'Failed to cancel subscription' }
   }
 }

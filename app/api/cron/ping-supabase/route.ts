@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/client'
+import { logger } from '@/lib/utils/logger';
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -17,7 +18,7 @@ export async function GET() {
       .limit(1)
 
     if (error) {
-      console.error('Ping failed:', error)
+      logger.log('Ping failed:', error)
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
@@ -32,7 +33,7 @@ export async function GET() {
       message: 'Supabase is alive'
     })
   } catch (err) {
-    console.error('Ping error:', err)
+    logger.log('Ping error:', err)
     return NextResponse.json(
       { success: false, error: 'Unknown error' },
       { status: 500 }

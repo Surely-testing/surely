@@ -12,6 +12,7 @@ import { LayoutGrid, Crown, Shield, Users, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { SuiteDetailsModal } from './SuiteDetailsModal';
 import { createClient } from '@/lib/supabase/client';
+import { logger } from '@/lib/utils/logger';
 
 interface SuitesViewProps {
   ownedSuites: any[];
@@ -80,7 +81,7 @@ export default function SuitesView({
 
       return suite;
     } catch (error) {
-      console.error('Error fetching suite details:', error);
+      logger.log('Error fetching suite details:', error);
       return null;
     } finally {
       setLoadingSuite(false);

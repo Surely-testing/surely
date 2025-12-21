@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/Dropdown'
 import { cn } from '@/lib/utils/cn'
+import { logger } from '@/lib/utils/logger'
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   meeting_notes: 'Meeting Notes',
@@ -103,17 +104,17 @@ export function DocumentsGrid({ documents, onOpen, selectedDocIds, onToggleSelec
 
   const handleShare = (e: React.MouseEvent, doc: Document) => {
     e.stopPropagation()
-    console.log('Share document:', doc.id)
+    logger.log('Share document:', doc.id)
   }
 
   const handleDelete = (e: React.MouseEvent, doc: Document) => {
     e.stopPropagation()
-    console.log('Delete document:', doc.id)
+    logger.log('Delete document:', doc.id)
   }
 
   const handleArchive = (e: React.MouseEvent, doc: Document) => {
     e.stopPropagation()
-    console.log('Archive document:', doc.id)
+    logger.log('Archive document:', doc.id)
   }
 
   return (

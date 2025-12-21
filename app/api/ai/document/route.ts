@@ -1,9 +1,10 @@
 // ============================================
-// FILE: app/api/ai/documentation/route.ts
+// FILE: app/api/ai/document/route.ts
 // ============================================
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { aiService } from '@/lib/ai/ai-service'
+import { logger } from '@/lib/utils/logger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const docType = documentType || content.type || 'general'
-    console.log(`📄 Generating ${docType} documentation`)
+    logger.log(`📄 Generating ${docType} documentation`)
 
     // Generate documentation using AI
     const result = await aiService.generateDocumentation(content, docType)
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
       documentType: docType
     }
 
-    console.log(`✅ Generated ${docType} documentation`)
+    logger.log(`✅ Generated ${docType} documentation`)
 
     return NextResponse.json({ 
       success: true, 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ Documentation generation error:', error)
+    logger.log('❌ Documentation generation error:', error)
     return NextResponse.json({ 
       success: false, 
       error: error.message || 'Internal server error',

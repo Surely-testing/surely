@@ -9,6 +9,7 @@ import { Upload, FileText, Download, ArrowLeft } from 'lucide-react'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { logger } from '@/lib/utils/logger';
 
 export default function ImportTestCasesPage({ params }: { params: { suiteId: string } }) {
   const router = useRouter()
@@ -36,7 +37,7 @@ export default function ImportTestCasesPage({ params }: { params: { suiteId: str
       toast.success('Test cases imported successfully')
       router.push(`/dashboard/test-cases`)
     } catch (error: any) {
-      console.error('Import failed:', error)
+      logger.log('Import failed:', error)
       toast.error('Failed to import test cases', { description: error.message })
     } finally {
       setIsUploading(false)

@@ -19,6 +19,7 @@ import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { AssetLinkerInline } from '@/components/relationships/AssetLinkerInline'
 import type { TestCase } from '@/types/test-case.types'
+import { logger } from '@/lib/utils/logger';
 
 interface DetailsDrawerProps {
     isOpen: boolean
@@ -98,10 +99,10 @@ export function DetailsDrawer({
 
                 fetchActivities()
             } catch (activityError) {
-                console.log('Activity logging not available')
+                logger.log('Activity logging not available')
             }
         } catch (error: any) {
-            console.error('Error updating step:', error)
+            logger.log('Error updating step:', error)
             toast.error('Failed to update step', { description: error.message })
         }
     }
@@ -140,10 +141,10 @@ export function DetailsDrawer({
 
                 fetchActivities()
             } catch (activityError) {
-                console.log('Activity logging not available')
+                logger.log('Activity logging not available')
             }
         } catch (error: any) {
-            console.error('Error adding step:', error)
+            logger.log('Error adding step:', error)
             toast.error('Failed to add step', { description: error.message })
         }
     }
@@ -181,10 +182,10 @@ export function DetailsDrawer({
 
                 fetchActivities()
             } catch (activityError) {
-                console.log('Activity logging not available')
+                logger.log('Activity logging not available')
             }
         } catch (error: any) {
-            console.error('Error removing step:', error)
+            logger.log('Error removing step:', error)
             toast.error('Failed to remove step', { description: error.message })
         }
     }
@@ -205,7 +206,7 @@ export function DetailsDrawer({
                 if (error) throw error
                 setSprints(data || [])
             } catch (error) {
-                console.error('Error fetching sprints:', error)
+                logger.log('Error fetching sprints:', error)
             }
         }
 
@@ -257,7 +258,7 @@ export function DetailsDrawer({
 
             setActivities(data || [])
         } catch (error) {
-            console.error('Error fetching activities:', error)
+            logger.log('Error fetching activities:', error)
         }
     }
 
@@ -328,7 +329,7 @@ export function DetailsDrawer({
 
                         return { success: true }
                     } catch (error) {
-                        console.error('Error uploading file:', file.name, error)
+                        logger.log('Error uploading file:', file.name, error)
                         return { success: false, fileName: file.name }
                     }
                 })
@@ -363,10 +364,10 @@ export function DetailsDrawer({
                 fetchActivities()
             } catch (activityError) {
                 // Silently fail if activity_logs doesn't exist
-                console.log('Activity logging not available')
+                logger.log('Activity logging not available')
             }
         } catch (error: any) {
-            console.error('Error adding comment:', error)
+            logger.log('Error adding comment:', error)
             toast.error('Failed to add comment', { description: error.message })
         }
     }
@@ -436,7 +437,7 @@ export function DetailsDrawer({
 
             setComments(formattedComments)
         } catch (error) {
-            console.error('Error fetching comments:', error)
+            logger.log('Error fetching comments:', error)
             // Don't show error toast, just set empty comments
             setComments([])
         }
@@ -479,7 +480,7 @@ export function DetailsDrawer({
                 setShowShareSuccess(false)
             }, 2000)
         } catch (error) {
-            console.error('Failed to copy link:', error)
+            logger.log('Failed to copy link:', error)
             toast.error('Failed to copy link')
         }
     }
@@ -510,12 +511,12 @@ export function DetailsDrawer({
                 })
 
             if (activityError) {
-                console.error('Failed to log activity:', activityError)
+                logger.log('Failed to log activity:', activityError)
             }
 
             fetchActivities()
         } catch (error: any) {
-            console.error('Error updating field:', error)
+            logger.log('Error updating field:', error)
             toast.error('Failed to update', { description: error.message })
         }
     }

@@ -14,6 +14,53 @@ export interface ModelConfig {
   description: string
 }
 
+export type Message = {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: Date
+  metadata?: {
+    generatedContent?: {
+      [x: string]: any
+      id: string
+      type: 'bug_report' | 'test_case' | 'test_cases' | 'report' | 'document'
+      data: any
+      isSaved?: boolean
+    }
+    [key: string]: any
+  }
+}
+
+export type AIGeneratedContent = {
+  id: string
+  type: 'bug_report' | 'test_case' | 'test_cases' | 'report' | 'document'
+  status: 'draft' | 'reviewed' | 'saved'
+  data: any
+  createdAt: Date
+}
+
+export type DashboardContext = {
+  currentPage: string
+  suiteId: string
+  suiteName: string
+  userId: string
+  userRole?: string
+  recentActions: string[]
+  pageData?: Record<string, any>
+}
+
+export type Suggestion = {
+  id: string
+  type: 'tip' | 'action' | 'insight' | 'warning'
+  title: string
+  description: string
+  action?: {
+    label: string
+    handler: () => void
+  }
+  priority: 'low' | 'medium' | 'high'
+  dismissed: boolean
+}
+
 export interface AICallOptions {
   type?: string
   temperature?: number

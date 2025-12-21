@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/Textarea'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils/cn'
+import { logger } from '@/lib/utils/logger';
 
 interface TestDataItemsViewProps {
   type: TestDataType
@@ -86,7 +87,7 @@ export default function TestDataItemsView({ type, onBack }: TestDataItemsViewPro
         throw new Error(result.error || 'Failed to generate test data')
       }
     } catch (error: any) {
-      console.error('AI generation error:', error)
+      logger.log('AI generation error:', error)
       const generatorKey = type.generator_type || 'generic'
       const generator = testDataGenerators[generatorKey as keyof typeof testDataGenerators] || testDataGenerators.generic
       const values = generator().slice(0, aiCount)

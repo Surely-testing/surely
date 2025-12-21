@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
+import { logger } from '@/lib/utils/logger';
 
 interface RecordingGridProps {
   recordings: Recording[];
@@ -64,7 +65,7 @@ export function RecordingGrid({
         onDelete?.();
       }
     } catch (error) {
-      console.error('Delete error:', error);
+      logger.log('Delete error:', error);
       toast.error('Failed to delete recording', { id: toastId });
     } finally {
       setLocalDeletingId(null);
@@ -231,7 +232,7 @@ function RecordingCard({
     hoverTimeoutRef.current = setTimeout(() => {
       if (recording.url && videoRef.current) {
         videoRef.current.play().catch((err) => {
-          console.log('Autoplay prevented:', err);
+          logger.log('Autoplay prevented:', err);
         });
         setShowVideo(true);
       }

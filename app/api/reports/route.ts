@@ -3,6 +3,7 @@
 // ============================================
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/utils/logger';
 
 export async function GET(req: NextRequest) {
   try {
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: report })
   } catch (error: any) {
-    console.error('Create report error:', error)
+    logger.log('Create report error:', error)
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 }

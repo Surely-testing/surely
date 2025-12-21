@@ -5,6 +5,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
+import { logger } from '@/lib/utils/logger';
 
 type TypedSupabaseClient = SupabaseClient<Database>;
 
@@ -511,7 +512,7 @@ export async function canUserAccessSuite(
   });
 
   if (error) {
-    console.error('Permission check error:', error);
+    logger.log('Permission check error:', error);
     return false;
   }
 
@@ -529,7 +530,7 @@ export async function canUserAdminSuite(
   });
 
   if (error) {
-    console.error('Permission check error:', error);
+    logger.log('Permission check error:', error);
     return false;
   }
 
@@ -547,7 +548,7 @@ export async function isUserOrgAdmin(
   });
 
   if (error) {
-    console.error('Permission check error:', error);
+    logger.log('Permission check error:', error);
     return false;
   }
 

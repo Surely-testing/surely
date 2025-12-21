@@ -5,6 +5,7 @@
 
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/utils/logger';
 
 // Initialize Stripe with latest stable API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
     } catch (err: any) {
-      console.error(`Webhook signature verification failed: ${err.message}`)
+      logger.log(`Webhook signature verification failed: ${err.message}`)
       return Response.json(
         { error: `Webhook Error: ${err.message}` },
         { status: 400 }
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
         // Get user ID from metadata
         const userId = session.metadata?.user_id
         if (!userId) {
-          console.error('No user_id in session metadata')
+          logger.log('No user_id in session metadata')
           break
         }
 
@@ -134,12 +135,12 @@ export async function POST(req: Request) {
       }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`)
+        logger.log(`Unhandled event type: ${event.type}`)
     }
 
     return Response.json({ received: true })
   } catch (error: any) {
-    console.error('Webhook error:', error)
+    logger.log('Webhook error:', error)
     return Response.json(
       { error: 'Webhook handler failed' },
       { status: 500 }

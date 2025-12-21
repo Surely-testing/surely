@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { logger } from '@/lib/utils/logger';
 
 interface SuggestionFormProps {
   suiteId: string;
@@ -113,7 +114,7 @@ export function SuggestionForm({ suiteId, suggestion, onSuccess, onCancel }: Sug
 
       onSuccess();
     } catch (error: any) {
-      console.error('Error saving suggestion:', error);
+      logger.log('Error saving suggestion:', error);
       toast.error('Failed to save suggestion', { description: error?.message });
     } finally {
       setIsSubmitting(false);

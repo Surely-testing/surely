@@ -24,6 +24,7 @@ import { aiService } from '@/lib/ai/ai-service';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { logger } from '@/lib/utils/logger';
 
 // AI Insight Types
 export interface AIInsight {
@@ -127,7 +128,7 @@ export function AIInsights({
   // Parse AI response to extract insights
   const parseAIInsights = (aiResponse: string): AIInsight[] => {
     try {
-      console.log('Parsing AI response...');
+      logger.log('Parsing AI response...');
       
       let jsonText = aiResponse.trim();
       
@@ -135,15 +136,15 @@ export function AIInsights({
       const jsonMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
         jsonText = jsonMatch[1].trim();
-        console.log('Extracted JSON from markdown block');
+        logger.log('Extracted JSON from markdown block');
       }
 
       const parsed = JSON.parse(jsonText);
-      console.log('Parsed JSON successfully:', parsed);
+      logger.log('Parsed JSON successfully:', parsed);
       
       // Validate and normalize the insights
       if (parsed.insights && Array.isArray(parsed.insights)) {
-        console.log(`Found ${parsed.insights.length} insights`);
+        logger.log(`Found ${parsed.insights.length} insights`);
         return parsed.insights.map((insight: any, index: number) => ({
           id: insight.id || `insight_${Date.now()}_${index}`,
           type: insight.type || 'info',
@@ -160,11 +161,11 @@ export function AIInsights({
         }));
       }
       
-      console.warn('No insights array found in parsed JSON');
+      logger.log('No insights array found in parsed JSON');
       return [];
     } catch (error) {
-      console.error('Failed to parse AI insights:', error);
-      console.error('AI Response was:', aiResponse);
+      logger.log('Failed to parse AI insights:', error);
+      logger.log('AI Response was:', aiResponse);
       return [];
     }
   };
@@ -187,7 +188,7 @@ export function AIInsights({
     setIsAnalyzing(true);
     setAnalysisError(null);
 
-    console.log('🤖 Starting AI analysis with:', {
+    logger.log('🤖 Starting AI analysis with:', {
       consoleLogs: consoleLogs.length,
       networkLogs: networkLogs.length,
       detectedIssues: detectedIssues.length,
@@ -281,7 +282,7 @@ Prioritize insights by severity and user impact. Include 3-10 insights maximum.`
         maxTokens: 3000
       });
 
-      console.log('AI Analysis result:', result);
+      logger.log('AI Analysis result:', result);
 
       if (result.success && result.data) {
         const aiResponse = result.data.content;
@@ -290,28 +291,28 @@ Prioritize insights by severity and user impact. Include 3-10 insights maximum.`
           const parsedInsights = parseAIInsights(aiResponse);
           
           if (parsedInsights.length > 0) {
-            console.log(`✅ Generated ${parsedInsights.length} insights from AI`);
+            logger.log(`✅ Generated ${parsedInsights.length} insights from AI`);
             setInsights(parsedInsights);
           } else {
-            console.warn('No valid insights parsed from AI response');
-            console.log('AI Response:', aiResponse);
+            logger.log('No valid insights parsed from AI response');
+            logger.log('AI Response:', aiResponse);
             setInsights([]);
             setAnalysisError('Could not parse insights from AI response');
           }
         } else {
-          console.warn('AI response is empty');
+          logger.log('AI response is empty');
           setInsights([]);
           setAnalysisError('AI returned empty response');
         }
         setHasAnalyzed(true);
       } else {
-        console.error('AI analysis failed:', result.error);
+        logger.log('AI analysis failed:', result.error);
         setInsights([]);
         setHasAnalyzed(true);
         setAnalysisError(result.error || 'Failed to analyze recording');
       }
     } catch (err: any) {
-      console.error('❌ AI analysis exception:', err);
+      logger.log('❌ AI analysis exception:', err);
       setInsights([]);
       setHasAnalyzed(true);
       setAnalysisError(err.message || 'Analysis failed');
@@ -324,7 +325,7 @@ Prioritize insights by severity and user impact. Include 3-10 insights maximum.`
   const startProgressiveDisplay = useCallback(() => {
     if (insights.length === 0) return;
 
-    console.log(`Starting progressive display of ${insights.length} insights`);
+    logger.log(`Starting progressive display of ${insights.length} insights`);
     setDisplayedInsights([]);
     setDisplayIndex(0);
     

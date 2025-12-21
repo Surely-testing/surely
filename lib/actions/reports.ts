@@ -6,6 +6,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logger } from '@/lib/utils/logger';
 import { 
   Report, 
   ReportFormData, 
@@ -37,7 +38,7 @@ export async function getReports(suiteId: string) {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching reports:', error);
+    logger.log('Error fetching reports:', error);
     return { data: null, error: error.message };
   }
 
@@ -62,7 +63,7 @@ export async function getReport(reportId: string) {
     .single();
 
   if (error) {
-    console.error('Error fetching report:', error);
+    logger.log('Error fetching report:', error);
     return { data: null, error: error.message };
   }
 
@@ -94,7 +95,7 @@ export async function createReport(formData: ReportFormData, suiteId: string) {
     .single();
 
   if (error) {
-    console.error('Error creating report:', error);
+    logger.log('Error creating report:', error);
     return { data: null, error: error.message };
   }
 
@@ -136,7 +137,7 @@ export async function regenerateReport(reportId: string) {
     .single();
 
   if (error) {
-    console.error('Error regenerating report:', error);
+    logger.log('Error regenerating report:', error);
     return { data: null, error: error.message };
   }
 
@@ -153,7 +154,7 @@ export async function deleteReport(reportId: string) {
     .eq('id', reportId);
 
   if (error) {
-    console.error('Error deleting report:', error);
+    logger.log('Error deleting report:', error);
     return { error: error.message };
   }
 
@@ -186,7 +187,7 @@ export async function getReportSchedules(suiteId?: string) {
   const { data, error } = await query;
 
   if (error) {
-    console.error('Error fetching schedules:', error);
+    logger.log('Error fetching schedules:', error);
     return { data: null, error: error.message };
   }
 
@@ -222,7 +223,7 @@ export async function createReportSchedule(
     .single();
 
   if (error) {
-    console.error('Error creating schedule:', error);
+    logger.log('Error creating schedule:', error);
     return { data: null, error: error.message };
   }
 
@@ -255,7 +256,7 @@ export async function updateReportSchedule(
     .single();
 
   if (error) {
-    console.error('Error updating schedule:', error);
+    logger.log('Error updating schedule:', error);
     return { data: null, error: error.message };
   }
 
@@ -276,7 +277,7 @@ export async function deleteReportSchedule(scheduleId: string) {
     .eq('id', scheduleId);
 
   if (error) {
-    console.error('Error deleting schedule:', error);
+    logger.log('Error deleting schedule:', error);
     return { error: error.message };
   }
 
@@ -306,7 +307,7 @@ export async function runReportScheduleNow(scheduleId: string) {
     .eq('id', scheduleId);
 
   if (error) {
-    console.error('Error running schedule:', error);
+    logger.log('Error running schedule:', error);
     return { error: error.message };
   }
 

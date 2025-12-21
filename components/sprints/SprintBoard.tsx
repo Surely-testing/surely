@@ -12,6 +12,7 @@ import { format, differenceInDays } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect, useRef } from 'react';
+import { logger } from '@/lib/utils/logger';
 
 interface SprintBoardProps {
   sprints: any[];
@@ -96,7 +97,7 @@ function SprintCard({ sprint, onEdit, onDelete, isSelected, onToggleSelection }:
     e.preventDefault();
     e.stopPropagation();
     setShowOptions(false);
-    console.log('SprintCard: Delete clicked for sprint:', sprint.id);
+    logger.log('SprintCard: Delete clicked for sprint:', sprint.id);
     if (onDelete) {
       onDelete(sprint.id);
     }

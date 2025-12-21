@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { SuggestionWithCreator, Suggestion } from '@/types/suggestion.types';
 import { toast } from 'sonner';
+import { logger } from '@/lib/utils/logger';
 
 interface UseSuggestionsOptions {
   status?: string;
@@ -78,7 +79,7 @@ export function useSuggestions(suiteId: string, options: UseSuggestionsOptions =
 
       setSuggestions(transformedData);
     } catch (err: any) {
-      console.error('Error fetching suggestions:', err);
+      logger.log('Error fetching suggestions:', err);
       setError(err.message || 'Failed to fetch suggestions');
       toast.error('Failed to load suggestions');
     } finally {
@@ -192,7 +193,7 @@ export function useSuggestions(suiteId: string, options: UseSuggestionsOptions =
 
       return true;
     } catch (err: any) {
-      console.error('Error voting on suggestion:', err);
+      logger.log('Error voting on suggestion:', err);
       toast.error('Failed to record vote');
       return false;
     }
@@ -230,7 +231,7 @@ export function useSuggestions(suiteId: string, options: UseSuggestionsOptions =
       fetchSuggestions();
       return true;
     } catch (err: any) {
-      console.error('Error updating suggestion status:', err);
+      logger.log('Error updating suggestion status:', err);
       toast.error('Failed to update suggestion status');
       return false;
     }
@@ -254,7 +255,7 @@ export function useSuggestions(suiteId: string, options: UseSuggestionsOptions =
       fetchSuggestions();
       return true;
     } catch (err: any) {
-      console.error('Error assigning suggestion:', err);
+      logger.log('Error assigning suggestion:', err);
       toast.error('Failed to assign suggestion');
       return false;
     }
@@ -295,7 +296,7 @@ export function useSuggestions(suiteId: string, options: UseSuggestionsOptions =
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
       return true;
     } catch (err: any) {
-      console.error('Error deleting suggestion:', err);
+      logger.log('Error deleting suggestion:', err);
       toast.error('Failed to delete suggestion');
       return false;
     }

@@ -220,6 +220,10 @@ export function AIGeneratedContentPanel({
                 <X className="w-4 h-4" />
               </button>
             </>
+          ) : item.status === 'saved' ? (
+            <div className="flex-1 px-4 py-2.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-sm font-semibold text-center border border-green-200 dark:border-green-800">
+              Saved to Database
+            </div>
           ) : (
             <>
               <button

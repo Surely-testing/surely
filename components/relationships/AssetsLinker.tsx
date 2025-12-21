@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import LinkAssetModal from './LinkAssetsModal';
+import { logger } from '@/lib/utils/logger';
 import { 
   Link as LinkIcon, 
   X, 
@@ -47,7 +48,7 @@ export function AssetLinker({ assetType, assetId, suiteId, onLink }: AssetLinker
       const assets = await relationshipsApi.getLinkedAssets(assetType, assetId);
       setLinkedAssets(assets);
     } catch (error) {
-      console.error('Error fetching linked assets:', error);
+      logger.log('Error fetching linked assets:', error);
     } finally {
       setLoading(false);
     }
@@ -60,7 +61,7 @@ export function AssetLinker({ assetType, assetId, suiteId, onLink }: AssetLinker
       await relationshipsApi.delete(relationshipId);
       fetchLinkedAssets();
     } catch (error) {
-      console.error('Error unlinking asset:', error);
+      logger.log('Error unlinking asset:', error);
     }
   };
 

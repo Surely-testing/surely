@@ -32,6 +32,7 @@ import {
   TableHeaderText,
   TableDescriptionText,
 } from '@/components/ui/Table';
+import { logger } from '@/lib/utils/logger';
 
 interface RecordingsViewProps {
   suiteId: string;
@@ -71,7 +72,7 @@ export function RecordingsView({
         setRecordings(suiteRecordings);
       }
     } catch (error) {
-      console.error('Failed to fetch recordings:', error);
+      logger.log('Failed to fetch recordings:', error);
       toast.error('Failed to load recordings');
     } finally {
       setIsLoading(false);
@@ -228,7 +229,7 @@ export function RecordingsView({
           // Fetch fresh data in background
           fetchRecordings();
         } catch (error) {
-          console.error('Delete error:', error);
+          logger.log('Delete error:', error);
           toast.error('Failed to delete recordings', { id: deleteToastId });
         } finally {
           setIsDeletingIds(new Set());

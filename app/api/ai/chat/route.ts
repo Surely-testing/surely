@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { aiService } from '@/lib/ai/ai-service'
+import { logger } from '@/lib/utils/logger';
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('📨 AI Chat Request (conversation only):', {
+    logger.log('📨 AI Chat Request (conversation only):', {
       message: message.substring(0, 100),
       hasContext: !!context,
       page: context?.currentPage
@@ -77,7 +78,7 @@ Current Context:
     }, systemPrompt)
 
     if (!result.success) {
-      console.error('❌ AI Service Error:', result.error)
+      logger.log('❌ AI Service Error:', result.error)
       return NextResponse.json(
         { 
           success: false, 
@@ -88,7 +89,7 @@ Current Context:
       )
     }
 
-    console.log('✅ AI chat response generated')
+    logger.log('✅ AI chat response generated')
 
     return NextResponse.json({
       success: true,
@@ -101,7 +102,7 @@ Current Context:
     })
 
   } catch (error: any) {
-    console.error('❌ API Route Error:', error)
+    logger.log('❌ API Route Error:', error)
     return NextResponse.json(
       { 
         success: false, 

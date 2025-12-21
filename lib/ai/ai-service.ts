@@ -3,6 +3,7 @@
 // Production-ready AI service with OpenRouter
 // ============================================
 import type { AICallOptions, AIResponse, ChatContext, TestCase, BugReport } from './types'
+import { logger } from '@/lib/utils/logger'
 
 export const AI_MODELS = {
   'openai/gpt-oss-20b:free': {
@@ -47,10 +48,6 @@ export class AIService {
 
     this.apiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ||
       process.env.OPENROUTER_API_KEY || ''
-
-    if (!this.apiKey) {
-      console.error('OpenRouter API key not configured')
-    }
   }
 
   private async rateLimit(): Promise<void> {
@@ -118,15 +115,6 @@ export class AIService {
         throw new Error('Empty response from AI service')
       }
 
-      if (options.type === 'dashboard_chat') {
-        text = text
-          .replace(/\*\*/g, '')
-          .replace(/\*/g, '')
-          .replace(/^#{1,6}\s+/gm, '')
-          .replace(/^\* /gm, '• ')
-          .replace(/^- /gm, '• ')
-      }
-
       const usage = data.usage || {}
       const inputTokens = usage.prompt_tokens || 0
       const outputTokens = usage.completion_tokens || 0
@@ -149,7 +137,7 @@ export class AIService {
         }
       }
     } catch (error: any) {
-      console.error('AI Service Error:', error)
+      logger.log('AI Service Error:', error)
       return {
         success: false,
         error: error.message || 'AI generation failed',
@@ -187,7 +175,7 @@ export class AIService {
         data: response.data
       }
     } catch (error: any) {
-      console.error('❌ Chat with context error:', error)
+      logger.log('❌ Chat with context error:', error)
       return {
         success: false,
         error: error.message,
@@ -198,7 +186,6 @@ export class AIService {
 
   private buildContextualSystemPrompt(context: ChatContext): string {
     const pageData = context.pageData || {}
-    
 
     // Extract page name from path
     const pathSegments = context.currentPage.split('/').filter(Boolean)
@@ -307,60 +294,127 @@ Remember: You have FULL ACCESS to all the data shown above. Use it to provide va
   }
 
   async generateTestCases(prompt: string, templateConfig: any = {}): Promise<AIResponse> {
-    const systemInstruction = `You are an expert QA engineer. Generate comprehensive test cases in JSON format.
+    const systemInstruction = `You are an expert QA engineer specializing in test case creation.
 
-REQUIRED FORMAT:
+Generate comprehensive test cases based on the user's requirements.
+
+CRITICAL: You MUST respond with ONLY valid JSON in this exact format, with NO markdown, NO code blocks, NO explanations:
+
 {
   "testCases": [
     {
       "id": "TC001",
       "title": "Test case title",
       "description": "What this test validates",
-      "priority": "high|medium|low",
-      "type": "functional|integration|regression|performance",
-      "preconditions": ["Precondition 1"],
+      "priority": "high",
+      "type": "functional",
+      "preconditions": ["User is logged in", "Test data is prepared"],
       "steps": [
         {
           "step": 1,
-          "action": "What to do",
-          "expectedResult": "What should happen"
+          "action": "Navigate to login page",
+          "expectedResult": "Login page loads successfully"
+        },
+        {
+          "step": 2,
+          "action": "Enter valid credentials",
+          "expectedResult": "Credentials are accepted"
         }
       ],
-      "expectedResult": "Overall expected outcome",
-      "testData": "Sample data needed",
-      "automationPotential": "high|medium|low"
+      "expectedResult": "User successfully logs in and sees dashboard",
+      "testData": "Email: test@example.com, Password: Test123!",
+      "automationPotential": "high"
     }
   ]
-}`
+}
 
-    const result = await this.callAI(
-      `Generate test cases for: ${prompt}\n\nTemplate preferences: ${JSON.stringify(templateConfig)}`,
-      {
-        type: 'test_cases',
-        temperature: 0.5,
-        systemInstruction
-      }
-    )
+RULES:
+- Generate 3-5 comprehensive test cases
+- Each test case MUST have at least 3-5 detailed steps
+- Priority must be one of: high, medium, low, critical
+- Type must be one of: functional, integration, regression, performance, security
+- automationPotential must be one of: high, medium, low
+- Include realistic preconditions and test data
+- Steps must have sequential step numbers, clear actions, and expected results
+- Return ONLY the JSON object, nothing else`
 
-    if (result.success && result.data) {
-      try {
-        const jsonMatch = result.data.content.match(/\{[\s\S]*\}/)?.[0]
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch)
-          return {
-            ...result,
-            data: {
-              ...result.data,
-              testCases: parsed.testCases || []
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Failed to parse test cases:', e)
-      }
+    const fullPrompt = templateConfig && Object.keys(templateConfig).length > 0
+      ? `Generate test cases for: ${prompt}\n\nTemplate preferences: ${JSON.stringify(templateConfig)}\n\nRespond with ONLY the JSON object, no markdown or explanations.`
+      : `Generate test cases for: ${prompt}\n\nRespond with ONLY the JSON object, no markdown or explanations.`
+
+    const result = await this.callAI(fullPrompt, {
+      type: 'test_cases',
+      temperature: 0.7,
+      maxTokens: 3000,
+      systemInstruction
+    })
+
+    if (!result.success || !result.data) {
+      logger.log('❌ AI call failed:', result.error)
+      return result
     }
 
-    return result
+    try {
+      let content = result.data.content.trim()
+      logger.log('📝 Raw AI Response:', content.substring(0, 200) + '...')
+
+      // Remove markdown code blocks if present
+      content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+
+      // Try to extract JSON object
+      let jsonStr = content
+
+      // Look for JSON object boundaries
+      const startIndex = content.indexOf('{')
+      const endIndex = content.lastIndexOf('}')
+
+      if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+        jsonStr = content.substring(startIndex, endIndex + 1)
+      }
+
+      logger.log('🔍 Extracted JSON:', jsonStr.substring(0, 200) + '...')
+
+      const parsed = JSON.parse(jsonStr)
+
+      // Validate the structure
+      if (!parsed.testCases || !Array.isArray(parsed.testCases)) {
+        logger.log('❌ Invalid structure: testCases not found or not an array')
+        return {
+          success: false,
+          error: 'Invalid response structure: missing testCases array',
+          userMessage: 'Failed to generate test cases. Please try again.'
+        }
+      }
+
+      if (parsed.testCases.length === 0) {
+        logger.log('❌ Empty test cases array')
+        return {
+          success: false,
+          error: 'Generated test cases array is empty',
+          userMessage: 'No test cases were generated. Please try with more specific requirements.'
+        }
+      }
+
+      logger.log(`✅ Successfully parsed ${parsed.testCases.length} test cases`)
+      logger.log('Sample test case:', JSON.stringify(parsed.testCases[0], null, 2))
+
+      return {
+        success: true,
+        data: {
+          ...result.data,
+          testCases: parsed.testCases
+        }
+      }
+    } catch (e: any) {
+      logger.log('❌ Failed to parse test cases JSON:', e.message)
+      logger.log('Content that failed to parse:', result.data.content.substring(0, 500))
+
+      return {
+        success: false,
+        error: `JSON parsing failed: ${e.message}`,
+        userMessage: 'Failed to process test cases. The AI response was not in the expected format.'
+      }
+    }
   }
 
   async generateBugReport(
@@ -416,7 +470,7 @@ REQUIRED FORMAT:
           }
         }
       } catch (e) {
-        console.error('Failed to parse bug report:', e)
+        logger.log('Failed to parse bug report:', e)
       }
     }
 
@@ -462,7 +516,7 @@ REQUIRED FORMAT:
           }
         }
       } catch (e) {
-        console.error('Failed to parse test data:', e)
+        logger.log('Failed to parse test data:', e)
       }
     }
 
@@ -551,7 +605,7 @@ Generate helpful suggestions for what the user should do next.`
           }
         }
       } catch (e) {
-        console.error('Failed to parse suggestions:', e)
+        logger.log('Failed to parse suggestions:', e)
       }
     }
 
@@ -633,7 +687,7 @@ Return JSON format:
           }
         }
       } catch (e) {
-        console.error('Failed to parse execution analysis:', e)
+        logger.log('Failed to parse execution analysis:', e)
       }
     }
 
@@ -697,7 +751,7 @@ ${item.context ? `Context: ${JSON.stringify(item.context)}` : ''}`
           }
         }
       } catch (e) {
-        console.error('Failed to parse risk assessment:', e)
+        logger.log('Failed to parse risk assessment:', e)
       }
     }
 
@@ -788,7 +842,7 @@ ${error.context ? `Context: ${JSON.stringify(error.context)}` : ''}`
           }
         }
       } catch (e) {
-        console.error('Failed to parse error explanation:', e)
+        logger.log('Failed to parse error explanation:', e)
       }
     }
 

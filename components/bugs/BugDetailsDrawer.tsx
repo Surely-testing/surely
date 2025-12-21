@@ -20,6 +20,7 @@ import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { AssetLinkerInline } from '@/components/relationships/AssetLinkerInline'
 import type { BugWithCreator, BugSeverity, BugStatus } from '@/types/bug.types'
+import { logger } from '@/lib/utils/logger'
 
 interface BugDetailsDrawerProps {
     isOpen: boolean
@@ -283,7 +284,7 @@ export function BugDetailsDrawer({
 
                 fetchActivities()
             } catch (activityError) {
-                console.log('Activity logging not available')
+                logger.log('Activity logging not available')
             }
         } catch (error: any) {
             console.error('Error adding comment:', error)
@@ -365,7 +366,7 @@ export function BugDetailsDrawer({
 
                 fetchActivities()
             } catch (activityError) {
-                console.log('Activity logging not available')
+                logger.log('Activity logging not available')
             }
         } catch (error: any) {
             console.error('Error updating field:', error)

@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useInviteMember } from '@/lib/hooks/useMembers';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { logger } from '@/lib/utils/logger';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 
 interface InviteMemberFormProps {
@@ -26,7 +27,7 @@ export function InviteMemberForm({ suiteId, onSuccess, onCancel }: InviteMemberF
       await inviteMutation.mutateAsync({ email, role });
       onSuccess();
     } catch (error) {
-      console.error('Failed to invite member:', error);
+      logger.log('Failed to invite member:', error);
     }
   };
 

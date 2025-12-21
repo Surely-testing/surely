@@ -5,6 +5,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/utils/logger';
 import { Recording, RecordingFormData, RecordingFilters } from '@/types/recording.types';
 import { revalidatePath } from 'next/cache';
 
@@ -56,7 +57,7 @@ export async function getRecordings(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching recordings:', error);
+    logger.log('Error fetching recordings:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to fetch recordings',
@@ -80,7 +81,7 @@ export async function getRecording(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching recording:', error);
+    logger.log('Error fetching recording:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to fetch recording',
@@ -129,7 +130,7 @@ export async function createRecording(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error creating recording:', error);
+    logger.log('Error creating recording:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to create recording',
@@ -158,7 +159,7 @@ export async function updateRecording(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error updating recording:', error);
+    logger.log('Error updating recording:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to update recording',
@@ -205,7 +206,7 @@ export async function deleteRecording(
         .remove([(recording.metadata as Record<string, any>).fileName]);
 
       if (storageError) {
-        console.error('Storage deletion error:', storageError);
+        logger.log('Storage deletion error:', storageError);
         // Continue anyway - we still want to delete the database record
       }
     }
@@ -257,7 +258,7 @@ export async function deleteRecording(
 
     return { success: true, error: null };
   } catch (error) {
-    console.error('Error deleting recording:', error);
+    logger.log('Error deleting recording:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to delete recording',
@@ -298,7 +299,7 @@ export async function uploadLogs(
 
     return { url: urlData.publicUrl, error: null };
   } catch (error) {
-    console.error('Error uploading logs:', error);
+    logger.log('Error uploading logs:', error);
     return {
       url: null,
       error: error instanceof Error ? error.message : 'Failed to upload logs',

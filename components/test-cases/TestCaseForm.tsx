@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select'
 import type { TestCase, TestCaseFormData, TestCasePriority } from '@/types/test-case.types'
 import type { Json } from '@/types/database.types'
+import { logger } from '@/lib/utils/logger';
 
 interface TestCaseFormProps {
   suiteId: string
@@ -116,7 +117,7 @@ export function TestCaseForm({ suiteId, testCase, onSuccess, onCancel }: TestCas
 
       onSuccess()
     } catch (err: any) {
-      console.error('Error saving test case:', err)
+      logger.log('Error saving test case:', err)
       toast.error('Failed to save test case', {
         description: err.message
       })
