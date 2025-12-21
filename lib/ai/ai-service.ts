@@ -1,81 +1,136 @@
 // ============================================
 // FILE: lib/ai/ai-service.ts
+// Production-ready AI service with OpenRouter
 // ============================================
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { AICallOptions, AIResponse, ChatContext, TestCase, BugReport } from './types'
 
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!)
-
 export const AI_MODELS = {
-  'gemini-2.0-flash-lite': {
-    name: 'gemini-2.0-flash-lite',
-    displayName: 'Gemini 2.0 Flash Lite',
-    inputCostPer1M: 0.00,
-    outputCostPer1M: 0.00,
-    contextWindow: 1000000,
-    description: 'Free model - fast and efficient'
+  'openai/gpt-oss-20b:free': {
+    name: 'openai/gpt-oss-20b:free',
+    displayName: 'GPT-OSS 20B (Free)',
+    inputCostPer1M: 0,
+    outputCostPer1M: 0,
+    contextWindow: 128000,
+    description: 'Free - OpenAI open-source model with reasoning'
   },
-  'gemini-1.5-flash-latest': {
-    name: 'gemini-1.5-flash-latest',
-    displayName: 'Gemini 1.5 Flash',
-    inputCostPer1M: 0.075,
-    outputCostPer1M: 0.30,
-    contextWindow: 1000000,
-    description: 'Fast and efficient for most tasks'
+  'moonshotai/kimi-k2:free': {
+    name: 'moonshotai/kimi-k2:free',
+    displayName: 'Kimi K2 (Free)',
+    inputCostPer1M: 0,
+    outputCostPer1M: 0,
+    contextWindow: 128000,
+    description: 'Free - Advanced reasoning and tool use'
   },
-  'gemini-1.5-pro-latest': {
-    name: 'gemini-1.5-pro-latest',
-    displayName: 'Gemini 1.5 Pro',
-    inputCostPer1M: 1.25,
-    outputCostPer1M: 5.00,
-    contextWindow: 2000000,
-    description: 'Advanced reasoning and complex tasks'
+  'google/gemini-flash-1.5-8b': {
+    name: 'google/gemini-flash-1.5-8b',
+    displayName: 'Gemini Flash 1.5 8B',
+    inputCostPer1M: 0.0375,
+    outputCostPer1M: 0.15,
+    contextWindow: 1000000,
+    description: 'Fast and affordable (paid)'
   }
 } as const
 
 export type ModelName = keyof typeof AI_MODELS
 
 export class AIService {
-  private currentModel: ModelName = 'gemini-2.0-flash-lite'
+  private currentModel: ModelName = 'openai/gpt-oss-20b:free'
+  private apiKey: string
+  private baseURL = 'https://openrouter.ai/api/v1/chat/completions'
+  private lastCallTime = 0
+  private minInterval = 1000
 
   constructor(initialModel?: ModelName) {
     if (initialModel && AI_MODELS[initialModel]) {
       this.currentModel = initialModel
     }
+
+    this.apiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ||
+      process.env.OPENROUTER_API_KEY || ''
+
+    if (!this.apiKey) {
+      console.error('OpenRouter API key not configured')
+    }
+  }
+
+  private async rateLimit(): Promise<void> {
+    const now = Date.now()
+    const timeSinceLastCall = now - this.lastCallTime
+
+    if (timeSinceLastCall < this.minInterval) {
+      const waitTime = this.minInterval - timeSinceLastCall
+      await new Promise(resolve => setTimeout(resolve, waitTime))
+    }
+
+    this.lastCallTime = Date.now()
   }
 
   async callAI(prompt: string, options: AICallOptions = {}): Promise<AIResponse> {
+    if (!this.apiKey) {
+      return {
+        success: false,
+        error: 'API key not configured',
+        userMessage: 'AI service is not properly configured. Please contact support.'
+      }
+    }
+
+    await this.rateLimit()
+
     try {
-      const modelName = options.model || this.currentModel
+      const modelName = (options.model || this.currentModel) as ModelName
       const modelConfig = AI_MODELS[modelName]
 
-      const model = genAI.getGenerativeModel({
-        model: modelConfig.name,
-        generationConfig: {
-          temperature: options.temperature || 0.7,
-          maxOutputTokens: options.maxTokens || 2048,
-        },
-        systemInstruction: options.systemInstruction
-      })
-
-      const result = await model.generateContent(prompt)
-      const response = result.response
-      let text = response.text()
-
-      // Clean markdown from chat responses
-      if (options.type === 'dashboard_chat') {
-        text = text.replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#{1,6}\s+/gm, '').replace(/^\* /gm, '• ').replace(/^- /gm, '• ')
+      if (!modelConfig) {
+        throw new Error(`Invalid model: ${modelName}`)
       }
 
-      const usage = response.usageMetadata as {
-        promptTokenCount?: number
-        candidatesTokenCount?: number
-        totalTokenCount?: number
-      } | undefined
+      const messages = [
+        ...(options.systemInstruction ? [{ role: 'system', content: options.systemInstruction }] : []),
+        { role: 'user', content: prompt }
+      ]
 
-      const inputTokens = usage?.promptTokenCount || 0
-      const outputTokens = usage?.candidatesTokenCount || 0
-      const totalTokens = usage?.totalTokenCount || 0
+      const response = await fetch(this.baseURL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+          'X-Title': 'SURELY QA Platform'
+        },
+        body: JSON.stringify({
+          model: modelConfig.name,
+          messages,
+          temperature: options.temperature ?? 0.7,
+          max_tokens: options.maxTokens ?? 2048
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error?.message || `API request failed with status ${response.status}`
+        throw new Error(errorMessage)
+      }
+
+      const data = await response.json()
+      let text = data.choices?.[0]?.message?.content || ''
+
+      if (!text) {
+        throw new Error('Empty response from AI service')
+      }
+
+      if (options.type === 'dashboard_chat') {
+        text = text
+          .replace(/\*\*/g, '')
+          .replace(/\*/g, '')
+          .replace(/^#{1,6}\s+/gm, '')
+          .replace(/^\* /gm, '• ')
+          .replace(/^- /gm, '• ')
+      }
+
+      const usage = data.usage || {}
+      const inputTokens = usage.prompt_tokens || 0
+      const outputTokens = usage.completion_tokens || 0
+      const totalTokens = usage.total_tokens || 0
 
       const inputCost = (inputTokens / 1000000) * modelConfig.inputCostPer1M
       const outputCost = (outputTokens / 1000000) * modelConfig.outputCostPer1M
@@ -103,34 +158,49 @@ export class AIService {
     }
   }
 
-  async chatWithContext(message: string, context: ChatContext): Promise<AIResponse> {
-    const systemPrompt = this.buildDashboardSystemPrompt(context)
+  async chatWithContext(
+    message: string,
+    context: ChatContext,
+    customSystemPrompt?: string // <-- ADD THIS PARAMETER
+  ): Promise<AIResponse> {
+    try {
+      // Use custom system prompt if provided, otherwise use default
+      const systemPrompt = customSystemPrompt || this.buildContextualSystemPrompt(context)
 
-    const conversationContext = context.conversationHistory
-      .slice(-5)
-      .map(msg => `${msg.role}: ${msg.content}`)
-      .join('\n\n')
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...(context.conversationHistory || []).map((msg: any) => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        { role: 'user', content: message }
+      ]
 
-    const fullPrompt = `${systemPrompt}
+      const response = await this.callAI(message, { systemInstruction: systemPrompt })
 
-CONVERSATION HISTORY:
-${conversationContext}
+      if (!response.success) {
+        return response
+      }
 
-USER: ${message}
-
-Respond naturally and professionally without markdown formatting. Use the data provided above to answer.`
-
-    return this.callAI(fullPrompt, {
-      type: 'dashboard_chat',
-      temperature: 0.7,
-      maxTokens: 1500
-    })
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error: any) {
+      console.error('❌ Chat with context error:', error)
+      return {
+        success: false,
+        error: error.message,
+        userMessage: 'Failed to generate response. Please try again.'
+      }
+    }
   }
 
-  private buildDashboardSystemPrompt(context: ChatContext): string {
+  private buildContextualSystemPrompt(context: ChatContext): string {
     const pageData = context.pageData || {}
+    
 
-    // Extract clean page name
+    // Extract page name from path
     const pathSegments = context.currentPage.split('/').filter(Boolean)
     const rawPageName = pathSegments[pathSegments.length - 1] || 'dashboard'
     const cleanPageName = rawPageName
@@ -141,44 +211,99 @@ Respond naturally and professionally without markdown formatting. Use the data p
     let dataSection = ''
     let hasData = false
 
+    // BUGS DATA
     if (pageData.bugs && Array.isArray(pageData.bugs) && pageData.bugs.length > 0) {
       hasData = true
       const stats = pageData.bugStats
-      dataSection += `\n\nBUG DATA FROM DATABASE:
-Total: ${pageData.bugs.length} bugs
-Severity: ${stats?.bySeverity.critical || 0} critical, ${stats?.bySeverity.high || 0} high, ${stats?.bySeverity.medium || 0} medium, ${stats?.bySeverity.low || 0} low
-Status: ${stats?.byStatus.open || 0} open, ${stats?.byStatus.inProgress || 0} in progress, ${stats?.byStatus.resolved || 0} resolved, ${stats?.byStatus.closed || 0} closed
 
-Top bugs:
-${pageData.bugs.slice(0, 5).map((b: any, i: number) => `${i + 1}. [${b.severity}] ${b.title} (${b.status})`).join('\n')}`
+      dataSection += `\n\n=== BUG DATA (${pageData.bugs.length} total) ===
+Severity Breakdown:
+- Critical: ${stats?.bySeverity?.critical || 0}
+- High: ${stats?.bySeverity?.high || 0}
+- Medium: ${stats?.bySeverity?.medium || 0}
+- Low: ${stats?.bySeverity?.low || 0}
+
+Status Breakdown:
+- Open: ${stats?.byStatus?.open || 0}
+- In Progress: ${stats?.byStatus?.inProgress || 0}
+- Resolved: ${stats?.byStatus?.resolved || 0}
+- Closed: ${stats?.byStatus?.closed || 0}
+
+Recent Bugs:
+${pageData.bugs.slice(0, 5).map((b: any, i: number) =>
+        `${i + 1}. [${b.severity?.toUpperCase()}] ${b.title}
+   Status: ${b.status}
+   Priority: ${b.priority || 'N/A'}
+   ${b.description ? `Description: ${b.description.substring(0, 100)}...` : ''}`
+      ).join('\n\n')}`
     }
 
+    // TEST CASES DATA
     if (pageData.testCases && Array.isArray(pageData.testCases) && pageData.testCases.length > 0) {
       hasData = true
       const stats = pageData.testCaseStats
-      dataSection += `\n\nTEST CASE DATA FROM DATABASE:
-Total: ${pageData.testCases.length} test cases
-Status: ${stats?.byStatus.passed || 0} passed, ${stats?.byStatus.failed || 0} failed, ${stats?.byStatus.pending || 0} pending`
+
+      dataSection += `\n\n=== TEST CASE DATA (${pageData.testCases.length} total) ===
+Status Breakdown:
+- Passed: ${stats?.byStatus?.passed || 0}
+- Failed: ${stats?.byStatus?.failed || 0}
+- Pending: ${stats?.byStatus?.pending || 0}
+- Skipped: ${stats?.byStatus?.skipped || 0}
+
+Recent Test Cases:
+${pageData.testCases.slice(0, 5).map((tc: any, i: number) =>
+        `${i + 1}. ${tc.title}
+   Priority: ${tc.priority || 'N/A'}
+   Status: ${tc.status || 'N/A'}`
+      ).join('\n\n')}`
     }
 
+    // TEST RUNS DATA
     if (pageData.testRuns && Array.isArray(pageData.testRuns) && pageData.testRuns.length > 0) {
       hasData = true
       const latest = pageData.latestRunStats
-      dataSection += `\n\nTEST RUN DATA FROM DATABASE:
-Latest run: ${latest?.passRate || 0}% pass rate (${latest?.passed || 0}/${latest?.total || 0} passed)`
+
+      dataSection += `\n\n=== TEST RUN DATA ===
+Latest Test Run:
+- Pass Rate: ${latest?.passRate || 0}%
+- Passed: ${latest?.passed || 0}
+- Failed: ${latest?.failed || 0}
+- Total: ${latest?.total || 0}
+
+Recent Runs: ${pageData.testRuns.length}`
     }
 
-    return `You are an AI assistant for SURELY QA platform.
+    return `You are an intelligent AI assistant for SURELY QA platform. You have full access to the user's dashboard data and can provide detailed insights, analysis, and recommendations.
 
-Current page: ${cleanPageName}
-Suite: ${context.suiteName}
+CURRENT CONTEXT:
+- Page: ${cleanPageName}
+- Suite: ${context.suiteName || 'No suite selected'}
+- User ID: ${context.userId}
 ${dataSection}
 
-${hasData
-        ? 'IMPORTANT: Use the exact numbers and data above to answer questions. Do NOT say you don\'t have the data or that no data is available.'
-        : 'Note: No data has been loaded yet for this page. The user may not have created any items yet, or they may be on a page that doesn\'t have data. Ask what they need help with.'}
+CAPABILITIES:
+You can:
+1. Analyze bugs and identify patterns, critical issues, and priorities
+2. Review test cases and suggest improvements or gaps
+3. Assess test run results and identify flaky tests
+4. Provide risk assessments for releases or features
+5. Generate new test cases, bug reports, or documentation
+6. Offer productivity tips and workflow improvements
+7. Answer questions about the data shown above
 
-Respond naturally without markdown formatting (no **, *, or #). Never mention page routes like "/dashboard/bugs" - just say "Bugs page" or use the page name.`
+IMPORTANT RULES:
+${hasData
+        ? '- Use the EXACT numbers and data provided above. Never say you don\'t have access to data.\n- When analyzing, reference specific bugs, test cases, or metrics by name/number.\n- Provide actionable insights based on the actual data.\n- If asked about statistics, use the numbers from above.'
+        : '- The user hasn\'t created any items yet on this page, or data hasn\'t loaded.\n- Offer to help them create test cases, bug reports, or explain features.\n- Ask what they need help with to get started.'}
+
+RESPONSE STYLE:
+- Be conversational and helpful, not robotic
+- Use bullet points for lists but keep them natural
+- Don't use markdown formatting (no **, *, or #)
+- Be direct and actionable
+- When suggesting actions, be specific
+
+Remember: You have FULL ACCESS to all the data shown above. Use it to provide valuable insights!`
   }
 
   async generateTestCases(prompt: string, templateConfig: any = {}): Promise<AIResponse> {
@@ -193,7 +318,7 @@ REQUIRED FORMAT:
       "description": "What this test validates",
       "priority": "high|medium|low",
       "type": "functional|integration|regression|performance",
-      "preconditions": ["Precondition 1", "Precondition 2"],
+      "preconditions": ["Precondition 1"],
       "steps": [
         {
           "step": 1,
@@ -351,42 +476,342 @@ REQUIRED FORMAT:
   }
 
   async detectAutomationOpportunities(testCases: TestCase[]): Promise<AIResponse> {
-    const systemInstruction = `You are a test automation expert. Analyze test cases.`
-    const prompt = `Analyze these test cases:\n\n${JSON.stringify(testCases, null, 2)}`
+    const systemInstruction = `You are a test automation expert. Analyze test cases for automation potential.`
+    const prompt = `Analyze these test cases and identify automation opportunities:\n\n${JSON.stringify(testCases, null, 2)}`
     return this.callAI(prompt, { type: 'automation_analysis', temperature: 0.6, systemInstruction })
   }
 
   async generateQAReport(reportData: any, reportType: string = 'sprint'): Promise<AIResponse> {
-    const systemInstruction = `You are a QA manager. Generate QA reports.`
-    const prompt = `Generate a ${reportType} report:\n\n${JSON.stringify(reportData, null, 2)}`
+    const systemInstruction = `You are a QA manager. Generate comprehensive QA reports.`
+    const prompt = `Generate a ${reportType} report based on this data:\n\n${JSON.stringify(reportData, null, 2)}`
     return this.callAI(prompt, { type: 'qa_report', temperature: 0.5, maxTokens: 3000, systemInstruction })
   }
 
   async generateDocumentation(content: any, docType: string = 'test_plan'): Promise<AIResponse> {
-    const systemInstruction = `You are a technical writer.`
-    const prompt = `Generate ${docType} documentation:\n\n${JSON.stringify(content, null, 2)}`
+    const systemInstruction = `You are a technical writer specializing in QA documentation.`
+    const prompt = `Generate ${docType} documentation for:\n\n${JSON.stringify(content, null, 2)}`
     return this.callAI(prompt, { type: 'documentation', temperature: 0.6, maxTokens: 3000, systemInstruction })
   }
 
   async generateTeamImprovements(teamData: any): Promise<AIResponse> {
-    const systemInstruction = `You are an agile coach.`
-    const prompt = `Analyze this team data:\n\n${JSON.stringify(teamData, null, 2)}`
+    const systemInstruction = `You are an agile coach specializing in QA team optimization.`
+    const prompt = `Analyze this team data and provide improvement recommendations:\n\n${JSON.stringify(teamData, null, 2)}`
     return this.callAI(prompt, { type: 'team_improvement', temperature: 0.7, systemInstruction })
   }
 
-  switchModel(modelName: ModelName) {
+  async generateSuggestions(context: {
+    currentPage: string
+    recentActions: string[]
+    pageData?: any
+    userRole?: string
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a QA assistant. Generate 2-3 actionable suggestions based on the user's context.
+
+Return ONLY a JSON array:
+[
+  {
+    "id": "suggestion-1",
+    "type": "tip|action|insight|warning",
+    "title": "Short title",
+    "description": "Brief description",
+    "priority": "low|medium|high"
+  }
+]`
+
+    const prompt = `Current page: ${context.currentPage}
+Recent actions: ${context.recentActions.join(', ')}
+Page data: ${JSON.stringify(context.pageData || {})}
+User role: ${context.userRole || 'tester'}
+
+Generate helpful suggestions for what the user should do next.`
+
+    const result = await this.callAI(prompt, {
+      type: 'suggestions',
+      temperature: 0.7,
+      maxTokens: 1000,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        let content = result.data.content.trim()
+        content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+
+        const arrayMatch = content.match(/\[[\s\S]*\]/)
+        if (arrayMatch) {
+          const parsed = JSON.parse(arrayMatch[0])
+          if (Array.isArray(parsed)) {
+            return {
+              ...result,
+              data: {
+                ...result.data,
+                suggestions: parsed
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse suggestions:', e)
+      }
+    }
+
+    return result
+  }
+
+  async rewriteContent(text: string, options: {
+    style?: 'professional' | 'casual' | 'technical' | 'concise'
+    tone?: 'formal' | 'friendly' | 'neutral'
+    action?: 'improve' | 'simplify' | 'expand' | 'fix'
+  } = {}): Promise<AIResponse> {
+    const style = options.style || 'professional'
+    const tone = options.tone || 'neutral'
+    const action = options.action || 'improve'
+
+    const systemInstruction = `You are a professional editor. Rewrite the text according to the specified style and tone.
+
+Style: ${style}
+Tone: ${tone}
+Action: ${action}
+
+Return ONLY the rewritten text, no explanations or markdown.`
+
+    const prompt = `Rewrite this text:\n\n${text}`
+
+    return this.callAI(prompt, {
+      type: 'content_rewrite',
+      temperature: 0.6,
+      systemInstruction
+    })
+  }
+
+  async analyzeTestExecution(executionData: {
+    testRuns: any[]
+    testCases: any[]
+    failures: any[]
+    duration?: number
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a QA analyst. Analyze test execution results and provide insights.
+
+Return JSON format:
+{
+  "summary": "Overall execution summary",
+  "insights": ["Insight 1", "Insight 2"],
+  "issues": [
+    {
+      "type": "flaky|blocker|performance",
+      "description": "Issue description",
+      "recommendation": "How to fix"
+    }
+  ],
+  "recommendations": ["Action 1", "Action 2"],
+  "metrics": {
+    "stability": "high|medium|low",
+    "coverage": "percentage or assessment"
+  }
+}`
+
+    const prompt = `Analyze this test execution data:\n\n${JSON.stringify(executionData, null, 2)}`
+
+    const result = await this.callAI(prompt, {
+      type: 'test_execution_analysis',
+      temperature: 0.5,
+      maxTokens: 2000,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        const jsonMatch = result.data.content.match(/\{[\s\S]*\}/)?.[0]
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch)
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              analysis: parsed
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse execution analysis:', e)
+      }
+    }
+
+    return result
+  }
+
+  async assessRisk(item: {
+    type: 'feature' | 'release' | 'change' | 'bug'
+    title: string
+    description: string
+    context?: any
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a QA risk analyst. Assess the risk level and provide mitigation strategies.
+
+Return JSON format:
+{
+  "riskLevel": "critical|high|medium|low",
+  "riskScore": 1-10,
+  "riskFactors": [
+    {
+      "factor": "Factor name",
+      "severity": "high|medium|low",
+      "description": "Why this is a risk"
+    }
+  ],
+  "impactAreas": ["Area 1", "Area 2"],
+  "mitigationStrategies": [
+    {
+      "strategy": "Strategy name",
+      "priority": "high|medium|low",
+      "steps": ["Step 1", "Step 2"]
+    }
+  ],
+  "testingRecommendations": ["Recommendation 1", "Recommendation 2"]
+}`
+
+    const prompt = `Assess risk for this ${item.type}:
+
+Title: ${item.title}
+Description: ${item.description}
+${item.context ? `Context: ${JSON.stringify(item.context)}` : ''}`
+
+    const result = await this.callAI(prompt, {
+      type: 'risk_assessment',
+      temperature: 0.4,
+      maxTokens: 2000,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        const jsonMatch = result.data.content.match(/\{[\s\S]*\}/)?.[0]
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch)
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              riskAssessment: parsed
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse risk assessment:', e)
+      }
+    }
+
+    return result
+  }
+
+  async generateReleaseNotes(releaseData: {
+    version: string
+    features: any[]
+    bugFixes: any[]
+    improvements: any[]
+    breakingChanges?: any[]
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a technical writer. Generate clear, professional release notes.
+
+Format the output in markdown with sections for:
+- Overview
+- New Features
+- Bug Fixes
+- Improvements
+- Breaking Changes (if any)
+- Known Issues (if any)
+
+Make it user-friendly and highlight important changes.`
+
+    const prompt = `Generate release notes for version ${releaseData.version}:
+
+Features: ${JSON.stringify(releaseData.features, null, 2)}
+Bug Fixes: ${JSON.stringify(releaseData.bugFixes, null, 2)}
+Improvements: ${JSON.stringify(releaseData.improvements, null, 2)}
+${releaseData.breakingChanges ? `Breaking Changes: ${JSON.stringify(releaseData.breakingChanges, null, 2)}` : ''}`
+
+    return this.callAI(prompt, {
+      type: 'release_notes',
+      temperature: 0.6,
+      maxTokens: 3000,
+      systemInstruction
+    })
+  }
+
+  async explainError(error: {
+    message: string
+    stack?: string
+    code?: string
+    context?: any
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a debugging assistant. Explain the error in simple terms and provide solutions.
+
+Return JSON format:
+{
+  "explanation": "What the error means in simple terms",
+  "possibleCauses": ["Cause 1", "Cause 2"],
+  "solutions": [
+    {
+      "solution": "Solution description",
+      "steps": ["Step 1", "Step 2"],
+      "difficulty": "easy|medium|hard"
+    }
+  ],
+  "prevention": "How to prevent this in the future"
+}`
+
+    const prompt = `Explain this error:
+
+Message: ${error.message}
+${error.stack ? `Stack: ${error.stack}` : ''}
+${error.code ? `Code: ${error.code}` : ''}
+${error.context ? `Context: ${JSON.stringify(error.context)}` : ''}`
+
+    const result = await this.callAI(prompt, {
+      type: 'error_explanation',
+      temperature: 0.5,
+      maxTokens: 1500,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        const jsonMatch = result.data.content.match(/\{[\s\S]*\}/)?.[0]
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch)
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              errorExplanation: parsed
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse error explanation:', e)
+      }
+    }
+
+    return result
+  }
+
+  switchModel(modelName: ModelName): { success: boolean; currentModel?: ModelName; modelInfo?: any; error?: string } {
     if (!AI_MODELS[modelName]) {
       return { success: false, error: `Invalid model: ${modelName}` }
     }
     this.currentModel = modelName
-    return { success: true, currentModel: this.currentModel, modelInfo: AI_MODELS[modelName] }
+    return {
+      success: true,
+      currentModel: this.currentModel,
+      modelInfo: AI_MODELS[modelName]
+    }
   }
 
   getCurrentModelInfo() {
     return {
       currentModel: this.currentModel,
       ...AI_MODELS[this.currentModel],
-      apiKeyConfigured: !!process.env.NEXT_PUBLIC_GEMINI_API_KEY
+      apiKeyConfigured: !!this.apiKey
     }
   }
 
@@ -397,12 +822,22 @@ REQUIRED FORMAT:
     }))
   }
 
-  async testConnection() {
+  async testConnection(): Promise<{ success: boolean; healthy: boolean; model: string; error?: string }> {
     try {
       const result = await this.callAI('Respond with: OK', { type: 'health_check', maxTokens: 10 })
-      return { success: result.success, healthy: result.success, model: this.currentModel, error: result.error }
+      return {
+        success: result.success,
+        healthy: result.success,
+        model: this.currentModel,
+        error: result.error
+      }
     } catch (error: any) {
-      return { success: false, healthy: false, error: error.message }
+      return {
+        success: false,
+        healthy: false,
+        model: this.currentModel,
+        error: error.message
+      }
     }
   }
 }

@@ -1,68 +1,98 @@
 // ============================================
 // FILE: app/api/ai/chat/route.ts
-// FIXED - Now properly uses context data in AI prompts
 // ============================================
+
 import { NextRequest, NextResponse } from 'next/server'
 import { aiService } from '@/lib/ai/ai-service'
-
-export const runtime = 'edge'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { message, context, conversationHistory } = body
+    const { message, context, conversationHistory } = await request.json()
 
-    if (!message) {
+    if (!message || typeof message !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'Message is required' },
+        { success: false, error: 'Invalid message format' },
         { status: 400 }
       )
     }
 
-    console.log('📥 Chat request received:', {
-      message,
+    // Authenticate user
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    console.log('📨 AI Chat Request (conversation only):', {
+      message: message.substring(0, 100),
       hasContext: !!context,
-      hasPageData: !!(context?.pageData),
-      pageDataKeys: context?.pageData ? Object.keys(context.pageData) : []
+      page: context?.currentPage
     })
 
-    // Use the chatWithContext method which includes the enhanced system prompt
+    // Build context-aware system prompt
+    let systemPrompt = `You are Surely AI, an expert QA assistant for the SURELY platform.
+
+Current Context:
+- Page: ${context?.currentPage || '/dashboard'}
+- Suite: ${context?.suiteName || 'Unknown Suite'}
+- User ID: ${user.id}`
+
+    // Add page data context if available
+    if (context?.pageData) {
+      const { bugs, bugStats, testCases, testCaseStats, latestRunStats } = context.pageData
+
+      if (bugs && bugs.length > 0) {
+        systemPrompt += `\n\nAvailable Bugs: ${bugs.length} total`
+        systemPrompt += `\n- Critical: ${bugStats?.bySeverity?.critical || 0}`
+        systemPrompt += `\n- High: ${bugStats?.bySeverity?.high || 0}`
+        systemPrompt += `\n- Medium: ${bugStats?.bySeverity?.medium || 0}`
+        systemPrompt += `\n- Low: ${bugStats?.bySeverity?.low || 0}`
+      }
+
+      if (testCases && testCases.length > 0) {
+        systemPrompt += `\n\nTest Cases: ${testCases.length} total`
+        systemPrompt += `\n- Passed: ${testCaseStats?.byStatus?.passed || 0}`
+        systemPrompt += `\n- Failed: ${testCaseStats?.byStatus?.failed || 0}`
+      }
+
+      if (latestRunStats) {
+        systemPrompt += `\n\nLatest Test Run: ${latestRunStats.passRate}% pass rate`
+      }
+    }
+
+    systemPrompt += `\n\nProvide helpful, accurate responses. Be concise but thorough.`
+
+    // Call AI service for normal conversation
     const result = await aiService.chatWithContext(message, {
       currentPage: context?.currentPage || '/dashboard',
-      suiteId: context?.suiteId,
-      suiteName: context?.suiteName,
-      userId: context?.userId,
+      suiteName: context?.suiteName || 'Unknown Suite',
+      userId: user.id,
       pageData: context?.pageData || {},
       conversationHistory: conversationHistory || []
-    })
+    }, systemPrompt)
 
     if (!result.success) {
+      console.error('❌ AI Service Error:', result.error)
       return NextResponse.json(
         { 
           success: false, 
-          error: result.error || 'AI generation failed',
+          error: result.error,
           userMessage: result.userMessage 
         },
         { status: 500 }
       )
     }
 
-    // Check if the response contains JSON data (for bug reports, test cases, etc.)
-    let parsedData: any = null
-    try {
-      const content = result.data?.content || ''
-      const jsonMatch = content.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        parsedData = JSON.parse(jsonMatch[0])
-      }
-    } catch (e) {
-      // No JSON in response, that's okay
-    }
+    console.log('✅ AI chat response generated')
 
     return NextResponse.json({
       success: true,
-      response: result.data?.content || '',
-      data: parsedData,
+      response: result.data?.content || 'I apologize, but I could not generate a response.',
       metadata: {
         model: result.data?.model,
         tokensUsed: result.data?.tokensUsed,
@@ -71,14 +101,17 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ Chat API error:', error)
+    console.error('❌ API Route Error:', error)
     return NextResponse.json(
       { 
         success: false, 
         error: error.message || 'Internal server error',
-        userMessage: 'Something went wrong. Please try again.'
+        userMessage: 'Failed to process your request. Please try again.'
       },
       { status: 500 }
     )
   }
 }
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'

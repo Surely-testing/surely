@@ -3,7 +3,7 @@
 // TypeScript types for the AI system
 // ============================================
 
-export type ModelName = 'gemini-2.0-flash-lite' | 'gemini-1.5-flash-latest' | 'gemini-1.5-pro-latest'
+export type ModelName = 'google/gemini-flash-1.5' | 'qwen/qwen-2-7b-instruct:free' | 'meta-llama/llama-3-8b-instruct:free' | 'nousresearch/hermes-3-llama-3.1-405b:free'
 
 export interface ModelConfig {
   name: string
@@ -51,11 +51,81 @@ interface TestDataResponseData extends BaseAIResponseData {
   testData: string[]
 }
 
+// Extended response data for suggestions
+interface SuggestionsResponseData extends BaseAIResponseData {
+  suggestions: Array<{
+    id: string
+    type: 'tip' | 'action' | 'insight' | 'warning'
+    title: string
+    description: string
+    priority: 'low' | 'medium' | 'high'
+  }>
+}
+
+// Extended response data for test execution analysis
+interface TestExecutionAnalysisResponseData extends BaseAIResponseData {
+  analysis: {
+    summary: string
+    insights: string[]
+    issues: Array<{
+      type: 'flaky' | 'blocker' | 'performance'
+      description: string
+      recommendation: string
+    }>
+    recommendations: string[]
+    metrics: {
+      stability: 'high' | 'medium' | 'low'
+      coverage: string
+    }
+  }
+}
+
+// Extended response data for risk assessment
+interface RiskAssessmentResponseData extends BaseAIResponseData {
+  riskAssessment: {
+    riskLevel: 'critical' | 'high' | 'medium' | 'low'
+    riskScore: number
+    riskFactors: Array<{
+      factor: string
+      severity: 'high' | 'medium' | 'low'
+      description: string
+    }>
+    impactAreas: string[]
+    mitigationStrategies: Array<{
+      strategy: string
+      priority: 'high' | 'medium' | 'low'
+      steps: string[]
+    }>
+    testingRecommendations: string[]
+  }
+}
+
+// Extended response data for error explanation
+interface ErrorExplanationResponseData extends BaseAIResponseData {
+  errorExplanation: {
+    explanation: string
+    possibleCauses: string[]
+    solutions: Array<{
+      solution: string
+      steps: string[]
+      difficulty: 'easy' | 'medium' | 'hard'
+    }>
+    prevention: string
+  }
+}
+
 // Union type for all possible response data shapes
-export type AIResponseData = BaseAIResponseData | TestCasesResponseData | BugReportResponseData | TestDataResponseData
+export type AIResponseData = 
+  | BaseAIResponseData 
+  | TestCasesResponseData 
+  | BugReportResponseData 
+  | TestDataResponseData
+  | SuggestionsResponseData
+  | TestExecutionAnalysisResponseData
+  | RiskAssessmentResponseData
+  | ErrorExplanationResponseData
 
 export interface AIResponse {
-  [x: string]: any
   success: boolean
   data?: AIResponseData
   error?: string
@@ -78,7 +148,7 @@ export interface AIUsageLogInput {
   operation_name?: string
   asset_type?: string
   asset_ids?: string[]
-  provider: 'gemini'
+  provider: 'gemini' | 'openrouter'
   model: string
   tokens_used: number
   input_tokens?: number
@@ -155,6 +225,29 @@ export function isTestDataResponse(data: AIResponseData): data is TestDataRespon
   return 'testData' in data
 }
 
+export function isSuggestionsResponse(data: AIResponseData): data is SuggestionsResponseData {
+  return 'suggestions' in data
+}
+
+export function isTestExecutionAnalysisResponse(data: AIResponseData): data is TestExecutionAnalysisResponseData {
+  return 'analysis' in data
+}
+
+export function isRiskAssessmentResponse(data: AIResponseData): data is RiskAssessmentResponseData {
+  return 'riskAssessment' in data
+}
+
+export function isErrorExplanationResponse(data: AIResponseData): data is ErrorExplanationResponseData {
+  return 'errorExplanation' in data
+}
+
 export function isBaseResponse(data: AIResponseData): data is BaseAIResponseData {
-  return 'content' in data && !('testCases' in data) && !('bugReport' in data) && !('testData' in data)
+  return 'content' in data && 
+    !('testCases' in data) && 
+    !('bugReport' in data) && 
+    !('testData' in data) &&
+    !('suggestions' in data) &&
+    !('analysis' in data) &&
+    !('riskAssessment' in data) &&
+    !('errorExplanation' in data)
 }

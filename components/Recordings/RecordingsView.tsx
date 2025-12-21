@@ -35,16 +35,12 @@ import {
 
 interface RecordingsViewProps {
   suiteId: string;
-  initialRecordings: Recording[];
-  sprints?: Array<{ id: string; name: string }>;
 }
 
 export function RecordingsView({
   suiteId,
-  initialRecordings,
-  sprints = [],
 }: RecordingsViewProps) {
-  const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
+  const [recordings, setRecordings] = useState<Recording[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeletingIds, setIsDeletingIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<RecordingFilters>({
@@ -70,7 +66,9 @@ export function RecordingsView({
     try {
       const { data } = await getRecordings(suiteId, filters);
       if (data) {
-        setRecordings(data);
+        // Filter to ensure only recordings from current suite
+        const suiteRecordings = data.filter(r => r.suite_id === suiteId);
+        setRecordings(suiteRecordings);
       }
     } catch (error) {
       console.error('Failed to fetch recordings:', error);
@@ -84,7 +82,6 @@ export function RecordingsView({
     let filtered = recordings.filter(recording => {
       const matchesSearch = !filters.search ||
         recording.title?.toLowerCase().includes(filters.search.toLowerCase());
-      const matchesSprint = !filters.sprint_id || recording.sprint_id === filters.sprint_id;
 
       const matchesStatus = statusFilter === 'all' ||
         (statusFilter === 'recent' && recording.created_at &&
@@ -107,7 +104,7 @@ export function RecordingsView({
         }
       }
 
-      return matchesSearch && matchesSprint && matchesStatus && matchesDateRange;
+      return matchesSearch && matchesStatus && matchesDateRange;
     });
 
     filtered.sort((a, b) => {
@@ -281,7 +278,6 @@ export function RecordingsView({
     setFilters({
       search: '',
       sort: 'newest',
-      sprint_id: undefined,
     });
     setSortField('created_at');
     setSortOrder('desc');
@@ -290,7 +286,6 @@ export function RecordingsView({
   }, []);
 
   const activeFiltersCount =
-    (filters.sprint_id ? 1 : 0) +
     (statusFilter !== 'all' ? 1 : 0) +
     (dateRangeFilter !== 'all' ? 1 : 0);
 
@@ -613,29 +608,7 @@ export function RecordingsView({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sprints.length > 0 && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                      Sprint
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {sprints.map((sprint) => (
-                        <button
-                          key={sprint.id}
-                          onClick={() => handleFilterChange('sprint_id', filters.sprint_id === sprint.id ? undefined : sprint.id)}
-                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filters.sprint_id === sprint.id
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background text-foreground border-border hover:border-primary'
-                            }`}
-                        >
-                          {sprint.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
                     Status

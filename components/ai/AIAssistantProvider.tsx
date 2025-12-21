@@ -142,7 +142,7 @@ export function AIAssistantProvider({
 
         console.log('✅ AI Assistant initialized')
       } catch (err: any) {
-        console.error('❌ AI initialization failed:', err)
+        console.error(' AI initialization failed:', err)
         setError(err.message)
       }
     }
@@ -160,11 +160,11 @@ export function AIAssistantProvider({
   useEffect(() => {
     const fetchPageData = async () => {
       if (!suiteId) {
-        console.log('⚠️ No suiteId, skipping data fetch')
+        console.log('No suiteId, skipping data fetch')
         return
       }
 
-      console.log('🔄 Fetching page data for:', pathname, 'Suite:', suiteName)
+      console.log('Fetching page data for:', pathname, 'Suite:', suiteName)
 
       try {
         const pageData: Record<string, any> = {
@@ -175,16 +175,16 @@ export function AIAssistantProvider({
 
         // Fetch based on current page
         if (pathname.includes('/bugs')) {
-          console.log('📡 Fetching bugs for suite:', suiteId)
+          console.log('Fetching bugs for suite:', suiteId)
           const response = await fetch(`/api/bugs?suiteId=${suiteId}`)
 
           if (!response.ok) {
-            console.error('❌ Bugs API failed:', response.status, response.statusText)
+            console.error(' Bugs API failed:', response.status, response.statusText)
             return
           }
 
           const result = await response.json()
-          console.log('📥 Bugs API response:', result)
+          console.log('Bugs API response:', result)
 
           if (result.success && result.data && Array.isArray(result.data)) {
             const bugs = result.data
@@ -208,21 +208,21 @@ export function AIAssistantProvider({
             }
             console.log('✅ Bug stats:', pageData.bugStats)
           } else {
-            console.log('⚠️ No bugs found or invalid response')
+            console.log('No bugs found or invalid response')
           }
         }
 
         if (pathname.includes('/test-cases')) {
-          console.log('📡 Fetching test cases for suite:', suiteId)
+          console.log('Fetching test cases for suite:', suiteId)
           const response = await fetch(`/api/test-cases?suiteId=${suiteId}`)
 
           if (!response.ok) {
-            console.error('❌ Test cases API failed:', response.status)
+            console.error(' Test cases API failed:', response.status)
             return
           }
 
           const result = await response.json()
-          console.log('📥 Test cases API response:', result)
+          console.log('Test cases API response:', result)
 
           if (result.success && result.data && Array.isArray(result.data)) {
             const testCases = result.data
@@ -243,16 +243,16 @@ export function AIAssistantProvider({
         }
 
         if (pathname.includes('/test-runs')) {
-          console.log('📡 Fetching test runs for suite:', suiteId)
+          console.log('Fetching test runs for suite:', suiteId)
           const response = await fetch(`/api/test-runs?suiteId=${suiteId}`)
 
           if (!response.ok) {
-            console.error('❌ Test runs API failed:', response.status)
+            console.error(' Test runs API failed:', response.status)
             return
           }
 
           const result = await response.json()
-          console.log('📥 Test runs API response:', result)
+          console.log('Test runs API response:', result)
 
           if (result.success && result.data && Array.isArray(result.data)) {
             const testRuns = result.data
@@ -273,11 +273,11 @@ export function AIAssistantProvider({
         console.log('✅ Final pageData being set:', pageData)
         console.log('Has bugs?', !!pageData.bugs, 'Count:', pageData.bugs?.length)
         setContext(prev => {
-          console.log('🔄 Updating context with pageData')
+          console.log('Updating context with pageData')
           return { ...prev, pageData }
         })
       } catch (error) {
-        console.error('❌ Error fetching page data:', error)
+        console.error(' Error fetching page data:', error)
       }
     }
 
@@ -379,7 +379,7 @@ export function AIAssistantProvider({
       console.log('✅ Generated content added:', content)
       setGeneratedContent(prev => [...prev, content])
     } catch (e) {
-      console.error('❌ Failed to parse generated content:', e)
+      console.error(' Failed to parse generated content:', e)
     }
   }, [])
 
@@ -393,21 +393,265 @@ export function AIAssistantProvider({
     setIsLoading(true)
     setError(null)
 
-    // 🔍 DEBUG LOGGING
-    console.log('===========================================')
-    console.log('📤 SENDING TO API')
-    console.log('Context object:', context)
-    console.log('Context.pageData:', context.pageData)
-    console.log('Has bugs?:', context.pageData?.bugs)
-    console.log('Bugs length:', context.pageData?.bugs?.length)
-    console.log('===========================================')
-
-    const intent = detectGenerationIntent(message)
-
     try {
-      let response, data
+      const lowerMessage = message.toLowerCase()
 
-      response = await fetch('/api/ai/chat', {
+      // ✅ ROUTE 1: Bug Report Generation
+      if (
+        lowerMessage.includes('generate bug') ||
+        lowerMessage.includes('create bug') ||
+        lowerMessage.includes('bug report') ||
+        lowerMessage.includes('write a bug') ||
+        lowerMessage.includes('report this bug')
+      ) {
+        console.log('Detected bug report request, calling /api/ai/bug-report...')
+
+        const response = await fetch('/api/ai/bug-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: message,
+            suiteId: context.suiteId
+          })
+        })
+
+        const data = await response.json()
+        console.log('Bug report response:', data)
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to generate bug report')
+        }
+
+        if (data.data?.bugReport) {
+          const content: AIGeneratedContent = {
+            id: `bug_${Date.now()}`,
+            type: 'bug_report',
+            status: 'draft',
+            data: data.data.bugReport,
+            createdAt: new Date()
+          }
+          setGeneratedContent(prev => [...prev, content])
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: data.response || "I've generated a bug report. Review it in the panel and save when ready.",
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, assistantMessage])
+        }
+
+        return
+      }
+
+      // ✅ ROUTE 2: Test Cases Generation
+      if (
+        lowerMessage.includes('generate test case') ||
+        lowerMessage.includes('create test case') ||
+        lowerMessage.includes('write test case') ||
+        lowerMessage.includes('test case for') ||
+        (lowerMessage.includes('test') && lowerMessage.includes('case'))
+      ) {
+        console.log('Detected test case request, calling /api/ai/test-cases...')
+
+        const response = await fetch('/api/ai/test-cases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: message,
+            suiteId: context.suiteId
+          })
+        })
+
+        const data = await response.json()
+        console.log('Test cases response:', data)
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to generate test cases')
+        }
+
+        if (data.data?.testCases) {
+          const content: AIGeneratedContent = {
+            id: `test_${Date.now()}`,
+            type: 'test_cases',
+            status: 'draft',
+            data: data.data.testCases,
+            createdAt: new Date()
+          }
+          setGeneratedContent(prev => [...prev, content])
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: data.response || `I've generated ${data.data.testCases.length} test cases. Review them in the panel and save when ready.`,
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, assistantMessage])
+        }
+
+        return
+      }
+
+      // ✅ ROUTE 3: Test Plan Document Generation
+      if (
+        lowerMessage.includes('generate test plan') ||
+        lowerMessage.includes('create test plan') ||
+        lowerMessage.includes('test plan document') ||
+        lowerMessage.includes('write test plan') ||
+        (lowerMessage.includes('test') && lowerMessage.includes('plan'))
+      ) {
+        console.log('Detected test plan request, calling /api/ai/documentation...')
+
+        const response = await fetch('/api/ai/documentation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: {
+              type: 'test_plan',
+              description: message,
+              suiteId: context.suiteId,
+              suiteName: context.suiteName
+            },
+            documentType: 'test_plan'
+          })
+        })
+
+        const data = await response.json()
+        console.log('Test plan response:', data)
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to generate test plan')
+        }
+
+        if (data.data?.document) {
+          const content: AIGeneratedContent = {
+            id: `doc_${Date.now()}`,
+            type: 'document',
+            status: 'draft',
+            data: {
+              ...data.data.document,
+              documentType: 'test_plan'
+            },
+            createdAt: new Date()
+          }
+          setGeneratedContent(prev => [...prev, content])
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: data.response || "I've generated a test plan document. Review it in the panel and save when ready.",
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, assistantMessage])
+        }
+
+        return
+      }
+
+      // ✅ ROUTE 4: General Documentation Generation
+      if (
+        lowerMessage.includes('generate document') ||
+        lowerMessage.includes('create document') ||
+        lowerMessage.includes('write document') ||
+        lowerMessage.includes('generate documentation') ||
+        lowerMessage.includes('create documentation')
+      ) {
+        console.log('Detected documentation request, calling /api/ai/documentation...')
+
+        const response = await fetch('/api/ai/documentation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: {
+              description: message,
+              suiteId: context.suiteId,
+              suiteName: context.suiteName
+            },
+            documentType: 'general'
+          })
+        })
+
+        const data = await response.json()
+        console.log('Documentation response:', data)
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to generate documentation')
+        }
+
+        if (data.data?.document) {
+          const content: AIGeneratedContent = {
+            id: `doc_${Date.now()}`,
+            type: 'document',
+            status: 'draft',
+            data: data.data.document,
+            createdAt: new Date()
+          }
+          setGeneratedContent(prev => [...prev, content])
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: data.response || "I've generated a document. Review it in the panel and save when ready.",
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, assistantMessage])
+        }
+
+        return
+      }
+
+      // ✅ ROUTE 5: QA Report Generation
+      if (
+        lowerMessage.includes('generate report') ||
+        lowerMessage.includes('create report') ||
+        lowerMessage.includes('qa report') ||
+        lowerMessage.includes('test report') ||
+        lowerMessage.includes('summary report')
+      ) {
+        console.log('Detected report request, calling /api/ai/report...')
+
+        const response = await fetch('/api/ai/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: {
+              suiteId: context.suiteId,
+              suiteName: context.suiteName,
+              pageData: context.pageData,
+              description: message
+            },
+            reportType: 'qa_summary'
+          })
+        })
+
+        const data = await response.json()
+        console.log('Report response:', data)
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to generate report')
+        }
+
+        if (data.data?.report) {
+          const content: AIGeneratedContent = {
+            id: `report_${Date.now()}`,
+            type: 'report',
+            status: 'draft',
+            data: data.data.report,
+            createdAt: new Date()
+          }
+          setGeneratedContent(prev => [...prev, content])
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: data.response || "I've generated a report. Review it in the panel and save when ready.",
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, assistantMessage])
+        }
+
+        return
+      }
+
+      // ✅ ROUTE 6: Normal Conversation - use chat API
+      console.log(' Normal chat message, using /api/ai/chat...')
+
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -416,17 +660,8 @@ export function AIAssistantProvider({
           conversationHistory: messages.slice(-10)
         })
       })
-      data = await response.json()
 
-      console.log('📥 RESPONSE FROM API:', data)
-
-      if (data.success && data.data) {
-        if (data.data.bugReport) {
-          handleGeneratedContent(data.data.bugReport, 'bug_report')
-        } else if (data.data.testCases) {
-          handleGeneratedContent({ testCases: data.data.testCases }, 'test_cases')
-        }
-      }
+      const data = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to get AI response')
@@ -434,12 +669,13 @@ export function AIAssistantProvider({
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data.response || 'Content generated! Review it above and click "Save to Database" when ready.',
+        content: data.response || 'I apologize, but I could not generate a response.',
         timestamp: new Date(),
         metadata: data.metadata
       }
       setMessages(prev => [...prev, assistantMessage])
 
+      // Update session stats
       if (data.metadata) {
         setSessionStats(prev => ({
           operations: prev.operations + 1,
@@ -448,11 +684,8 @@ export function AIAssistantProvider({
         }))
       }
 
-      if (data.suggestions && data.suggestions.length > 0) {
-        setSuggestions(prev => [...prev, ...data.suggestions])
-      }
     } catch (err: any) {
-      console.error('❌ Chat error:', err)
+      console.error(' Chat error:', err)
       setError(err.message)
 
       const errorMessage: Message = {
@@ -464,7 +697,7 @@ export function AIAssistantProvider({
     } finally {
       setIsLoading(false)
     }
-  }, [context, messages, detectGenerationIntent, handleGeneratedContent])
+  }, [context, messages])
 
   const reviewContent = useCallback(async (contentId: string) => {
     setGeneratedContent(prev => prev.map(c =>
@@ -485,51 +718,74 @@ export function AIAssistantProvider({
         case 'bug_report':
           endpoint = '/api/bugs'
           const bugData = editedData || content.data
+
+          // ✅ Match bugs table schema
           payload = {
-            suiteId: context.suiteId,
+            suite_id: context.suiteId,
             title: bugData.title,
             description: bugData.description,
             severity: bugData.severity,
             priority: bugData.priority,
-            status: bugData.status,
-            stepsToReproduce: bugData.stepsToReproduce,
-            expectedBehavior: bugData.expectedBehavior,
-            actualBehavior: bugData.actualBehavior,
-            environment: bugData.environment,
-            possibleCause: bugData.possibleCause,
-            suggestedFix: bugData.suggestedFix
+            status: bugData.status || 'open',
+            steps_to_reproduce: bugData.stepsToReproduce || [],
+            expected_behavior: bugData.expectedBehavior,
+            actual_behavior: bugData.actualBehavior,
+            environment: bugData.environment?.info || bugData.environment || null,
+            browser: bugData.environment?.browser || bugData.browser || null,
+            os: bugData.environment?.os || bugData.os || null,
+            version: bugData.environment?.version || bugData.version || null
           }
           break
 
         case 'test_case':
-          endpoint = '/api/test-cases'
-          payload = {
-            suiteId: context.suiteId,
-            ...(editedData || content.data)
-          }
-          break
-
         case 'test_cases':
           endpoint = '/api/test-cases'
-          payload = {
-            suiteId: context.suiteId,
-            testCases: editedData || content.data
-          }
-          break
+          const testCaseData = editedData || content.data
 
-        case 'report':
-          endpoint = '/api/reports'
+          // ✅ Match test_cases table schema
+          const testCasesArray = Array.isArray(testCaseData)
+            ? testCaseData
+            : [testCaseData]
+
+          // For bulk insert
           payload = {
-            suiteId: context.suiteId,
-            ...(editedData || content.data)
+            suite_id: context.suiteId,
+            testCases: testCasesArray.map((tc: any) => ({
+              title: tc.title,
+              description: tc.description,
+              steps: tc.steps || [],  // JSONB
+              expected_result: tc.expectedResult || tc.expected_result,
+              priority: tc.priority,
+              type: tc.type || 'manual',
+              preconditions: tc.preconditions || null,
+              status: 'active'
+            }))
           }
           break
 
         case 'document':
           endpoint = '/api/documents'
+          const docData = editedData || content.data
+
+          // ✅ Match documents table schema
           payload = {
-            suiteId: context.suiteId,
-            ...(editedData || content.data)
+            suite_id: context.suiteId,
+            title: docData.title,
+            content: docData.content,
+            file_type: docData.file_type || 'text/markdown'
+          }
+          break
+
+        case 'report':
+          endpoint = '/api/reports'
+          const reportData = editedData || content.data
+
+          // ✅ Match reports table schema
+          payload = {
+            suite_id: context.suiteId,
+            name: reportData.name,
+            type: reportData.type || 'qa_summary',
+            data: reportData.data || {}  // JSONB
           }
           break
       }
@@ -545,11 +801,13 @@ export function AIAssistantProvider({
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to save')
+        throw new Error(result.error || result.message || 'Failed to save')
       }
 
+      // Remove from generated content
       setGeneratedContent(prev => prev.filter(c => c.id !== contentId))
 
+      // Success message
       const successMessage: Message = {
         role: 'assistant',
         content: `✅ Successfully saved ${content.type.replace('_', ' ')} to the database!`,
@@ -557,6 +815,7 @@ export function AIAssistantProvider({
       }
       setMessages(prev => [...prev, successMessage])
 
+      // Trigger refresh event
       window.dispatchEvent(new CustomEvent('ai-content-saved', {
         detail: { type: content.type }
       }))
