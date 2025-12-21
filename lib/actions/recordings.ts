@@ -1,10 +1,11 @@
 // ============================================
-// lib/actions/recordings.ts
+// lib/actions/recordings.ts - FIXED DELETE
 // ============================================
 
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/utils/logger';
 import { Recording, RecordingFormData, RecordingFilters } from '@/types/recording.types';
 import { revalidatePath } from 'next/cache';
 
@@ -56,7 +57,7 @@ export async function getRecordings(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching recordings:', error);
+    logger.log('Error fetching recordings:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to fetch recordings',
@@ -80,7 +81,7 @@ export async function getRecording(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching recording:', error);
+    logger.log('Error fetching recording:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to fetch recording',
@@ -129,7 +130,7 @@ export async function createRecording(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error creating recording:', error);
+    logger.log('Error creating recording:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to create recording',
@@ -158,7 +159,7 @@ export async function updateRecording(
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error updating recording:', error);
+    logger.log('Error updating recording:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to update recording',
@@ -172,7 +173,6 @@ export async function deleteRecording(
   try {
     const supabase = await createClient();
 
-    // Get current user
     const {
       data: { user },
       error: userError,
@@ -182,16 +182,48 @@ export async function deleteRecording(
       throw new Error('Not authenticated');
     }
 
-    // Get recording data for trash
+    // Get recording details first
     const { data: recording, error: fetchError } = await supabase
       .from('recordings')
-      .select('*')
+      .select('*, test_suites(owner_id, admins)')
       .eq('id', recordingId)
       .single();
 
     if (fetchError) throw fetchError;
 
-    // Move to trash
+    // Check permissions - only suite owner/admins can delete
+    const isOwner = recording.test_suites?.owner_id === user.id;
+    const isAdmin = recording.test_suites?.admins?.includes(user.id);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('Permission denied. Only suite owners and admins can delete recordings.');
+    }
+
+    // Delete video file from Supabase Storage
+    if (recording.metadata && typeof recording.metadata === 'object' && 'fileName' in recording.metadata) {
+      const { error: storageError } = await supabase.storage
+        .from('recordings')
+        .remove([(recording.metadata as Record<string, any>).fileName]);
+
+      if (storageError) {
+        logger.log('Storage deletion error:', storageError);
+        // Continue anyway - we still want to delete the database record
+      }
+    }
+
+    // Delete console logs file if exists
+    if (recording.metadata && typeof recording.metadata === 'object' && 'consoleLogsUrl' in recording.metadata) {
+      const logFileName = `${recording.suite_id}/${recordingId}/console_logs.json`;
+      await supabase.storage.from('recordings').remove([logFileName]);
+    }
+
+    // Delete network logs file if exists
+    if (recording.metadata && typeof recording.metadata === 'object' && 'networkLogsUrl' in recording.metadata) {
+      const logFileName = `${recording.suite_id}/${recordingId}/network_logs.json`;
+      await supabase.storage.from('recordings').remove([logFileName]);
+    }
+
+    // Move to trash before deleting
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -204,7 +236,7 @@ export async function deleteRecording(
       expires_at: expiresAt.toISOString(),
     });
 
-    // Delete recording
+    // Delete database record
     const { error: deleteError } = await supabase
       .from('recordings')
       .delete()
@@ -222,10 +254,11 @@ export async function deleteRecording(
     });
 
     revalidatePath('/dashboard/recordings');
+    revalidatePath(`/dashboard/suites/${recording.suite_id}`);
 
     return { success: true, error: null };
   } catch (error) {
-    console.error('Error deleting recording:', error);
+    logger.log('Error deleting recording:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to delete recording',
@@ -266,37 +299,10 @@ export async function uploadLogs(
 
     return { url: urlData.publicUrl, error: null };
   } catch (error) {
-    console.error('Error uploading logs:', error);
+    logger.log('Error uploading logs:', error);
     return {
       url: null,
       error: error instanceof Error ? error.message : 'Failed to upload logs',
-    };
-  }
-}
-
-// Check YouTube connection status (app-level)
-export async function checkYouTubeStatus(): Promise<{
-  configured: boolean;
-  channel: { name: string; id: string } | null;
-  setupUrl: string | null;
-  error: string | null;
-}> {
-  try {
-    const response = await fetch('/api/recordings/status');
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to check status');
-    }
-
-    return { ...data, error: null };
-  } catch (error) {
-    console.error('Error checking YouTube status:', error);
-    return {
-      configured: false,
-      channel: null,
-      setupUrl: null,
-      error: error instanceof Error ? error.message : 'Failed to check status',
     };
   }
 }

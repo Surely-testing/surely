@@ -8,10 +8,9 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSprint, useSprintStats } from '@/lib/hooks/useSprints';
 import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import SprintForm from './SprintForm';
+import { logger } from '@/lib/utils/logger';
 import { 
   ArrowLeft, Edit, Trash, Calendar, CheckSquare, Bug, FileText, 
   Clock, AlertCircle, Target, TrendingUp, Lightbulb, BarChart3,
@@ -126,7 +125,7 @@ export function SprintDetail({ suiteId, sprintId }: SprintDetailProps) {
       toast.success('Sprint deleted successfully');
       router.push('/dashboard/sprints');
     } catch (error) {
-      console.error('Delete error:', error);
+      logger.log('Delete error:', error);
       toast.error('Failed to delete sprint');
     } finally {
       setIsDeleting(false);

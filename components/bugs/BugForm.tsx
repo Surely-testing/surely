@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Trash, Upload, X, File, Video, Link2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BugWithCreator } from '@/types/bug.types';
+import { logger } from '@/lib/utils/logger';
 
 interface BugFormProps {
   suiteId: string;
@@ -178,7 +179,7 @@ export function BugForm({
         });
 
       } catch (error) {
-        console.error('Error loading prefilled bug data:', error);
+        logger.log('Error loading prefilled bug data:', error);
         sessionStorage.removeItem('bugPrefillData');
       }
     }
@@ -228,7 +229,7 @@ export function BugForm({
           .eq('suite_id', suiteId);
 
         if (membersError) {
-          console.error('Error fetching team members:', membersError);
+          logger.log('Error fetching team members:', membersError);
           // Fallback: fetch without profiles if join fails
           const { data: fallbackData } = await supabase
             .from('suite_members')
@@ -249,7 +250,7 @@ export function BugForm({
           setTeamMembers(members);
         }
       } catch (error) {
-        console.error('Error fetching reference data:', error);
+        logger.log('Error fetching reference data:', error);
       }
     };
 
@@ -265,7 +266,7 @@ export function BugForm({
 
       setExistingAttachments(data || []);
     } catch (error) {
-      console.error('Error fetching attachments:', error);
+      logger.log('Error fetching attachments:', error);
     }
   };
 
@@ -301,7 +302,7 @@ export function BugForm({
       setExistingAttachments(existingAttachments.filter(a => a.id !== attachmentId));
       // toast.success('Attachment deleted');
     } catch (error: any) {
-      console.error('Error deleting attachment:', error);
+      logger.log('Error deleting attachment:', error);
       toast.error('Failed to delete attachment');
     }
   };
@@ -366,7 +367,7 @@ export function BugForm({
 
         return { success: true };
       } catch (error) {
-        console.error('Error uploading file:', file.name, error);
+        logger.log('Error uploading file:', file.name, error);
         return { success: false, fileName: file.name };
       }
     });
@@ -462,12 +463,12 @@ export function BugForm({
             metadata: { title }
           });
       } catch (activityError) {
-        console.log('Activity logging not available');
+        logger.log('Activity logging not available');
       }
 
       onSuccess();
     } catch (error: any) {
-      console.error('Error saving bug:', error);
+      logger.log('Error saving bug:', error);
       toast.error('Failed to save bug', { description: error.message });
     } finally {
       setIsSubmitting(false);

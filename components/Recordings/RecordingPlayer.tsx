@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { logger } from '@/lib/utils/logger';
 import {
   Share2,
   Download,
@@ -88,7 +89,7 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
         setNetworkLogs(data);
       }
     } catch (error) {
-      console.error('Error loading logs:', error);
+      logger.log('Error loading logs:', error);
     } finally {
       setIsLoadingLogs(false);
     }
@@ -158,12 +159,12 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
 
   // Handle AI Insights callbacks
   const handleSaveInsights = (insights: AIInsight[]) => {
-    console.log('Saved insights:', insights);
+    logger.log('Saved insights:', insights);
     toast.success(`Saved ${insights.length} AI insights`);
   };
 
   const handleCreateTestCase = (insight: AIInsight) => {
-    console.log('Creating test case from insight:', insight);
+    logger.log('Creating test case from insight:', insight);
     toast.info('Test case creation not implemented yet');
     // TODO: Navigate to test case creation page with pre-filled data
     // router.push(`/dashboard/${suite.id}/test-cases/new?from_insight=${insight.id}`);
@@ -190,7 +191,7 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
       
       toast.success('Opening bug form with AI-generated details...');
     } catch (error) {
-      console.error('Error creating bug from insight:', error);
+      logger.log('Error creating bug from insight:', error);
       toast.error('Failed to prepare bug data');
     }
   };

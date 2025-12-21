@@ -28,6 +28,7 @@ import { ShareDialog } from './ShareDialog'
 import { updateDocument } from '@/lib/actions/documents'
 import { toast } from 'sonner'
 import { useDebounce } from '@/lib/hooks/useDebounce'
+import { logger } from '@/lib/utils/logger'
 
 const DOC_TYPES = [
   { value: 'meeting_notes', label: '📝 Meeting Notes' },
@@ -68,7 +69,7 @@ export function DocumentEditor({ document, onClose, suites }: any) {
         
         setLastSaved(new Date())
       } catch (error: any) {
-        console.error('Auto-save failed:', error)
+        logger.log('Auto-save failed:', error)
       } finally {
         setIsSaving(false)
       }

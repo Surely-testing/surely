@@ -5,17 +5,18 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/utils/logger';
 
 export async function getCurrentSuiteFromSession() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) {
-    console.log('No user found in session check')
+    logger.log('No user found in session check')
     return null
   }
 
-  console.log('Getting session for user:', user.id)
+  logger.log('Getting session for user:', user.id)
 
   // Get current suite from session
   const { data: session, error: sessionError } = await supabase
@@ -24,11 +25,8 @@ export async function getCurrentSuiteFromSession() {
     .eq('user_id', user.id)
     .single()
 
-  console.log('Session data:', session, 'Error:', sessionError)
-
   // If no session or no suite set, get first suite and set it
   if (!session?.current_suite_id) {
-    console.log('No suite in session, getting first suite...')
     
     const { data: firstSuite, error: suiteError } = await supabase
       .from('test_suites')
@@ -38,18 +36,14 @@ export async function getCurrentSuiteFromSession() {
       .limit(1)
       .single()
 
-    console.log('First suite:', firstSuite?.id, 'Error:', suiteError)
 
     if (firstSuite) {
       await setCurrentSuite(firstSuite.id)
       return firstSuite.id
     }
 
-    console.log('No suites found for user')
     return null
   }
-
-  console.log('Current suite from session:', session.current_suite_id)
   return session.current_suite_id
 }
 
@@ -58,11 +52,10 @@ export async function setCurrentSuite(suiteId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) {
-    console.log('No user found, cannot set suite')
     return { error: 'Not authenticated' }
   }
 
-  console.log('Setting current suite:', suiteId, 'for user:', user.id)
+  logger.log('Setting current suite:', suiteId, 'for user:', user.id)
 
   // Verify user has access to this suite
   const { data: suite, error: accessError } = await supabase
@@ -73,7 +66,6 @@ export async function setCurrentSuite(suiteId: string) {
     .single()
 
   if (accessError || !suite) {
-    console.log('User does not have access to suite:', suiteId)
     return { error: 'Access denied' }
   }
 
@@ -87,11 +79,11 @@ export async function setCurrentSuite(suiteId: string) {
     })
 
   if (upsertError) {
-    console.log('Error upserting session:', upsertError)
+    logger.log('Error upserting session:', upsertError)
     return { error: upsertError.message }
   }
 
-  console.log('Suite set successfully')
+  logger.log('Suite set successfully')
   revalidatePath('/dashboard')
   
   return { success: true }

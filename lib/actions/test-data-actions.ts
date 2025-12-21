@@ -3,6 +3,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/utils/logger';
 import type {
   TestDataType,
   TestDataItem,
@@ -28,7 +29,7 @@ export async function getTestDataTypes(suiteId: string) {
     .order('created_at', { ascending: false })
 
   if (typesError) {
-    console.error('Error fetching test data types:', typesError)
+    logger.log('Error fetching test data types:', typesError)
     return { success: false, error: typesError.message }
   }
 
@@ -66,7 +67,7 @@ export async function getTestDataItems(typeId: string) {
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('Error fetching test data items:', error)
+    logger.log('Error fetching test data items:', error)
     return { success: false, error: error.message }
   }
 
@@ -91,7 +92,7 @@ export async function createTestDataType(input: CreateTestDataTypeInput) {
     .single()
 
   if (error) {
-    console.error('Error creating test data type:', error)
+    logger.log('Error creating test data type:', error)
     return { success: false, error: error.message }
   }
 
@@ -110,7 +111,7 @@ export async function updateTestDataType(id: string, input: UpdateTestDataTypeIn
     .single()
 
   if (error) {
-    console.error('Error updating test data type:', error)
+    logger.log('Error updating test data type:', error)
     return { success: false, error: error.message }
   }
 
@@ -133,7 +134,7 @@ export async function deleteTestDataTypes(ids: string[]) {
     .in('id', ids)
 
   if (error) {
-    console.error('Error deleting test data types:', error)
+    logger.log('Error deleting test data types:', error)
     return { success: false, error: error.message }
   }
 
@@ -160,7 +161,7 @@ export async function createTestDataItems(items: CreateTestDataItemInput[]) {
     .select()
 
   if (error) {
-    console.error('Error creating test data items:', error)
+    logger.log('Error creating test data items:', error)
     return { success: false, error: error.message }
   }
 
@@ -177,7 +178,7 @@ export async function deleteTestDataItems(ids: string[]) {
     .in('id', ids)
 
   if (error) {
-    console.error('Error deleting test data items:', error)
+    logger.log('Error deleting test data items:', error)
     return { success: false, error: error.message }
   }
 

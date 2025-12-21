@@ -1,11 +1,19 @@
 // ============================================
-// contexts/RecordingContext.tsx - FIXED
+// contexts/RecordingContext.tsx - FIXED AUDIO
 // ============================================
 
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { RecordingPreview, ConsoleLog, NetworkLog, RecordingMetadata } from '@/types/recording.types';
+import { toast } from 'sonner';
+import { logger } from '@/lib/utils/logger';
+
+// CONFIGURATION
+const MAX_RECORDING_DURATION = 300; // 5 minutes in seconds
+const WARNING_DURATION = 240; // Show warning at 4 minutes
+const OPTIMAL_VIDEO_BITRATE = 2500000; // 2.5 Mbps - good quality, ~15-20MB per 5 mins
+const OPTIMAL_FRAME_RATE = 30; // Smooth recording
 
 interface RecordingContextType {
   isRecording: boolean;
@@ -14,6 +22,7 @@ interface RecordingContextType {
   countdown: number;
   error: string | null;
   isMicMuted: boolean;
+  remainingTime: number;
   startRecording: () => Promise<void>;
   pauseRecording: () => void;
   resumeRecording: () => void;
@@ -36,11 +45,16 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const displayStreamRef = useRef<MediaStream | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const combinedStreamRef = useRef<MediaStream | null>(null);
-  const micTrackRef = useRef<MediaStreamTrack | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const micGainRef = useRef<GainNode | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const consoleLogsRef = useRef<ConsoleLog[]>([]);
   const networkLogsRef = useRef<NetworkLog[]>([]);
+  const warningShownRef = useRef(false);
+
+  const remainingTime = MAX_RECORDING_DURATION - duration;
 
   // Capture console logs during recording
   useEffect(() => {
@@ -80,6 +94,27 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isRecording]);
 
+  // Check for time limit and show warnings
+  useEffect(() => {
+    if (!isRecording || isPaused) return;
+
+    // Show warning at 4 minutes
+    if (duration === WARNING_DURATION && !warningShownRef.current) {
+      toast.warning('1 minute remaining', {
+        description: 'Recording will auto-stop at 5 minutes',
+      });
+      warningShownRef.current = true;
+    }
+
+    // Auto-stop at 5 minutes
+    if (duration >= MAX_RECORDING_DURATION) {
+      toast.info('Maximum recording time reached', {
+        description: 'Recording stopped automatically at 5 minutes',
+      });
+      stopRecording();
+    }
+  }, [duration, isRecording, isPaused]);
+
   const cleanup = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -97,13 +132,19 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       combinedStreamRef.current.getTracks().forEach(track => track.stop());
       combinedStreamRef.current = null;
     }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current = null;
     }
     chunksRef.current = [];
     consoleLogsRef.current = [];
     networkLogsRef.current = [];
-    micTrackRef.current = null;
+    micSourceRef.current = null;
+    micGainRef.current = null;
+    warningShownRef.current = false;
   }, []);
 
   const showCountdown = useCallback(async () => {
@@ -130,19 +171,9 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       setDuration(0);
       setIsPaused(false);
       setIsMicMuted(false);
+      warningShownRef.current = false;
       
-      // Step 1: Request screen sharing - browser will show native dialog
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: 'always',
-          frameRate: 15,
-        } as MediaTrackConstraints,
-        audio: true, // System audio
-      });
-
-      displayStreamRef.current = displayStream;
-
-      // Step 2: Request microphone - browser will show permission dialog if needed
+      // Step 1: Request microphone FIRST
       let micStream: MediaStream | null = null;
       try {
         micStream = await navigator.mediaDevices.getUserMedia({
@@ -153,45 +184,90 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
           },
         });
         micStreamRef.current = micStream;
+        logger.log('✓ Microphone access granted');
       } catch (micError) {
-        console.warn('Microphone access denied:', micError);
-        // Continue without mic
+        logger.log('Microphone access denied:', micError);
+        throw new Error('Microphone access is required for recording. Please allow microphone permissions and try again.');
       }
+
+      // Step 2: Request screen sharing
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          cursor: 'always',
+          frameRate: OPTIMAL_FRAME_RATE,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        } as MediaTrackConstraints,
+        audio: true, // System audio (when available)
+      });
+
+      displayStreamRef.current = displayStream;
 
       // Step 3: Show countdown AFTER screen selection
       await showCountdown();
 
-      // Step 4: Combine streams
-      const combinedStream = new MediaStream();
+      // Step 4: Mix audio using Web Audio API (fixes multiple audio track issue)
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const destination = audioContext.createMediaStreamDestination();
 
+      // Add system audio from display (if available)
+      const systemAudioTracks = displayStream.getAudioTracks();
+      if (systemAudioTracks.length > 0) {
+        const systemAudioSource = audioContext.createMediaStreamSource(
+          new MediaStream(systemAudioTracks)
+        );
+        systemAudioSource.connect(destination);
+        logger.log('✓ System audio mixed');
+      } else {
+        logger.log('ℹ No system audio from tab/window');
+      }
+
+      // Add microphone audio with gain control for muting
+      if (micStream) {
+        const micSource = audioContext.createMediaStreamSource(micStream);
+        const micGain = audioContext.createGain();
+        micGain.gain.value = 1; // Unmuted by default
+        
+        micSource.connect(micGain);
+        micGain.connect(destination);
+        
+        micSourceRef.current = micSource;
+        micGainRef.current = micGain;
+        
+        logger.log('✓ Microphone audio mixed');
+      }
+
+      // Create combined stream with video + mixed audio
+      const combinedStream = new MediaStream();
+      
       // Add video from display
       displayStream.getVideoTracks().forEach(track => {
         combinedStream.addTrack(track);
       });
 
-      // Add system audio from display
-      displayStream.getAudioTracks().forEach(track => {
+      // Add the single mixed audio track
+      destination.stream.getAudioTracks().forEach(track => {
         combinedStream.addTrack(track);
       });
 
-      // Add microphone audio if available
-      if (micStream) {
-        micStream.getAudioTracks().forEach(track => {
-          combinedStream.addTrack(track);
-          micTrackRef.current = track; // Store for mute control
-        });
-      }
+      logger.log('Combined stream:', {
+        video: combinedStream.getVideoTracks().length,
+        audio: combinedStream.getAudioTracks().length,
+      });
 
       combinedStreamRef.current = combinedStream;
 
       // Step 5: Create MediaRecorder
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+        ? 'video/webm;codecs=vp8'
         : 'video/webm';
         
       const mediaRecorder = new MediaRecorder(combinedStream, { 
         mimeType,
-        videoBitsPerSecond: 1000000 
+        videoBitsPerSecond: OPTIMAL_VIDEO_BITRATE,
       });
 
       mediaRecorderRef.current = mediaRecorder;
@@ -206,7 +282,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      // Handle stream stop
+      // Handle stream stop (user clicks browser's stop sharing button)
       displayStream.getVideoTracks()[0].addEventListener('ended', () => {
         if (isRecording) {
           stopRecording();
@@ -214,7 +290,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       });
 
       // Start recording
-      mediaRecorder.start(100);
+      mediaRecorder.start(1000); // Collect data every second
       setIsRecording(true);
 
       // Start timer
@@ -223,7 +299,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       }, 1000);
 
     } catch (err) {
-      console.error('Error starting recording:', err);
+      logger.log('Error starting recording:', err);
       setError(
         err instanceof Error 
           ? err.message 
@@ -268,9 +344,17 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       }
 
       const mediaRecorder = mediaRecorderRef.current;
+      const finalDuration = duration;
 
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+
+        // Get video resolution from the actual video track
+        const videoTrack = displayStreamRef.current?.getVideoTracks()[0];
+        const settings = videoTrack?.getSettings();
+        const resolution = (settings?.width && settings?.height)
+          ? `${settings.width}x${settings.height}`
+          : '1920x1080';
 
         const userAgent = navigator.userAgent;
         const browser = /Chrome/.test(userAgent) ? 'Chrome' : 
@@ -282,18 +366,26 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
 
         const metadata: RecordingMetadata = {
           timestamp: new Date().toISOString(),
+          resolution,
           browser,
           os,
         };
 
         const preview: RecordingPreview = {
           videoBlob: blob,
-          duration,
+          duration: finalDuration,
           consoleLogs: [...consoleLogsRef.current],
           networkLogs: [...networkLogsRef.current],
           screenshots: [],
           metadata,
         };
+
+        logger.log('Recording complete:', {
+          duration: finalDuration,
+          size: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
+          resolution,
+          mimeType: blob.type,
+        });
 
         cleanup();
         setIsRecording(false);
@@ -326,9 +418,9 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     const newMutedState = !isMicMuted;
     setIsMicMuted(newMutedState);
 
-    // Only toggle microphone track, not system audio
-    if (micTrackRef.current) {
-      micTrackRef.current.enabled = !newMutedState;
+    // Use gain node to mute/unmute microphone
+    if (micGainRef.current) {
+      micGainRef.current.gain.value = newMutedState ? 0 : 1;
     }
   }, [isMicMuted]);
 
@@ -351,6 +443,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         countdown,
         error,
         isMicMuted,
+        remainingTime,
         startRecording,
         pauseRecording,
         resumeRecording,

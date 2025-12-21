@@ -10,6 +10,7 @@ import { useTestRuns } from '@/lib/hooks/useTestRuns'
 import { toast } from 'sonner'
 import TestRunsView from '@/components/test-runs/TestRunsView'
 import { Loader2 } from 'lucide-react'
+import { logger } from '@/lib/utils/logger';
 
 export default function TestRunsPage() {
   const { supabase } = useSupabase()
@@ -30,7 +31,7 @@ export default function TestRunsPage() {
           setSuiteId(suites.id)
         }
       } catch (error) {
-        console.error('Error fetching suite:', error)
+        logger.log('Error fetching suite:', error)
         toast.error('Failed to load test suite')
       } finally {
         setIsLoadingSuite(false)

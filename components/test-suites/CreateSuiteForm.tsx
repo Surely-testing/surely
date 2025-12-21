@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
+import { logger } from '@/lib/utils/logger';
 import { Loader2, FolderPlus, Building2, User, Info } from 'lucide-react'
 
 interface CreateSuiteFormProps {
@@ -58,7 +59,7 @@ export function CreateSuiteForm({ userId, onSuccess }: CreateSuiteFormProps) {
         }
       }
     } catch (error) {
-      console.error('Error loading profile:', error)
+      logger.log('Error loading profile:', error)
       toast.error('Failed to load account information')
     } finally {
       setLoadingProfile(false)
@@ -131,7 +132,7 @@ export function CreateSuiteForm({ userId, onSuccess }: CreateSuiteFormProps) {
         router.refresh()
       }
     } catch (error: any) {
-      console.error('Error creating suite:', error)
+      logger.log('Error creating suite:', error)
       toast.error(error.message || 'Failed to create test suite')
     } finally {
       setIsLoading(false)

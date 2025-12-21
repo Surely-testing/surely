@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { Loader2, CheckCircle, XCircle, Mail } from 'lucide-react'
+import { logger } from '@/lib/utils/logger';
 
 export default function AcceptInvitePage() {
   const router = useRouter()
@@ -124,7 +125,7 @@ export default function AcceptInvitePage() {
       }, 2000)
 
     } catch (error: any) {
-      console.error('Error accepting invitation:', error)
+      logger.log('Error accepting invitation:', error)
       setStatus('error')
       setMessage(error.message || 'Failed to accept invitation')
     }

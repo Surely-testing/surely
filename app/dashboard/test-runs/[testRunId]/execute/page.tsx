@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { relationshipsApi } from '@/lib/api/relationships'
 import { toast } from 'sonner'
+import { logger } from '@/lib/utils/logger';
 import TestRunExecutionView from '@/components/test-runs/TestRunExecutionView'
 
 export default function TestRunExecutionPage({ 
@@ -87,7 +88,7 @@ export default function TestRunExecutionPage({
       }
 
     } catch (error) {
-      console.error('Error fetching test run data:', error)
+      logger.log('Error fetching test run data:', error)
       toast.error('Failed to load test run')
       router.push(`/dashboard/test-runs/${testRunId}`)
     } finally {
@@ -118,7 +119,7 @@ export default function TestRunExecutionPage({
 
       toast.success('Test result saved')
     } catch (error) {
-      console.error('Error updating test result:', error)
+      logger.log('Error updating test result:', error)
       toast.error('Failed to save test result')
       throw error
     }
@@ -144,7 +145,7 @@ export default function TestRunExecutionPage({
 
       toast.success('Test run completed')
     } catch (error) {
-      console.error('Error completing test run:', error)
+      logger.log('Error completing test run:', error)
       toast.error('Failed to complete test run')
     }
   }

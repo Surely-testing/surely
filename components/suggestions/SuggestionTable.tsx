@@ -15,6 +15,7 @@ import {
   TableCheckbox,
 } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
+import { logger } from '@/lib/utils/logger';
 
 interface SuggestionTableProps {
   suggestions: SuggestionWithCreator[];
@@ -69,7 +70,7 @@ export function SuggestionTable({
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
       onUpdate?.();
     } catch (error: any) {
-      console.error('Error updating status:', error);
+      logger.log('Error updating status:', error);
       toast.error('Failed to update status', {
         description: error?.message
       });

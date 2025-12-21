@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { relationshipsApi } from '@/lib/api/relationships';
 import { getTestCases, getSprints, getSprintTestCases } from '@/lib/api/testCases';
 import { TestRun, TestCase, Sprint } from '@/types/testRun.types';
+import { logger } from '@/lib/utils/logger';
 
 interface TestRunFormProps {
   suiteId: string;
@@ -72,7 +73,7 @@ export default function TestRunForm({
       }
       setSprintTestCases(sprintTCMap);
     } catch (error) {
-      console.error('Error loading data:', error);
+      logger.log('Error loading data:', error);
       toast.error('Failed to load test cases and sprints');
     }
   };
@@ -97,7 +98,7 @@ export default function TestRunForm({
       setSelectedSprints(sprintIds);
       setSelectedTestCases(testCaseIds);
     } catch (error) {
-      console.error('Error loading relationships:', error);
+      logger.log('Error loading relationships:', error);
     }
   };
 
@@ -232,7 +233,7 @@ export default function TestRunForm({
 
       onSuccess();
     } catch (error: any) {
-      console.error('Error saving test run:', error);
+      logger.log('Error saving test run:', error);
       toast.error(error.message || 'Failed to save test run');
     } finally {
       setLoading(false);

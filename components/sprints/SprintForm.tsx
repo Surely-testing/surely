@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Target, Calendar, FileText, CheckSquare, Bug, Lightbulb, X, Plus, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/utils/logger';
 
 interface SprintFormProps {
     suiteId: string;
@@ -86,7 +87,7 @@ export default function SprintForm({ suiteId, initialData, onSuccess, onCancel }
                 .not('status', 'in', '(rejected, implemented, archived)')
                 .order('title');
 
-            console.log('Fetched assets counts:', {
+            logger.log('Fetched assets counts:', {
                 testCases: testCases?.length || 0,
                 bugs: bugs?.length || 0,
                 suggestions: suggestions?.length || 0
@@ -122,7 +123,7 @@ export default function SprintForm({ suiteId, initialData, onSuccess, onCancel }
                 }))
             );
         } catch (error) {
-            console.error('Error fetching assets:', error);
+            logger.log('Error fetching assets:', error);
             toast.error('Failed to load available assets');
         } finally {
             setLoadingAssets(false);
@@ -194,7 +195,7 @@ export default function SprintForm({ suiteId, initialData, onSuccess, onCancel }
             );
             onSuccess();
         } catch (error) {
-            console.error('Error saving sprint:', error);
+            logger.log('Error saving sprint:', error);
             toast.error('Failed to save sprint');
         }
     };

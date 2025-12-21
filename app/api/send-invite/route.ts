@@ -3,6 +3,7 @@
 // ============================================
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -129,10 +130,10 @@ export async function POST(request: NextRequest) {
       })
 
       if (!emailResponse.ok) {
-        console.error('Failed to send email:', await emailResponse.text())
+        logger.log('Failed to send email:', await emailResponse.text())
       }
     } catch (emailError) {
-      console.error('Email sending error:', emailError)
+      logger.log('Email sending error:', emailError)
       // Don't fail the whole request if email fails
     }
 
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Error sending invitation:', error)
+    logger.log('Error sending invitation:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to send invitation' },
       { status: 500 }

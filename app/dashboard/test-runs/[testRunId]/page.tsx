@@ -16,6 +16,7 @@ import { useSupabase } from '@/providers/SupabaseProvider'
 import { relationshipsApi } from '@/lib/api/relationships'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
+import { logger } from '@/lib/utils/logger';
 
 export default function TestRunDetailsPage({ 
   params 
@@ -75,7 +76,7 @@ export default function TestRunDetailsPage({
       setTestRunResults(resultsData || [])
 
     } catch (error) {
-      console.error('Error fetching test run:', error)
+      logger.log('Error fetching test run:', error)
       toast.error('Failed to load test run details')
     } finally {
       setIsLoading(false)
@@ -118,7 +119,7 @@ export default function TestRunDetailsPage({
       router.push(`/dashboard/test-runs/${testRunId}/execute`)
       
     } catch (error) {
-      console.error('Error starting test run:', error)
+      logger.log('Error starting test run:', error)
       toast.error('Failed to start test run')
       setIsExecuting(false)
     }
@@ -138,7 +139,7 @@ export default function TestRunDetailsPage({
       toast.success('Test run deleted')
       router.push('/dashboard/test-runs')
     } catch (error) {
-      console.error('Error deleting test run:', error)
+      logger.log('Error deleting test run:', error)
       toast.error('Failed to delete test run')
     }
   }

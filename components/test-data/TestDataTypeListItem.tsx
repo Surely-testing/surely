@@ -5,6 +5,7 @@ import React from 'react'
 import { TestDataType } from '@/types/test-data'
 import { ICON_MAP, COLOR_MAP } from '@/lib/constants/test-data-constants'
 import { Database } from 'lucide-react'
+import { logger } from '@/lib/utils/logger';
 import { cn } from '@/lib/utils/cn'
 import { TableRow, TableGrid, TableCell, TableCheckbox, TableHeaderText, TableDescriptionText } from '@/components/ui/Table'
 
@@ -26,7 +27,7 @@ export default function TestDataTypeListItem({
 
   // Debug: Log the type data
   React.useEffect(() => {
-    console.log('Type data:', type)
+    logger.log('Type data:', type)
   }, [type])
 
   return (

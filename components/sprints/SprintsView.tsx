@@ -13,6 +13,7 @@ import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components
 import SprintForm from './SprintForm';
 import { Plus, RefreshCw, Search, Filter, X, ChevronLeft, Grid, List } from 'lucide-react';
 import { useSuiteContext } from '@/providers/SuiteContextProvider';
+import { logger } from '@/lib/utils/logger';
 import {
   Select,
   SelectContent,
@@ -116,7 +117,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   };
 
   const handleCreateSprint = () => {
-    console.log('Create sprint clicked');
+    logger.log('Create sprint clicked');
     setEditingSprint(null);
     setShowForm(true);
   };
@@ -152,7 +153,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      console.log('Bulk action:', { actionId, selectedIds, actionConfig, selectedOption });
+      logger.log('Bulk action:', { actionId, selectedIds, actionConfig, selectedOption });
 
       // Handle different actions
       switch (actionId) {
@@ -187,7 +188,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   };
 
   const handleDeleteSprint = (sprintId: string) => {
-    console.log('handleDeleteSprint called with ID:', sprintId);
+    logger.log('handleDeleteSprint called with ID:', sprintId);
     setSprintToDelete(sprintId);
     setDeleteDialogOpen(true);
   };
@@ -195,12 +196,12 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   const confirmDelete = async () => {
     if (!sprintToDelete) return;
 
-    console.log('Confirming delete for sprint:', sprintToDelete);
+    logger.log('Confirming delete for sprint:', sprintToDelete);
     setIsDeleting(true);
 
     try {
       const result = await deleteSprint(sprintToDelete);
-      console.log('Result from deleteSprint:', result);
+      logger.log('Result from deleteSprint:', result);
       
       if (result.error) {
         toast.error(result.error);
@@ -211,11 +212,11 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
       
       // Force refetch
       if (onRefresh) {
-        console.log('Calling onRefresh...');
+        logger.log('Calling onRefresh...');
         await onRefresh();
       }
     } catch (error) {
-      console.error('Delete error:', error);
+      logger.log('Delete error:', error);
       toast.error('Failed to delete sprint');
     } finally {
       setIsDeleting(false);
@@ -225,7 +226,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   };
 
   const cancelDelete = () => {
-    console.log('Cancel delete clicked');
+    logger.log('Cancel delete clicked');
     setDeleteDialogOpen(false);
     setSprintToDelete(null);
   };

@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { logger } from '@/lib/utils/logger';
 
 interface Activity {
   id: string;
@@ -140,7 +141,7 @@ export function useRecentActivity(suiteId: string, limit: number = 10) {
 
         setData(activities);
       } catch (err) {
-        console.error('Error fetching activity:', err);
+        logger.log('Error fetching activity:', err);
         setError(err as Error);
       } finally {
         setIsLoading(false);

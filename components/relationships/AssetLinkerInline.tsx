@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { AssetType, LinkedAsset } from "@/types/relationships.types";
 import { relationshipsApi } from "@/lib/api/relationships";
 import LinkAssetModal from "./LinkAssetsModal";
+import { logger } from '@/lib/utils/logger';
 
 interface AssetLinkerInlineProps {
   assetType: AssetType;
@@ -37,7 +38,7 @@ export function AssetLinkerInline({
       setLinkedAssets(assets);
       onChange?.(assets);
     } catch (error) {
-      console.error('Error fetching linked assets:', error);
+      logger.log('Error fetching linked assets:', error);
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ export function AssetLinkerInline({
       await relationshipsApi.delete(relationshipId);
       fetchLinkedAssets();
     } catch (error) {
-      console.error('Error removing link:', error);
+      logger.log('Error removing link:', error);
     }
   };
 

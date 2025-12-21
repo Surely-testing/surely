@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/Select';
 import { Pagination } from '@/components/shared/Pagination';
+import { logger } from '@/lib/utils/logger';
 
 interface SuggestionsProps {
   suiteId: string;
@@ -68,7 +69,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
     } catch (error) {
-      console.error('Error fetching user:', error);
+      logger.log('Error fetching user:', error);
     }
   };
 
@@ -91,7 +92,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
       const { data: suggestionsData, error: suggestionsError } = await query;
 
       if (suggestionsError) {
-        console.error('Error fetching suggestions:', suggestionsError);
+        logger.log('Error fetching suggestions:', suggestionsError);
         setError(suggestionsError.message);
         toast.error('Failed to fetch suggestions', {
           description: suggestionsError.message
@@ -132,7 +133,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
 
       setSuggestions(transformedData);
     } catch (error: any) {
-      console.error('Error in fetchSuggestions:', error);
+      logger.log('Error in fetchSuggestions:', error);
       setError(error?.message || 'Failed to fetch suggestions');
     } finally {
       setLoading(false);
@@ -182,7 +183,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
       toast.success('Vote recorded');
       fetchSuggestions();
     } catch (error: any) {
-      console.error('Error voting:', error);
+      logger.log('Error voting:', error);
       toast.error('Failed to vote', {
         description: error?.message
       });
@@ -245,7 +246,7 @@ export function Suggestions({ suiteId, onRefresh }: SuggestionsProps) {
       }
       setSelectedSuggestionIds([]);
     } catch (error: any) {
-      console.error('Bulk action error:', error);
+      logger.log('Bulk action error:', error);
       toast.error('Bulk action failed', {
         description: error?.message
       });

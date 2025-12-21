@@ -11,6 +11,7 @@ import { Suggestions } from './Suggestions';
 import { BugForm } from './BugForm';
 import { createClient } from '@/lib/supabase/client';
 import { SuggestionForm } from '../suggestions/SuggestionForm';
+import { logger } from '@/lib/utils/logger';
 
 interface BugsViewProps {
   suiteId: string;
@@ -46,7 +47,7 @@ export function BugsView({ suiteId }: BugsViewProps) {
           setBugsCount(count);
         }
       } catch (error) {
-        console.error('Error fetching bugs count:', error);
+        logger.log('Error fetching bugs count:', error);
       }
     };
 
@@ -62,11 +63,11 @@ export function BugsView({ suiteId }: BugsViewProps) {
   };
 
   const handleTraceability = () => {
-    console.log('Show traceability view');
+    logger.log('Show traceability view');
   };
 
   const handleImport = () => {
-    console.log('Open import dialog');
+    logger.log('Open import dialog');
   };
 
   const handleNewBug = () => {

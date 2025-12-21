@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { Loader2, FolderPlus, Building2, User, X } from 'lucide-react'
+import { logger } from '@/lib/utils/logger';
 
 interface CreateSuitePortalProps {
   userId: string
@@ -53,7 +54,7 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
 
   const loadUserProfile = async () => {
     if (!userId) {
-      console.error('No userId provided')
+      logger.log('No userId provided')
       setLoadingProfile(false)
       return
     }
@@ -68,11 +69,11 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
         .single()
 
       if (error) {
-        console.error('Profile fetch error:', error)
+        logger.log('Profile fetch error:', error)
         throw error
       }
 
-      console.log('Profile loaded:', profile) // Debug log
+      logger.log('Profile loaded:', profile) // Debug log
 
       setAccountType(profile.account_type as 'individual' | 'organization')
       setOrganizationId(profile.organization_id)
@@ -85,16 +86,16 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
           .single()
 
         if (orgError) {
-          console.error('Organization fetch error:', orgError)
+          logger.log('Organization fetch error:', orgError)
         }
 
         if (org) {
           setOrganizationName(org.name)
-          console.log('Organization loaded:', org.name) // Debug log
+          logger.log('Organization loaded:', org.name) // Debug log
         }
       }
     } catch (error) {
-      console.error('Error loading profile:', error)
+      logger.log('Error loading profile:', error)
       toast.error('Failed to load account information')
     } finally {
       setLoadingProfile(false)
@@ -170,7 +171,7 @@ export function CreateSuitePortal({ userId, isOpen, onClose, onSuccess }: Create
 
       onClose()
     } catch (error: any) {
-      console.error('Error creating suite:', error)
+      logger.log('Error creating suite:', error)
       toast.error(error.message || 'Failed to create test suite')
     } finally {
       setIsLoading(false)

@@ -6,6 +6,7 @@
 import { createClient } from "../supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from 'sonner';
+import { logger } from '@/lib/utils/logger';
 
 interface SprintFilters {
   status?: string[];
@@ -101,7 +102,7 @@ export function useCreateSprint(suiteId: string) {
       toast.success('Sprint created successfully');
     },
     onError: (error: any) => {
-      console.error('Error creating sprint:', error);
+      logger.log('Error creating sprint:', error);
       toast.error('Failed to create sprint');
     },
   });
@@ -128,7 +129,7 @@ export function useUpdateSprint(suiteId: string) {
       toast.success('Sprint updated successfully');
     },
     onError: (error: any) => {
-      console.error('Error updating sprint:', error);
+      logger.log('Error updating sprint:', error);
       toast.error('Failed to update sprint');
     },
   });
@@ -148,7 +149,7 @@ export function useDeleteSprint(suiteId: string) {
       toast.success('Sprint deleted successfully');
     },
     onError: (error: any) => {
-      console.error('Error deleting sprint:', error);
+      logger.log('Error deleting sprint:', error);
       toast.error('Failed to delete sprint');
     },
   });

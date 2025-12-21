@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { AssetType } from '@/types/relationships.types';
 import { Search, X, CheckSquare, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { logger } from '@/lib/utils/logger';
 
 interface AssetOption {
   id: string;
@@ -58,7 +59,7 @@ export function AssetLinkerForm({
           .order('created_at', { ascending: false }) as any);
 
         if (error) {
-          console.error(`Error fetching ${assetType}:`, error);
+          logger.log(`Error fetching ${assetType}:`, error);
           continue;
         }
 
@@ -74,7 +75,7 @@ export function AssetLinkerForm({
 
       setAssets(allAssets);
     } catch (error) {
-      console.error('Error fetching assets:', error);
+      logger.log('Error fetching assets:', error);
     } finally {
       setLoading(false);
     }

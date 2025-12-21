@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/Select';
 import { toast } from 'sonner'
+import { logger } from '@/lib/utils/logger'
 
 type ViewMode = 'grid' | 'table'
 type DocumentType = 'all' | 'meeting_notes' | 'test_plan' | 'test_strategy' | 'brainstorm' | 'general'
@@ -140,7 +141,7 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
         setDocuments(mappedDocs)
       }
     } catch (error: any) {
-      console.error('Error fetching data:', error)
+      logger.log('Error fetching data:', error)
       toast.error('Failed to load documents')
     } finally {
       setIsLoading(false)
@@ -292,7 +293,7 @@ export function DocumentsPageView({ suiteId }: DocumentsPageViewProps) {
       setMode('edit')
       toast.success('Document created')
     } catch (error: any) {
-      console.error('Create document error:', error)
+      logger.log('Create document error:', error)
       toast.error('Failed to create document', { description: error.message })
     } finally {
       setIsCreating(false)

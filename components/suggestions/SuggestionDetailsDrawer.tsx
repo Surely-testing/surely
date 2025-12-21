@@ -7,6 +7,7 @@ import { X, ThumbsUp, ThumbsDown, Edit, Tag, User, Calendar, Clock } from 'lucid
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { format } from 'date-fns';
+import { logger } from '@/lib/utils/logger';
 
 interface SuggestionDetailsDrawerProps {
   isOpen: boolean;
@@ -61,7 +62,7 @@ export function SuggestionDetailsDrawer({
       toast.success('Discussion notes saved');
       onUpdate?.();
     } catch (error: any) {
-      console.error('Error saving notes:', error);
+      logger.log('Error saving notes:', error);
       toast.error('Failed to save notes', {
         description: error?.message
       });

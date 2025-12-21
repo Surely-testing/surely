@@ -13,6 +13,7 @@ import { useRecentActivity } from '@/lib/hooks/useActivity';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { logger } from '@/lib/utils/logger';
 import {
     LayoutDashboard,
     FileCheck,
@@ -95,14 +96,14 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                 await Promise.all(refetchPromises);
             }
         } catch (error) {
-            console.error('Error refreshing data:', error);
+            logger.log('Error refreshing data:', error);
         } finally {
             setTimeout(() => setIsRefreshing(false), 500);
         }
     };
 
     // Add right after the hook declarations
-    console.log('🔍 Debug Info:', {
+    logger.log('🔍 Debug Info:', {
         suiteId,
         testCaseStats,
         bugStats,

@@ -17,12 +17,11 @@ import {
   SelectValue,
 } from '@/components/ui/Select';
 import { Search, Grid3x3, List, CheckSquare, Square, Play, Clock, Calendar, Filter, RefreshCw, ChevronLeft } from 'lucide-react';
-import { getRecordings } from '@/lib/actions/recordings';
+import { getRecordings, deleteRecording } from '@/lib/actions/recordings';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { BulkActionsBar, type ActionGroup } from '@/components/shared/BulkActionBar';
 import { Pagination } from '@/components/shared/Pagination';
 import { toast } from 'sonner';
-import { deleteRecording } from '@/lib/actions/recordings';
 import {
   Table,
   TableRow,
@@ -33,20 +32,18 @@ import {
   TableHeaderText,
   TableDescriptionText,
 } from '@/components/ui/Table';
+import { logger } from '@/lib/utils/logger';
 
 interface RecordingsViewProps {
   suiteId: string;
-  initialRecordings: Recording[];
-  sprints?: Array<{ id: string; name: string }>;
 }
 
 export function RecordingsView({
   suiteId,
-  initialRecordings,
-  sprints = [],
 }: RecordingsViewProps) {
-  const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
+  const [recordings, setRecordings] = useState<Recording[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeletingIds, setIsDeletingIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<RecordingFilters>({
     search: '',
     sort: 'newest',
@@ -65,27 +62,32 @@ export function RecordingsView({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
 
-  const fetchRecordings = async () => {
+  const fetchRecordings = useCallback(async () => {
     setIsLoading(true);
-    const { data } = await getRecordings(suiteId, filters);
-    if (data) {
-      setRecordings(data);
+    try {
+      const { data } = await getRecordings(suiteId, filters);
+      if (data) {
+        // Filter to ensure only recordings from current suite
+        const suiteRecordings = data.filter(r => r.suite_id === suiteId);
+        setRecordings(suiteRecordings);
+      }
+    } catch (error) {
+      logger.log('Failed to fetch recordings:', error);
+      toast.error('Failed to load recordings');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  };
+  }, [suiteId, filters]);
 
   const filteredRecordings = useMemo(() => {
     let filtered = recordings.filter(recording => {
       const matchesSearch = !filters.search ||
         recording.title?.toLowerCase().includes(filters.search.toLowerCase());
-      const matchesSprint = !filters.sprint_id || recording.sprint_id === filters.sprint_id;
 
-      // Status filter (you can add a status field to your recordings or use a custom logic)
       const matchesStatus = statusFilter === 'all' ||
         (statusFilter === 'recent' && recording.created_at &&
           new Date(recording.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
 
-      // Date range filter
       let matchesDateRange = true;
       if (dateRangeFilter !== 'all' && recording.created_at) {
         const recordingDate = new Date(recording.created_at);
@@ -103,10 +105,9 @@ export function RecordingsView({
         }
       }
 
-      return matchesSearch && matchesSprint && matchesStatus && matchesDateRange;
+      return matchesSearch && matchesStatus && matchesDateRange;
     });
 
-    // Apply sorting
     filtered.sort((a, b) => {
       let aVal: any = a[sortField];
       let bVal: any = b[sortField];
@@ -142,21 +143,18 @@ export function RecordingsView({
     }, 300);
 
     return () => clearTimeout(debounce);
-  }, [filters]);
+  }, [filters, fetchRecordings]);
 
-
-  const handleFilterChange = (key: keyof RecordingFilters, value: any) => {
+  const handleFilterChange = useCallback((key: keyof RecordingFilters, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
-    setCurrentPage(1); // Reset to first page on filter change
-  };
+    setCurrentPage(1);
+  }, []);
 
-  // Paginate filtered recordings
   const paginatedRecordings = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRecordings.slice(start, start + itemsPerPage);
   }, [filteredRecordings, currentPage, itemsPerPage]);
 
-  // Selection handlers
   const handleToggleSelection = useCallback((recordingId: string) => {
     setSelectedRecordings(prev =>
       prev.includes(recordingId)
@@ -176,7 +174,6 @@ export function RecordingsView({
   const allSelected = paginatedRecordings.length > 0 &&
     selectedRecordings.length === paginatedRecordings.length;
 
-  // Bulk actions handler
   const handleBulkAction = useCallback(async (actionId: string, selectedIds: string[]) => {
     switch (actionId) {
       case 'download':
@@ -198,22 +195,44 @@ export function RecordingsView({
 
       case 'archive':
         toast.success(`Archived ${selectedIds.length} recording(s)`);
-        // Implement archive logic
         setSelectedRecordings([]);
         break;
 
       case 'delete':
-        if (!confirm(`Delete ${selectedIds.length} recording(s)? This cannot be undone.`)) return;
+        if (!confirm(`Delete ${selectedIds.length} recording(s)? This action cannot be undone and will remove the videos from YouTube.`)) {
+          return;
+        }
+
+        setIsDeletingIds(new Set(selectedIds));
+        const deleteToastId = toast.loading(`Deleting ${selectedIds.length} recording(s)...`);
 
         try {
-          for (const id of selectedIds) {
-            await deleteRecording(id);
+          const deletePromises = selectedIds.map(id => deleteRecording(id));
+          const results = await Promise.allSettled(deletePromises);
+          
+          const failedCount = results.filter(r => r.status === 'rejected').length;
+          const successCount = results.filter(r => r.status === 'fulfilled').length;
+
+          if (failedCount > 0) {
+            toast.error(
+              `Deleted ${successCount} recording(s), but ${failedCount} failed`,
+              { id: deleteToastId }
+            );
+          } else {
+            toast.success(`Successfully deleted ${successCount} recording(s)`, { id: deleteToastId });
           }
-          toast.success(`Deleted ${selectedIds.length} recording(s)`);
-          await fetchRecordings();
+
+          // Optimistically update UI by filtering out deleted recordings
+          setRecordings(prev => prev.filter(r => !selectedIds.includes(r.id)));
           setSelectedRecordings([]);
+          
+          // Fetch fresh data in background
+          fetchRecordings();
         } catch (error) {
-          toast.error('Failed to delete some recordings');
+          logger.log('Delete error:', error);
+          toast.error('Failed to delete recordings', { id: deleteToastId });
+        } finally {
+          setIsDeletingIds(new Set());
         }
         break;
     }
@@ -236,7 +255,6 @@ export function RecordingsView({
     }
   ]), []);
 
-  // Format duration helper
   const formatDuration = (seconds?: number | null) => {
     if (!seconds) return '0:00';
     const mins = Math.floor(seconds / 60);
@@ -244,7 +262,6 @@ export function RecordingsView({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Format date helper
   const formatDate = (date?: string | null) => {
     if (!date) return 'N/A';
     try {
@@ -258,31 +275,28 @@ export function RecordingsView({
     }
   };
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setFilters({
       search: '',
       sort: 'newest',
-      sprint_id: undefined,
     });
     setSortField('created_at');
     setSortOrder('desc');
     setStatusFilter('all');
     setDateRangeFilter('all');
-  };
+  }, []);
 
   const activeFiltersCount =
-    (filters.sprint_id ? 1 : 0) +
     (statusFilter !== 'all' ? 1 : 0) +
     (dateRangeFilter !== 'all' ? 1 : 0);
 
-  const handleToggleDrawer = () => {
+  const handleToggleDrawer = useCallback(() => {
     setIsDrawerOpen(prev => !prev);
-  };
+  }, []);
 
   if (isLoading && recordings.length === 0) {
     return (
       <div className="space-y-4 md:space-y-6">
-        {/* Header Skeleton */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-8 w-48 bg-muted animate-pulse rounded" />
@@ -294,7 +308,6 @@ export function RecordingsView({
           </div>
         </div>
 
-        {/* Controls Skeleton */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
           <div className="h-4 w-32 bg-muted animate-pulse rounded" />
           <div className="flex items-center gap-3">
@@ -303,7 +316,6 @@ export function RecordingsView({
           </div>
         </div>
 
-        {/* Content Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="space-y-3">
@@ -320,7 +332,6 @@ export function RecordingsView({
   if (recordings.length === 0 && !isLoading) {
     return (
       <div className="space-y-4 md:space-y-6">
-        {/* ONLY Page Title */}
         <div className="flex items-center gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             Recordings
@@ -328,13 +339,11 @@ export function RecordingsView({
           <span className="text-sm text-muted-foreground">(0)</span>
         </div>
 
-        {/* ONLY Empty State with Recording Button */}
         <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
           <Play className="h-16 w-16 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-2">No recordings yet</h3>
           <p className="text-sm text-muted-foreground mb-6">Start recording test sessions to see them here</p>
 
-          {/* Recording Toolbar Button */}
           <RecordingToolbar
             suiteId={suiteId}
             onRecordingSaved={fetchRecordings}
@@ -346,7 +355,6 @@ export function RecordingsView({
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Header with Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
@@ -357,10 +365,8 @@ export function RecordingsView({
           </span>
         </div>
 
-        {/* Action Buttons Container */}
         <div className="relative overflow-hidden">
           <div className="flex items-center justify-end gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
-            {/* Sliding Drawer */}
             <div
               className="flex items-center gap-2 transition-all duration-300 ease-in-out"
               style={{
@@ -370,10 +376,8 @@ export function RecordingsView({
                 pointerEvents: isDrawerOpen ? 'auto' : 'none',
               }}
             >
-              {/* Additional actions can go here */}
             </div>
 
-            {/* Always Visible Buttons */}
             <button
               type="button"
               onClick={handleToggleDrawer}
@@ -392,7 +396,6 @@ export function RecordingsView({
               type="button"
               onClick={() => {
                 fetchRecordings();
-                window.location.reload();
               }}
               disabled={isLoading}
               className="inline-flex items-center justify-center p-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
@@ -404,13 +407,10 @@ export function RecordingsView({
         </div>
       </div>
 
-      {/* Controls Bar - Mobile First, Desktop Preserved */}
       <div className="bg-card border-b border-border">
         <div className="px-3 py-2">
           <div className="flex flex-col gap-3 lg:gap-0">
-            {/* Mobile Layout (< lg screens) */}
             <div className="lg:hidden space-y-3">
-              {/* Row 1: Search (Full Width) */}
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
@@ -423,9 +423,7 @@ export function RecordingsView({
                 />
               </div>
 
-              {/* Row 2: Filter, Sort */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {/* Filter Button */}
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   disabled={isLoading}
@@ -440,7 +438,6 @@ export function RecordingsView({
                   )}
                 </button>
 
-                {/* Sort Dropdown */}
                 <Select
                   value={`${sortField}-${sortOrder}`}
                   onValueChange={(value) => {
@@ -464,7 +461,6 @@ export function RecordingsView({
                 </Select>
               </div>
 
-              {/* Row 3: Select All (Left) | View Toggle (Right) */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <input
@@ -479,7 +475,6 @@ export function RecordingsView({
                   </span>
                 </div>
 
-                {/* View Toggle */}
                 <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                   <button
                     onClick={() => setViewMode('grid')}
@@ -507,10 +502,8 @@ export function RecordingsView({
               </div>
             </div>
 
-            {/* Desktop Layout (lg+ screens) - Original Design */}
             <div className="hidden lg:flex lg:flex-col lg:gap-0">
               <div className="flex items-center justify-between gap-4">
-                {/* Left Side: Select All */}
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
@@ -524,9 +517,7 @@ export function RecordingsView({
                   </span>
                 </div>
 
-                {/* Right Side: Search, Filter, Sort, View Toggle */}
                 <div className="flex items-center gap-3 flex-1 justify-end">
-                  {/* Search */}
                   <div className="relative flex-1 max-w-xs">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <input
@@ -539,7 +530,6 @@ export function RecordingsView({
                     />
                   </div>
 
-                  {/* Filter Button */}
                   <button
                     onClick={() => setShowFilters(!showFilters)}
                     disabled={isLoading}
@@ -554,7 +544,6 @@ export function RecordingsView({
                     )}
                   </button>
 
-                  {/* Sort Dropdown */}
                   <Select
                     value={`${sortField}-${sortOrder}`}
                     onValueChange={(value) => {
@@ -577,7 +566,6 @@ export function RecordingsView({
                     </SelectContent>
                   </Select>
 
-                  {/* View Toggle */}
                   <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                     <button
                       onClick={() => setViewMode('grid')}
@@ -607,7 +595,6 @@ export function RecordingsView({
             </div>
           </div>
 
-          {/* Filters Panel */}
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-border">
               <div className="flex items-center justify-between mb-3">
@@ -622,31 +609,7 @@ export function RecordingsView({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Sprint Filter */}
-                {sprints.length > 0 && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                      Sprint
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {sprints.map((sprint) => (
-                        <button
-                          key={sprint.id}
-                          onClick={() => handleFilterChange('sprint_id', filters.sprint_id === sprint.id ? undefined : sprint.id)}
-                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filters.sprint_id === sprint.id
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background text-foreground border-border hover:border-primary'
-                            }`}
-                        >
-                          {sprint.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Status/Recent Filter */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
                     Status
@@ -667,7 +630,6 @@ export function RecordingsView({
                   </div>
                 </div>
 
-                {/* Date Range Filter */}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
                     Date Range
@@ -693,15 +655,13 @@ export function RecordingsView({
         </div>
       </div>
 
-      {/* Stats Bar */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {filteredRecordings.length} of {recordings.length} recordings
-          {selectedRecordings.length > 0 && ` • ${selectedRecordings.length} selected`}
+          {selectedRecordings.length > 0 && ` - ${selectedRecordings.length} selected`}
         </p>
       </div>
 
-      {/* Content Area */}
       {filteredRecordings.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center px-4">
           <Filter className="h-12 w-12 text-muted-foreground mb-3" />
@@ -726,6 +686,7 @@ export function RecordingsView({
             selectedRecordings={selectedRecordings}
             onToggleSelection={handleToggleSelection}
             viewMode={viewMode}
+            isDeletingIds={isDeletingIds}
           />
 
           {filteredRecordings.length > itemsPerPage && (
@@ -743,10 +704,10 @@ export function RecordingsView({
         </>
       ) : (
         <>
-          {/* List/Table View */}
           <Table>
             {paginatedRecordings.map((recording) => {
               const isSelected = selectedRecordings.includes(recording.id);
+              const isDeleting = isDeletingIds.has(recording.id);
 
               return (
                 <TableRow
@@ -754,23 +715,20 @@ export function RecordingsView({
                   selected={isSelected}
                   selectable
                   onClick={() => {
-                    // Navigate to recording detail
-                    window.location.href = `/dashboard/recordings/${recording.id}`;
+                    if (!isDeleting) {
+                      window.location.href = `/dashboard/recordings/${recording.id}`;
+                    }
                   }}
-                  className="cursor-pointer"
+                  className={`cursor-pointer ${isDeleting ? 'opacity-50 pointer-events-none' : ''}`}
                 >
-                  {/* Checkbox */}
                   <TableCheckbox
                     checked={isSelected}
-                    onCheckedChange={() => handleToggleSelection(recording.id)}
+                    onCheckedChange={() => !isDeleting && handleToggleSelection(recording.id)}
                   />
 
-                  {/* Content Grid */}
                   <TableGrid columns={4}>
-                    {/* Recording Info */}
                     <TableCell className="col-span-2 md:col-span-1">
                       <div className="flex items-center gap-3">
-                        {/* Thumbnail */}
                         <div className="relative w-20 h-12 bg-muted rounded overflow-hidden shrink-0">
                           {recording.thumbnail_url ? (
                             <img
@@ -790,7 +748,6 @@ export function RecordingsView({
                           )}
                         </div>
 
-                        {/* Title & Description */}
                         <div className="min-w-0">
                           <TableHeaderText>
                             {recording.title || 'Untitled Recording'}
@@ -804,7 +761,6 @@ export function RecordingsView({
                       </div>
                     </TableCell>
 
-                    {/* Duration */}
                     <TableCell className="hidden md:block">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-4 h-4" />
@@ -812,7 +768,6 @@ export function RecordingsView({
                       </div>
                     </TableCell>
 
-                    {/* Stats */}
                     <TableCell className="hidden lg:block">
                       <div className="flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-1">
@@ -826,7 +781,6 @@ export function RecordingsView({
                       </div>
                     </TableCell>
 
-                    {/* Date */}
                     <TableCell className="hidden sm:block">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Calendar className="w-4 h-4" />
@@ -854,7 +808,6 @@ export function RecordingsView({
         </>
       )}
 
-      {/* Bulk Actions Bar */}
       {selectedRecordings.length > 0 && (
         <BulkActionsBar
           selectedItems={selectedRecordings}

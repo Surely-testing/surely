@@ -9,8 +9,6 @@ import { useSuiteContext } from "@/providers/SuiteContextProvider"
 export default function DashboardPage() {
   const { suite: currentSuite } = useSuiteContext()
   
-  console.log('🎯 Dashboard Page - Current Suite:', currentSuite?.id)
-  
   if (!currentSuite?.id) {
     return (
       <div className="flex items-center justify-center h-96">
