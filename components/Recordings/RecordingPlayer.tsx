@@ -27,12 +27,13 @@ interface RecordingPlayerProps {
   recording: Recording;
   suite: { id: string; name: string };
   sprint?: { id: string; name: string } | null;
+  embeddedInBugDrawer?: boolean;
 }
 
 // Helper function to extract YouTube video ID
 const getYouTubeVideoId = (url: string | null): string | null => {
   if (!url) return null;
-  
+
   const patterns = [
     /(?:youtube\.com\/watch\?v=)([^&\n?#]+)/,
     /(?:youtu\.be\/)([^&\n?#]+)/,
@@ -51,13 +52,18 @@ const getYouTubeVideoId = (url: string | null): string | null => {
   return null;
 };
 
-export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerProps) {
+export function RecordingPlayer({ 
+  recording, 
+  suite, 
+  sprint,
+  embeddedInBugDrawer = false 
+}: RecordingPlayerProps) {
   const router = useRouter();
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const [networkLogs, setNetworkLogs] = useState<NetworkLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  
+
   // AI Insights state
   const [showAIInsights, setShowAIInsights] = useState(true);
 
@@ -119,7 +125,7 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
 
   const getVideoEmbedUrl = (): string => {
     const metadata = recording.metadata as any;
-    
+
     // Priority 1: Use embedUrl from metadata
     if (metadata?.embedUrl) {
       return metadata.embedUrl;
@@ -163,17 +169,10 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
     toast.success(`Saved ${insights.length} AI insights`);
   };
 
-  const handleCreateTestCase = (insight: AIInsight) => {
-    logger.log('Creating test case from insight:', insight);
-    toast.info('Test case creation not implemented yet');
-    // TODO: Navigate to test case creation page with pre-filled data
-    // router.push(`/dashboard/${suite.id}/test-cases/new?from_insight=${insight.id}`);
-  };
-
   const handleCreateBug = (insight: AIInsight) => {
     try {
       const metadata = recording.metadata as any;
-      
+
       // Convert AI insight to bug form data
       const bugData = convertInsightToBugData(insight, recording.id, {
         browser: metadata?.browser,
@@ -185,10 +184,10 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
 
       // Store in sessionStorage for the bug form to pick up
       sessionStorage.setItem('bugPrefillData', JSON.stringify(bugData));
-      
+
       // Navigate to bug creation page
-      router.push(`/dashboard/${suite.id}/bugs/new?from_recording=${recording.id}&insight_id=${insight.id}`);
-      
+      router.push(`/dashboard/bugs?from_recording=${recording.id}&insight_id=${insight.id}&show_form=true`);
+
       toast.success('Opening bug form with AI-generated details...');
     } catch (error) {
       logger.log('Error creating bug from insight:', error);
@@ -204,27 +203,38 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
   return (
     <div className="w-full">
       {/* Back and Share Buttons - Top Row */}
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" size="sm" onClick={() => window.history.back()} className="gap-2">
-          <ExternalLink className="h-4 w-4 rotate-180" />
-          Back
-        </Button>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => router.push(`/dashboard/${suite.id}/bugs/new?from_recording=${recording.id}`)}
-            className="gap-2"
-          >
-            <BugIcon className="h-4 w-4" />
-            Report Bug
+      {!embeddedInBugDrawer ? (
+        // Show full button row when standalone
+        <div className="flex justify-between items-center mb-4">
+          <Button variant="outline" size="sm" onClick={() => window.history.back()} className="gap-2">
+            <ExternalLink className="h-4 w-4 rotate-180" />
+            Back
           </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/dashboard/bugs?from_recording=${recording.id}&show_form=true`)}
+              className="gap-2"
+            >
+              <BugIcon className="h-4 w-4" />
+              Report Bug
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleShare} className="gap-2">
+              <Share2 className="h-4 w-4" />
+              Share
+            </Button>
+          </div>
+        </div>
+      ) : (
+        // Show only Share button when embedded
+        <div className="flex justify-end items-center mb-4">
           <Button variant="outline" size="sm" onClick={handleShare} className="gap-2">
             <Share2 className="h-4 w-4" />
             Share
           </Button>
         </div>
-      </div>
+      )}
 
       {/* YouTube-style Layout */}
       <div className="flex flex-col lg:flex-row gap-6 w-full">
@@ -261,7 +271,7 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
                     <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
                     <p className="text-lg mb-2">Video unavailable</p>
                     <p className="text-sm text-gray-400">
-                      {recording.url 
+                      {recording.url
                         ? 'Unable to play this video format'
                         : 'No video URL provided'
                       }
@@ -286,7 +296,7 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
           {/* Video Info */}
           <div className="space-y-3">
             <h1 className="text-xl font-semibold">{recording.title}</h1>
-            
+
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span>
@@ -369,7 +379,6 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
                     duration={recording.duration || 0}
                     isEnabled={showAIInsights}
                     onSaveHighlights={handleSaveInsights}
-                    onCreateTestCase={handleCreateTestCase}
                     onCreateBug={handleCreateBug}
                   />
                 </CardContent>
@@ -453,10 +462,10 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
                                 log.type === 'error'
                                   ? 'text-red-500 shrink-0'
                                   : log.type === 'warn'
-                                  ? 'text-yellow-500 shrink-0'
-                                  : log.type === 'info'
-                                  ? 'text-blue-500 shrink-0'
-                                  : 'text-foreground shrink-0'
+                                    ? 'text-yellow-500 shrink-0'
+                                    : log.type === 'info'
+                                      ? 'text-blue-500 shrink-0'
+                                      : 'text-foreground shrink-0'
                               }
                             >
                               [{log.type}]
@@ -500,8 +509,8 @@ export function RecordingPlayer({ recording, suite, sprint }: RecordingPlayerPro
                                     log.status && log.status >= 200 && log.status < 300
                                       ? 'text-green-600 font-semibold text-[11px]'
                                       : log.status && log.status >= 400
-                                      ? 'text-red-600 font-semibold text-[11px]'
-                                      : 'text-yellow-600 font-semibold text-[11px]'
+                                        ? 'text-red-600 font-semibold text-[11px]'
+                                        : 'text-yellow-600 font-semibold text-[11px]'
                                   }
                                 >
                                   {log.status || 'pending'}

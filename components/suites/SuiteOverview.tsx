@@ -103,17 +103,17 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
     };
 
     // Add right after the hook declarations
-    logger.log('🔍 Debug Info:', {
-        suiteId,
-        testCaseStats,
-        bugStats,
-        sprints,
-        loadingTestCases,
-        loadingBugs,
-        loadingSprints,
-        hasData,
-        isConnected
-    });
+    // logger.log('🔍 Debug Info:', {
+    //     suiteId,
+    //     testCaseStats,
+    //     bugStats,
+    //     sprints,
+    //     loadingTestCases,
+    //     loadingBugs,
+    //     loadingSprints,
+    //     hasData,
+    //     isConnected
+    // });
 
     const calculateTrend = (current: number, previous: number) => {
         if (previous === 0) return { value: 0, isPositive: true };
@@ -496,64 +496,6 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                             </div>
                         </Card>
                     </div>
-
-                    {/* Quick Actions */}
-                    <Card className="p-6">
-                        <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <Link
-                                href={`/dashboard/test-cases/new`}
-                                className="flex items-center gap-3 p-4 border border-border rounded-xl hover:border-primary hover:bg-primary/5 transition-all group"
-                            >
-                                <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center group-hover:bg-primary transition-colors">
-                                    <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary-foreground transition-colors" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">New Test Case</p>
-                                    <p className="text-xs text-muted-foreground">Create test case</p>
-                                </div>
-                            </Link>
-
-                            <Link
-                                href={`/dashboard/bugs/new`}
-                                className="flex items-center gap-3 p-4 border border-border rounded-xl hover:border-error hover:bg-error/5 transition-all group"
-                            >
-                                <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center group-hover:bg-error transition-colors">
-                                    <Bug className="w-5 h-5 text-muted-foreground group-hover:text-white transition-colors" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">Report Bug</p>
-                                    <p className="text-xs text-muted-foreground">Log new issue</p>
-                                </div>
-                            </Link>
-
-                            <Link
-                                href={`/dashboard/sprints/new`}
-                                className="flex items-center gap-3 p-4 border border-border rounded-xl hover:border-success hover:bg-success/5 transition-all group"
-                            >
-                                <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center group-hover:bg-success transition-colors">
-                                    <Rocket className="w-5 h-5 text-muted-foreground group-hover:text-white transition-colors" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">New Sprint</p>
-                                    <p className="text-xs text-muted-foreground">Start sprint</p>
-                                </div>
-                            </Link>
-
-                            <Link
-                                href={`/dashboard/documents/new`}
-                                className="flex items-center gap-3 p-4 border border-border rounded-xl hover:border-accent hover:bg-accent/5 transition-all group"
-                            >
-                                <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center group-hover:bg-accent transition-colors">
-                                    <FileText className="w-5 h-5 text-muted-foreground group-hover:text-white transition-colors" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">Add Document</p>
-                                    <p className="text-xs text-muted-foreground">Upload docs</p>
-                                </div>
-                            </Link>
-                        </div>
-                    </Card>
 
                     {/* Recent Activity */}
                     <Card className="p-6">
