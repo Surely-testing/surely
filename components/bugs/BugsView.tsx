@@ -1,10 +1,8 @@
-// ============================================
-// components/bugs/BugsView.tsx
-// Main container with tabs: Bug Tracking | Suggestions
-// ============================================
+// BugsView.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation'; // ADD THIS IMPORT
 import { RefreshCw, Network, Upload, Plus, ChevronLeft } from 'lucide-react';
 import { BugTracking } from './BugTracking';
 import { Suggestions } from './Suggestions';
@@ -12,6 +10,7 @@ import { BugForm } from './BugForm';
 import { createClient } from '@/lib/supabase/client';
 import { SuggestionForm } from '../suggestions/SuggestionForm';
 import { logger } from '@/lib/utils/logger';
+import { toast } from 'sonner';
 
 interface BugsViewProps {
   suiteId: string;
@@ -20,6 +19,8 @@ interface BugsViewProps {
 type TabType = 'tracking' | 'suggestions';
 
 export function BugsView({ suiteId }: BugsViewProps) {
+  const searchParams = useSearchParams(); // ADD THIS
+  
   const [activeTab, setActiveTab] = useState<TabType>('tracking');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showBugForm, setShowBugForm] = useState(false);
@@ -27,6 +28,18 @@ export function BugsView({ suiteId }: BugsViewProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [bugsCount, setBugsCount] = useState(0);
   const [showSuggestionForm, setShowSuggestionForm] = useState(false);
+
+  // ADD THIS: Check URL parameters on mount
+  useEffect(() => {
+    const showForm = searchParams.get('show_form');
+    const fromRecording = searchParams.get('from_recording');
+    
+    if (showForm === 'true' && fromRecording) {
+      setShowBugForm(true);
+      // Optional: Remove the parameters from URL after reading
+      window.history.replaceState({}, '', '/dashboard/bugs');
+    }
+  }, [searchParams]);
 
   const tabs = [
     { id: 'tracking', label: 'Bug Tracking' },
@@ -81,6 +94,18 @@ export function BugsView({ suiteId }: BugsViewProps) {
   const handleFormSuccess = () => {
     setShowBugForm(false);
     handleRefresh();
+    
+    // ADD: Clear the from_recording parameter and reload if coming from recording
+    const fromRecording = searchParams.get('from_recording');
+    if (fromRecording) {
+      // Navigate back to the recording page
+      toast.success('Bug reported successfully! Returning to recording...', {
+        duration: 2000
+      });
+      setTimeout(() => {
+        window.history.back();
+      }, 2000);
+    }
   };
 
   const handleFormCancel = () => {

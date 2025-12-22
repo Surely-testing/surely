@@ -37,7 +37,7 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
 
     setIsSwitching(true)
     const result = await setCurrentSuite(suiteId)
-    
+
     if (result.success) {
       setSuiteSwitcherOpen(false)
       router.refresh()
@@ -47,7 +47,7 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
     } else {
       alert('Failed to switch suite: ' + result.error)
     }
-    
+
     setIsSwitching(false)
   }
 
@@ -76,7 +76,7 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
     <>
       {/* Mobile Overlay */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
           onClick={onToggle}
           aria-hidden="true"
@@ -97,8 +97,8 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
           "h-16 flex items-center border-b border-border shrink-0",
           isCollapsed ? "lg:justify-center lg:px-4" : "justify-between px-6"
         )}>
-          <Link 
-            href="/dashboard" 
+          {/* <Link
+            href="/dashboard"
             className="flex items-center gap-3 group transition-all duration-300"
             onClick={handleNavClick}
           >
@@ -115,8 +115,29 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
             )}>
               Surely
             </span>
+          </Link> */}
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 group transition-all duration-300"
+            onClick={handleNavClick}
+          >
+            <div className="relative w-8 h-8">
+              <Image
+                src={process.env.NEXT_PUBLIC_CLOUDINARY_LOGO_URL || '/logo.svg'}
+                alt="Surely"
+                fill
+                className="object-contain transition-transform group-hover:rotate-12 group-hover:scale-110 duration-300"
+                priority
+              />
+            </div>
+            <span className={cn(
+              "text-xl font-bold text-foreground tracking-tight transition-all duration-300",
+              isCollapsed && "lg:opacity-0 lg:w-0 lg:overflow-hidden"
+            )}>
+              Surely
+            </span>
           </Link>
-          
+
           {/* Mobile Close Button */}
           <button
             onClick={onToggle}
