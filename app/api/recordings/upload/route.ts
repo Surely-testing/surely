@@ -6,6 +6,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/utils/logger';
 
+// IMPORTANT: Configure body size limits
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb', // Increase from default 1mb to 50mb
+    },
+  },
+};
+
+// For App Router (Next.js 13+), use maxDuration
+export const maxDuration = 60; // 60 seconds timeout (adjust as needed)
+
 /**
  * POST /api/recordings/upload
  * Upload video recording to Supabase Storage
@@ -39,6 +51,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Video file, title, and suite ID are required' },
         { status: 400 }
+      );
+    }
+
+    // CHECK FILE SIZE (Add this validation)
+    const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+    if (videoFile.size > maxSize) {
+      return NextResponse.json(
+        { 
+          error: `File too large. Maximum size is ${maxSize / 1024 / 1024}MB. Your file is ${(videoFile.size / 1024 / 1024).toFixed(2)}MB`,
+          code: 'FILE_TOO_LARGE'
+        },
+        { status: 413 }
       );
     }
 
@@ -160,10 +184,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-// No special config needed for Supabase uploads
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
