@@ -8,7 +8,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Recording, RecordingFilters } from '@/types/recording.types';
 import { RecordingGrid } from './RecordingGrid';
 import { RecordingToolbar } from './RecordingToolbar';
-import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select,
   SelectContent,

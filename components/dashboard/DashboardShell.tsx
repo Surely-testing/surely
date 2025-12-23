@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/dashboard/DashboardShell.tsx - WITH COUNTDOWN
+// FILE: components/dashboard/DashboardShell.tsx - WITH PENDING RECOVERY
 // ============================================
 'use client'
 
@@ -10,7 +10,7 @@ import { AIAssistant } from '@/components/ai/AIAssistant'
 import { AIFloatingButton } from '@/components/ai/AIFloatingButton'
 import { ContextualTips } from '@/components/ai/ContextualTips'
 import { RecordingProvider } from '@/providers/RecordingContext'
-import { CountdownOverlay } from '../Recordings/CountDownOverlay'
+import { PendingRecordingHandler } from '../Recordings/PendingRecordingHandler'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { useSuiteContext } from '@/providers/SuiteContextProvider'
@@ -65,8 +65,14 @@ export function DashboardShell({ user, profile, suites, children }: DashboardShe
           <AIFloatingButton />
           <AIAssistant />
           
-          {/* Recording Countdown Overlay */}
-          <CountdownOverlay />
+          {/* NEW: Pending Recording Handler */}
+          <PendingRecordingHandler 
+            suiteId={currentSuite.id}
+            onRecordingSaved={() => {
+              // Optionally refresh recordings list or show success message
+              console.log('Recovered recording saved successfully');
+            }}
+          />
         </div>
       </AIAssistantProvider>
     </RecordingProvider>

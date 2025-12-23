@@ -19,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Upload, X } from 'lucide-react';
 import { createRecording, updateRecording } from '@/lib/actions/recordings';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { VideoTrimmer } from '@/components/Recordings/VideoTrimmer';
@@ -48,13 +49,56 @@ export function RecordingPreviewDialog({
   const videoRef = useRef<HTMLVideoElement>(null) as React.RefObject<HTMLVideoElement>;
 
   useEffect(() => {
-    // Create object URL for preview
     const url = URL.createObjectURL(preview.videoBlob);
     setVideoUrl(url);
 
-    // Set default title
     const now = new Date();
     setTitle(`Recording ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
+
+    // Smooth audio playback initialization
+    if (videoRef.current) {
+      const video = videoRef.current;
+      
+      // CRITICAL: Set volume to 0 immediately to prevent pop
+      video.volume = 0;
+      video.muted = false;
+      
+      // Handle volume fade-in when video metadata is loaded
+      const handleLoadedMetadata = () => {
+        // Keep volume at 0 initially
+        video.volume = 0;
+      };
+      
+      // Gradually increase volume when playback starts
+      const handlePlaying = () => {
+        // Small delay to ensure playback has started
+        setTimeout(() => {
+          let currentVol = 0;
+          const targetVol = 1;
+          const steps = 10;
+          const interval = 30; // 300ms total fade
+          
+          const fadeInterval = setInterval(() => {
+            currentVol += targetVol / steps;
+            if (currentVol >= targetVol) {
+              video.volume = targetVol;
+              clearInterval(fadeInterval);
+            } else {
+              video.volume = currentVol;
+            }
+          }, interval);
+        }, 10);
+      };
+      
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      video.addEventListener('playing', handlePlaying);
+      
+      return () => {
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        video.removeEventListener('playing', handlePlaying);
+        URL.revokeObjectURL(url);
+      };
+    }
 
     return () => {
       URL.revokeObjectURL(url);
@@ -69,11 +113,10 @@ export function RecordingPreviewDialog({
     return new Promise((resolve, reject) => {
       const video = document.createElement('video');
       video.src = URL.createObjectURL(blob);
-      video.muted = false; // Keep audio enabled
+      video.muted = false;
       
       video.onloadedmetadata = async () => {
         try {
-          // Create a canvas to capture the video frames
           const canvas = document.createElement('canvas');
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
@@ -84,23 +127,18 @@ export function RecordingPreviewDialog({
             return;
           }
 
-          // Create a MediaStream from the canvas (video track)
           const canvasStream = canvas.captureStream(30);
           const videoTrack = canvasStream.getVideoTracks()[0];
-          
-          // Create a combined stream
           const combinedStream = new MediaStream([videoTrack]);
           
-          // Try to capture audio from the video element
           let audioContext: AudioContext | null = null;
           try {
             audioContext = new AudioContext();
             const source = audioContext.createMediaElementSource(video);
             const destination = audioContext.createMediaStreamDestination();
             source.connect(destination);
-            source.connect(audioContext.destination); // Also connect to speakers
+            source.connect(audioContext.destination);
             
-            // Add audio tracks if available
             const audioTracks = destination.stream.getAudioTracks();
             if (audioTracks.length > 0) {
               audioTracks.forEach(track => combinedStream.addTrack(track));
@@ -109,10 +147,7 @@ export function RecordingPreviewDialog({
             console.warn('Could not capture audio:', audioError);
           }
 
-          // Set up MediaRecorder
           const chunks: Blob[] = [];
-          
-          // Try different mime types for better audio support
           let mimeType = 'video/webm;codecs=vp8,opus';
           if (!MediaRecorder.isTypeSupported(mimeType)) {
             mimeType = 'video/webm';
@@ -139,10 +174,7 @@ export function RecordingPreviewDialog({
             resolve(trimmedBlob);
           };
 
-          // Start recording
           mediaRecorder.start(100);
-
-          // Seek to start position
           video.currentTime = start;
           
           const drawFrame = () => {
@@ -162,7 +194,6 @@ export function RecordingPreviewDialog({
             }).catch(reject);
           };
 
-          // Stop when reaching the end
           video.ontimeupdate = () => {
             if (video.currentTime >= end && mediaRecorder.state === 'recording') {
               mediaRecorder.stop();
@@ -185,14 +216,13 @@ export function RecordingPreviewDialog({
       return;
     }
 
-    // Close dialog immediately
     onClose();
 
-    // Show persistent loading toast
     const toastId = toast.loading('Saving recording...');
 
     try {
-      // Trim video if needed
+      const supabase = createClient();
+
       let finalBlob = preview.videoBlob;
       let finalDuration = Math.round(preview.duration);
 
@@ -204,26 +234,28 @@ export function RecordingPreviewDialog({
 
       toast.loading('Uploading video...', { id: toastId });
 
-      // 1. Upload video to Supabase Storage
-      const formData = new FormData();
-      formData.append('video', finalBlob, 'recording.webm');
-      formData.append('title', title);
-      formData.append('description', description || '');
-      formData.append('suiteId', suiteId);
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 15);
+      const fileName = `${suiteId}/${timestamp}-${randomId}.webm`;
 
-      const uploadResponse = await fetch('/api/recordings/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('recordings')
+        .upload(fileName, finalBlob, {
+          contentType: 'video/webm',
+          cacheControl: '3600',
+          upsert: false,
+        });
 
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        throw new Error(errorData.error || 'Failed to upload video');
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      const { url: videoUrl, fileName, fileSize } = await uploadResponse.json();
+      const { data: urlData } = supabase.storage
+        .from('recordings')
+        .getPublicUrl(fileName);
 
-      // 2. Create recording record first to get the ID
+      const videoUrl = urlData.publicUrl;
+
       const { data: recording, error: createError } = await createRecording({
         suite_id: suiteId,
         sprint_id: sprintId,
@@ -233,7 +265,7 @@ export function RecordingPreviewDialog({
         metadata: {
           description: description || null,
           fileName,
-          fileSize,
+          fileSize: finalBlob.size,
           resolution: preview.metadata.resolution,
           timestamp: preview.metadata.timestamp,
           browser: preview.metadata.browser,
@@ -245,64 +277,63 @@ export function RecordingPreviewDialog({
         throw new Error(createError || 'Failed to save recording');
       }
 
-      // 3. Upload console logs
       let consoleLogsUrl = null;
       if (preview.consoleLogs && preview.consoleLogs.length > 0) {
         try {
-          const consoleResponse = await fetch('/api/recordings/logs/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              suiteId,
-              recordingId: recording.id,
-              logs: preview.consoleLogs,
-              type: 'console'
-            })
-          });
+          const logsJson = JSON.stringify(preview.consoleLogs, null, 2);
+          const logsBlob = new Blob([logsJson], { type: 'application/json' });
+          const logFileName = `${suiteId}/${recording.id}/console_logs.json`;
+          
+          const { error: consoleError } = await supabase.storage
+            .from('recordings')
+            .upload(logFileName, logsBlob, {
+              contentType: 'application/json',
+              cacheControl: '3600',
+              upsert: false,
+            });
 
-          if (consoleResponse.ok) {
-            const consoleData = await consoleResponse.json();
-            consoleLogsUrl = consoleData.url;
-          } else {
-            console.error('Failed to upload console logs');
+          if (!consoleError) {
+            const { data: consoleUrlData } = supabase.storage
+              .from('recordings')
+              .getPublicUrl(logFileName);
+            consoleLogsUrl = consoleUrlData.publicUrl;
           }
         } catch (error) {
           console.error('Error uploading console logs:', error);
         }
       }
 
-      // 4. Upload network logs
       let networkLogsUrl = null;
       if (preview.networkLogs && preview.networkLogs.length > 0) {
         try {
-          const networkResponse = await fetch('/api/recordings/logs/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              suiteId,
-              recordingId: recording.id,
-              logs: preview.networkLogs,
-              type: 'network'
-            })
-          });
+          const logsJson = JSON.stringify(preview.networkLogs, null, 2);
+          const logsBlob = new Blob([logsJson], { type: 'application/json' });
+          const logFileName = `${suiteId}/${recording.id}/network_logs.json`;
+          
+          const { error: networkError } = await supabase.storage
+            .from('recordings')
+            .upload(logFileName, logsBlob, {
+              contentType: 'application/json',
+              cacheControl: '3600',
+              upsert: false,
+            });
 
-          if (networkResponse.ok) {
-            const networkData = await networkResponse.json();
-            networkLogsUrl = networkData.url;
-          } else {
-            console.error('Failed to upload network logs');
+          if (!networkError) {
+            const { data: networkUrlData } = supabase.storage
+              .from('recordings')
+              .getPublicUrl(logFileName);
+            networkLogsUrl = networkUrlData.publicUrl;
           }
         } catch (error) {
           console.error('Error uploading network logs:', error);
         }
       }
 
-      // 5. Update recording with log URLs
       const { error: updateError } = await updateRecording(recording.id, {
         metadata: {
           description: description || null,
           fileName,
-          fileSize,
+          fileSize: finalBlob.size,
           resolution: preview.metadata.resolution,
           timestamp: preview.metadata.timestamp,
           browser: preview.metadata.browser,
@@ -327,59 +358,66 @@ export function RecordingPreviewDialog({
     }
   };
 
+  const handleClose = () => {
+    toast.info('Recording discarded');
+    onClose();
+  };
+
   const formatLogTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString();
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <Dialog open onOpenChange={() => {}}>
       <DialogContent 
-        className="w-[80vw] h-[75vh] max-w-[80vw] max-h-[75vh] p-0 gap-0 overflow-hidden" 
-        hideClose
+        className="w-[95vw] sm:w-[90vw] lg:w-[85vw] xl:w-[80vw] h-[95vh] sm:h-[90vh] lg:h-[85vh] xl:h-[80vh] max-w-[95vw] sm:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw] max-h-[95vh] sm:max-h-[90vh] lg:max-h-[85vh] xl:max-h-[80vh] p-0 gap-0 overflow-hidden !rounded-3xl" 
         aria-describedby="recording-preview-description"
       >
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
-            <DialogTitle>Recording Preview</DialogTitle>
+        <div className="flex flex-col h-full w-full overflow-hidden">
+          {/* Header - Fixed with better padding */}
+          <div className="flex justify-between items-center px-8 sm:px-10 lg:px-12 py-6 sm:py-7 lg:py-8 border-b shrink-0">
+            <DialogTitle className="text-base sm:text-lg">Recording Preview</DialogTitle>
             <span id="recording-preview-description" className="sr-only">
               Preview and edit your recording before saving
             </span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <Button 
                 size="sm" 
                 onClick={handleSave} 
                 disabled={!title.trim()}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Save Recording
+                <span className="hidden sm:inline">Save Recording</span>
+                <span className="sm:hidden">Save</span>
               </Button>
               <DialogClose asChild>
-                <Button variant="outline" size="md" className="h-8 w-8">
+                <Button variant="outline" size="sm" className="h-8 w-8" onClick={handleClose}>
                   <X className="h-4 w-4" />
                 </Button>
               </DialogClose>
             </div>
           </div>
 
-          {/* YouTube-style Layout */}
-          <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-            {/* Left Column - Video Player (70%) */}
-            <div className="lg:w-[70%] p-6 overflow-y-auto flex items-center justify-center">
-              <div className="space-y-5 max-w-4xl w-full">
-                {/* Video Player */}
-                <div className="bg-black rounded-xl overflow-hidden shadow-lg">
-                  <div className="aspect-video relative">
-                    <video
-                      ref={videoRef}
-                      src={videoUrl}
-                      controls
-                      className="w-full h-full"
-                    />
-                  </div>
+          {/* Main Content with padding */}
+          <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
+            
+            {/* Left: Video Section - Minimal padding to maximize video size */}
+            <div className="w-full lg:w-[70%] flex flex-col min-h-0 overflow-hidden px-6 sm:px-8 py-6 sm:py-8 gap-6 sm:gap-8">
+              {/* Video Player */}
+              <div className="rounded-2xl overflow-hidden shadow-lg flex-shrink min-h-0 ">
+                <div className="aspect-video relative w-full h-full bg-transparent">
+                  <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    className="w-full h-full bg-transparent"
+                    controlsList="nodownload"
+                    disablePictureInPicture
+                  />
                 </div>
+              </div>
 
-                {/* Video Trimmer */}
+              {/* Video Trimmer */}
+              <div className="shrink-0">
                 <VideoTrimmer
                   videoRef={videoRef}
                   duration={preview.duration}
@@ -388,38 +426,45 @@ export function RecordingPreviewDialog({
               </div>
             </div>
 
-            {/* Right Column - Form & Logs Tabs (30%) */}
-            <div className="lg:w-[30%] border-t lg:border-t-0 lg:border-l flex flex-col overflow-hidden">
-              <div className="p-4 space-y-3 border-b shrink-0">
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="text-xs font-medium">
-                    Title *
-                  </Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter recording title"
-                  />
-                </div>
+            {/* Right: Sidebar with better internal spacing */}
+            <div className="w-full lg:w-[30%] border-t lg:border-t-0 lg:border-l flex flex-col min-h-0 overflow-hidden">
+              
+              {/* Form Section */}
+              <div className="shrink-0 border-b max-h-[40vh] lg:max-h-[35vh] overflow-hidden">
+                <ScrollArea className="h-full">
+                  <div className="p-7 sm:p-8 lg:p-10 space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="title" className="text-xs font-medium">
+                        Title *
+                      </Label>
+                      <Input
+                        id="title"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="Enter recording title"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-xs font-medium">
-                    Description
-                  </Label>
-                  <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Add a description (optional)"
-                    rows={3}
-                    className="resize-none"
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description" className="text-xs font-medium">
+                        Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Add a description (optional)"
+                        rows={3}
+                        className="resize-none"
+                      />
+                    </div>
+                  </div>
+                </ScrollArea>
               </div>
 
-              <Tabs defaultValue="info" className="flex-1 flex flex-col min-h-0">
-                <div className="px-4 pt-4 shrink-0">
+              {/* Tabs Section */}
+              <Tabs defaultValue="info" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="px-7 sm:px-8 lg:px-10 pt-6 sm:pt-7 lg:pt-8 shrink-0">
                   <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="info" className="text-xs">
                       Info
@@ -436,10 +481,12 @@ export function RecordingPreviewDialog({
                   </TabsList>
                 </div>
 
-                <div className="flex-1 min-h-0 relative">
+                <div className="flex-1 min-h-0 relative overflow-hidden">
+                  
+                  {/* Info Tab */}
                   <TabsContent value="info" className="absolute inset-0 mt-0 overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden">
                     <ScrollArea className="w-full h-full">
-                      <div className="px-4 py-4">
+                      <div className="px-7 sm:px-8 lg:px-10 py-6 sm:py-7 lg:py-8">
                         <Card>
                           <CardHeader className="pb-3">
                             <CardTitle className="text-sm">Recording Details</CardTitle>
@@ -496,9 +543,10 @@ export function RecordingPreviewDialog({
                     </ScrollArea>
                   </TabsContent>
 
+                  {/* Console Tab */}
                   <TabsContent value="console" className="absolute inset-0 mt-0 overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden">
                     <ScrollArea className="w-full h-full">
-                      <div className="px-4 py-4">
+                      <div className="px-7 sm:px-8 lg:px-10 py-6 sm:py-7 lg:py-8">
                         <Card>
                           <CardHeader className="pb-3">
                             <CardTitle className="text-sm">Console Logs</CardTitle>
@@ -537,9 +585,10 @@ export function RecordingPreviewDialog({
                     </ScrollArea>
                   </TabsContent>
 
+                  {/* Network Tab */}
                   <TabsContent value="network" className="absolute inset-0 mt-0 overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden">
                     <ScrollArea className="w-full h-full">
-                      <div className="px-4 py-4">
+                      <div className="px-7 sm:px-8 lg:px-10 py-6 sm:py-7 lg:py-8">
                         <Card>
                           <CardHeader className="pb-3">
                             <CardTitle className="text-sm">Network Activity</CardTitle>
@@ -588,9 +637,10 @@ export function RecordingPreviewDialog({
                     </ScrollArea>
                   </TabsContent>
 
+                  {/* Screenshots Tab */}
                   <TabsContent value="screenshots" className="absolute inset-0 mt-0 overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden">
                     <ScrollArea className="w-full h-full">
-                      <div className="px-4 py-4">
+                      <div className="px-5 sm:px-6 py-5 sm:py-6">
                         <Card>
                           <CardHeader className="pb-3">
                             <CardTitle className="text-sm">Screenshots</CardTitle>

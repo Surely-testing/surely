@@ -250,13 +250,13 @@ export function SharedRecordingControls({
               variant="outline"
               onClick={() => setShowCancelDialog(false)}
             >
-              Continue Recording
+              Continue
             </Button>
             <Button
               variant="error"
               onClick={handleCancelConfirm}
             >
-              Yes, Cancel Recording
+              Yes, Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
