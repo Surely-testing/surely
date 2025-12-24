@@ -626,8 +626,44 @@ export type Database = {
           },
         ]
       }
+      document_collaborators: {
+        Row: {
+          added_at: string | null
+          added_by: string
+          document_id: string
+          id: string
+          permission: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string | null
+          added_by: string
+          document_id: string
+          id?: string
+          permission?: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string | null
+          added_by?: string
+          document_id?: string
+          id?: string
+          permission?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_collaborators_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
+          archived: boolean | null
           content: string | null
           created_at: string | null
           created_by: string
@@ -638,8 +674,10 @@ export type Database = {
           suite_id: string
           title: string
           updated_at: string | null
+          visibility: string | null
         }
         Insert: {
+          archived?: boolean | null
           content?: string | null
           created_at?: string | null
           created_by: string
@@ -650,8 +688,10 @@ export type Database = {
           suite_id: string
           title: string
           updated_at?: string | null
+          visibility?: string | null
         }
         Update: {
+          archived?: boolean | null
           content?: string | null
           created_at?: string | null
           created_by?: string
@@ -662,6 +702,7 @@ export type Database = {
           suite_id?: string
           title?: string
           updated_at?: string | null
+          visibility?: string | null
         }
         Relationships: [
           {
@@ -951,6 +992,7 @@ export type Database = {
       }
       recordings: {
         Row: {
+          archived: boolean
           created_at: string | null
           created_by: string
           duration: number | null
@@ -963,6 +1005,7 @@ export type Database = {
           url: string
         }
         Insert: {
+          archived?: boolean
           created_at?: string | null
           created_by: string
           duration?: number | null
@@ -975,6 +1018,7 @@ export type Database = {
           url: string
         }
         Update: {
+          archived?: boolean
           created_at?: string | null
           created_by?: string
           duration?: number | null

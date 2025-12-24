@@ -1,5 +1,6 @@
 // ============================================
 // FILE: components/documents/FloatingTOC.tsx
+// Fixed to navigate to headings in scrollable container
 // ============================================
 'use client'
 
@@ -16,6 +17,10 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
   useEffect(() => {
     if (headings.length === 0) return
 
+    // Find the editor's scrollable container by ID
+    const scrollContainer = document.getElementById('document-editor-scroll-container')
+    if (!scrollContainer) return
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -25,6 +30,7 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
         })
       },
       {
+        root: scrollContainer,
         rootMargin: '-100px 0px -66% 0px',
         threshold: 0,
       }
@@ -42,11 +48,35 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
 
   const scrollToHeading = (id: string) => {
     const element = document.getElementById(id)
-    if (element) {
-      const yOffset = -80
-      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset
-      window.scrollTo({ top: y, behavior: 'smooth' })
+    if (!element) {
+      console.log('Element not found:', id)
+      return
+    }
+
+    // Find the editor's scrollable container by ID
+    const scrollContainer = document.getElementById('document-editor-scroll-container')
+    
+    if (scrollContainer) {
+      // Get element position relative to container
+      const elementRect = element.getBoundingClientRect()
+      const containerRect = scrollContainer.getBoundingClientRect()
+      
+      // Calculate scroll position with offset
+      const scrollTop = scrollContainer.scrollTop
+      const elementTop = elementRect.top - containerRect.top + scrollTop
+      const offset = 100 // Space from top
+      
+      console.log('Scrolling to:', { elementTop, offset, finalPosition: elementTop - offset })
+      
+      // Scroll the container
+      scrollContainer.scrollTo({
+        top: elementTop - offset,
+        behavior: 'smooth'
+      })
+      
       setActiveId(id)
+    } else {
+      console.log('Scroll container not found')
     }
   }
 
@@ -72,12 +102,12 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
       <div className="flex items-center justify-between p-3 border-b">
         <h3 className="font-semibold text-sm">Contents</h3>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={() => setIsMinimized(true)}
           className="h-6 w-6 p-0"
         >
-          <ChevronUp className="h-4 w-4" />
+          <ChevronUp className="h-3 w-3" />
         </Button>
       </div>
 
@@ -89,8 +119,10 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
               onClick={() => scrollToHeading(heading.id)}
               className={cn(
                 'w-full text-left text-sm py-2 px-3 rounded-md hover:bg-muted transition-colors',
-                'border-l-2 border-transparent',
-                activeId === heading.id && 'bg-muted font-medium border-l-2 border-primary',
+                'border-l-2',
+                activeId === heading.id 
+                  ? 'bg-muted font-medium border-primary' 
+                  : 'border-transparent',
                 heading.level === 1 && 'font-semibold text-base',
                 heading.level === 2 && 'pl-6',
                 heading.level === 3 && 'pl-10 text-xs text-muted-foreground'
@@ -103,7 +135,7 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
       </div>
 
       {headings.length > 5 && (
-        <div className="p-2 border-t text-xs text-center text-muted-foreground">
+        <div className="p-2 border-t text-xs text-center text-muted-foreground bg-muted/30">
           {headings.length} sections
         </div>
       )}

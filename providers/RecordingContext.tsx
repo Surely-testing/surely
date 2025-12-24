@@ -1,5 +1,6 @@
 // ============================================
-// contexts/RecordingContext.tsx - SMOOTH AUDIO FIX + PENDING RECOVERY
+// contexts/RecordingContext.tsx - COMPLETE WITH ALL FEATURES
+// REPLACE YOUR ENTIRE RecordingContext.tsx WITH THIS FILE
 // ============================================
 
 'use client';
@@ -9,13 +10,23 @@ import { RecordingPreview, ConsoleLog, NetworkLog, RecordingMetadata } from '@/t
 import { toast } from 'sonner';
 import { logger } from '@/lib/utils/logger';
 
-// CONFIGURATION
-const MAX_RECORDING_DURATION = 300; // 5 minutes in seconds
-const WARNING_DURATION = 240; // Show warning at 4 minutes
-const OPTIMAL_VIDEO_BITRATE = 2500000; // 2.5 Mbps - good quality, ~15-20MB per 5 mins
-const OPTIMAL_FRAME_RATE = 30; // Smooth recording
+// Import all feature modules
+import { networkInterceptor } from '@/lib/recording/network-interceptor';
+import { ScreenshotCapture } from '@/lib/recording/screenshot-capture';
+import { PerformanceTracker } from '@/lib/recording/performance-tracker';
+import { ErrorStackCapture } from '@/lib/recording/error-stack-capture';
+import { DevToolsDetector } from '@/lib/recording/devtools-detector';
+import { ReduxStateTracker } from '@/lib/recording/redux-state-tracker';
+import { CodeSnippetExtractor } from '@/lib/recording/code-snippet-extractor';
+import { WebSocketTracker } from '@/lib/recording/websocket-tracker';
 
-// IndexedDB Configuration - NEW
+// Configuration
+const MAX_RECORDING_DURATION = 300; // 5 minutes
+const WARNING_DURATION = 240; // 4 minutes
+const OPTIMAL_VIDEO_BITRATE = 2500000;
+const OPTIMAL_FRAME_RATE = 30;
+
+// IndexedDB Configuration
 const DB_NAME = 'SurelyRecordings';
 const DB_VERSION = 1;
 const STORE_NAME = 'chunks';
@@ -29,31 +40,40 @@ interface RecordingContextType {
   error: string | null;
   isMicMuted: boolean;
   remainingTime: number;
-  canRecord: boolean; // NEW
-  hasPendingRecording: boolean; // NEW
-  pendingRecordingPreview: RecordingPreview | null; // NEW
+  canRecord: boolean;
+  hasPendingRecording: boolean;
+  pendingRecordingPreview: RecordingPreview | null;
+
+  // Feature counters
+  currentMetrics: any;
+  screenshotCount: number;
+  networkRequestCount: number;
+  errorCount: number;
+  stateChangeCount: number;
+  codeSnippetCount: number;
+  websocketConnectionCount: number;
+  devToolsOpen: boolean;
+
+  // Methods
   startRecording: () => Promise<void>;
   pauseRecording: () => void;
   resumeRecording: () => void;
   stopRecording: () => Promise<RecordingPreview | null>;
-  loadPendingRecording: () => Promise<void>; // NEW
-  discardPendingRecording: () => Promise<void>; // NEW
+  loadPendingRecording: () => Promise<void>;
+  discardPendingRecording: () => Promise<void>;
   toggleMute: () => void;
+  takeScreenshotNow: () => Promise<void>;
   clearError: () => void;
 }
 
 const RecordingContext = createContext<RecordingContextType | null>(null);
 
-// ============================================
-// IndexedDB Helper Functions - NEW
-// ============================================
+// IndexedDB helpers
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
-    
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -68,13 +88,11 @@ const saveChunk = async (sessionId: string, index: number, chunk: Blob) => {
     const db = await openDB();
     const tx = db.transaction([STORE_NAME], 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    
     await new Promise((resolve, reject) => {
       const request = store.put(chunk, `${sessionId}-${index}`);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    
     db.close();
   } catch (error) {
     logger.log('Error saving chunk:', error);
@@ -86,13 +104,11 @@ const loadChunks = async (sessionId: string): Promise<Blob[]> => {
     const db = await openDB();
     const tx = db.transaction([STORE_NAME], 'readonly');
     const store = tx.objectStore(STORE_NAME);
-    
     const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
       const request = store.getAllKeys();
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    
     const sessionKeys = keys
       .filter(key => String(key).startsWith(`${sessionId}-`))
       .sort((a, b) => {
@@ -100,7 +116,6 @@ const loadChunks = async (sessionId: string): Promise<Blob[]> => {
         const indexB = parseInt(String(b).split('-')[1]);
         return indexA - indexB;
       });
-    
     const chunks: Blob[] = [];
     for (const key of sessionKeys) {
       const chunk = await new Promise<Blob>((resolve, reject) => {
@@ -110,7 +125,6 @@ const loadChunks = async (sessionId: string): Promise<Blob[]> => {
       });
       chunks.push(chunk);
     }
-    
     db.close();
     return chunks;
   } catch (error) {
@@ -124,21 +138,17 @@ const clearSession = async (sessionId: string) => {
     const db = await openDB();
     const tx = db.transaction([STORE_NAME], 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    
     const keys = await new Promise<IDBValidKey[]>((resolve) => {
       const request = store.getAllKeys();
       request.onsuccess = () => resolve(request.result);
     });
-    
     const sessionKeys = keys.filter(key => String(key).startsWith(`${sessionId}-`));
-    
     for (const key of sessionKeys) {
       await new Promise((resolve) => {
         const request = store.delete(key);
         request.onsuccess = () => resolve(null);
       });
     }
-    
     db.close();
   } catch (error) {
     logger.log('Error clearing session:', error);
@@ -146,17 +156,29 @@ const clearSession = async (sessionId: string) => {
 };
 
 export function RecordingProvider({ children }: { children: React.ReactNode }) {
+  // Core state
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isMicMuted, setIsMicMuted] = useState(false);
-  const [canRecord, setCanRecord] = useState(true); // NEW
-  const [hasPendingRecording, setHasPendingRecording] = useState(false); // NEW
-  const [pendingRecordingPreview, setPendingRecordingPreview] = useState<RecordingPreview | null>(null); // NEW
-  const [sessionId] = useState(() => `session-${Date.now()}`); // NEW
+  const [canRecord, setCanRecord] = useState(true);
+  const [hasPendingRecording, setHasPendingRecording] = useState(false);
+  const [pendingRecordingPreview, setPendingRecordingPreview] = useState<RecordingPreview | null>(null);
+  const [sessionId] = useState(() => `session-${Date.now()}`);
 
+  // Feature counters
+  const [currentMetrics, setCurrentMetrics] = useState<any>(null);
+  const [screenshotCount, setScreenshotCount] = useState(0);
+  const [networkRequestCount, setNetworkRequestCount] = useState(0);
+  const [errorCount, setErrorCount] = useState(0);
+  const [stateChangeCount, setStateChangeCount] = useState(0);
+  const [codeSnippetCount, setCodeSnippetCount] = useState(0);
+  const [websocketConnectionCount, setWebsocketConnectionCount] = useState(0);
+  const [devToolsOpen, setDevToolsOpen] = useState(false);
+
+  // Core recording refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const displayStreamRef = useRef<MediaStream | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -170,18 +192,28 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const networkLogsRef = useRef<NetworkLog[]>([]);
   const warningShownRef = useRef(false);
   const recordingStartedRef = useRef(false);
-  const chunkIndexRef = useRef(0); // NEW
+  const chunkIndexRef = useRef(0);
+
+  // Feature tracker refs
+  const screenshotCaptureRef = useRef<ScreenshotCapture | null>(null);
+  const performanceTrackerRef = useRef<PerformanceTracker | null>(null);
+  const errorStackCaptureRef = useRef<ErrorStackCapture | null>(null);
+  const devToolsDetectorRef = useRef<DevToolsDetector | null>(null);
+  const reduxStateTrackerRef = useRef<ReduxStateTracker | null>(null);
+  const codeSnippetExtractorRef = useRef<CodeSnippetExtractor | null>(null);
+  const websocketTrackerRef = useRef<WebSocketTracker | null>(null);
+  const metricsIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const remainingTime = MAX_RECORDING_DURATION - duration;
 
-  // NEW: Check if recording is supported
+  // Check if recording is supported
   useEffect(() => {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const hasAPI = !!(navigator.mediaDevices?.getDisplayMedia);
     setCanRecord(!isMobile && hasAPI);
   }, []);
 
-  // NEW: Check for pending recording on mount
+  // Check for pending recording on mount
   useEffect(() => {
     const checkPending = async () => {
       const stateStr = localStorage.getItem(STORAGE_KEY);
@@ -190,8 +222,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       try {
         const state = JSON.parse(stateStr);
         const timeSince = Date.now() - state.timestamp;
-        
-        // Ignore if older than 10 minutes
+
         if (timeSince > 10 * 60 * 1000) {
           localStorage.removeItem(STORAGE_KEY);
           await clearSession(state.sessionId);
@@ -199,13 +230,13 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         }
 
         const chunks = await loadChunks(state.sessionId);
-        
+
         if (chunks.length > 0) {
           setHasPendingRecording(true);
           const sizeMB = chunks.reduce((acc, chunk) => acc + chunk.size, 0) / 1024 / 1024;
-          
+
           toast.info('Pending Recording Found', {
-            description: `Found ${chunks.length} chunks (${sizeMB.toFixed(2)} MB) from previous session. Click to preview.`,
+            description: `Found ${chunks.length} chunks (${sizeMB.toFixed(2)} MB) from previous session.`,
             duration: Infinity,
             action: {
               label: 'Preview',
@@ -226,19 +257,18 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     checkPending();
   }, []);
 
-  // NEW: Prevent page unload during recording
+  // Prevent page unload during recording
   useEffect(() => {
     if (!isRecording) return;
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = 'Recording in progress. Your recording will be saved but stopped if you leave.';
+      e.returnValue = 'Recording in progress.';
       return e.returnValue;
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
-    // Save state periodically
     const saveState = () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         sessionId,
@@ -256,7 +286,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isRecording, duration, sessionId]);
 
-  // Capture console logs during recording
+  // Capture console logs
   useEffect(() => {
     if (!isRecording) return;
 
@@ -268,7 +298,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     };
 
     const captureLog = (type: ConsoleLog['type'], args: any[]) => {
-      const message = args.map(arg => 
+      const message = args.map(arg =>
         typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
       ).join(' ');
 
@@ -294,23 +324,17 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isRecording]);
 
-  // Check for time limit and show warnings
+  // Time limit warnings
   useEffect(() => {
     if (!isRecording || isPaused) return;
 
-    // Show warning at 4 minutes
     if (duration === WARNING_DURATION && !warningShownRef.current) {
-      toast.warning('1 minute remaining', {
-        description: 'Recording will auto-stop at 5 minutes',
-      });
+      toast.warning('1 minute remaining');
       warningShownRef.current = true;
     }
 
-    // Auto-stop at 5 minutes
     if (duration >= MAX_RECORDING_DURATION) {
-      toast.info('Maximum recording time reached', {
-        description: 'Recording stopped automatically at 5 minutes',
-      });
+      toast.info('Maximum recording time reached');
       stopRecording();
     }
   }, [duration, isRecording, isPaused]);
@@ -319,6 +343,10 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    if (metricsIntervalRef.current) {
+      clearInterval(metricsIntervalRef.current);
+      metricsIntervalRef.current = null;
     }
     if (displayStreamRef.current) {
       displayStreamRef.current.getTracks().forEach(track => track.stop());
@@ -339,6 +367,38 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current = null;
     }
+
+    // Stop all feature trackers
+    if (screenshotCaptureRef.current) {
+      screenshotCaptureRef.current.stop();
+      screenshotCaptureRef.current = null;
+    }
+    if (performanceTrackerRef.current) {
+      performanceTrackerRef.current.stop();
+      performanceTrackerRef.current = null;
+    }
+    if (errorStackCaptureRef.current) {
+      errorStackCaptureRef.current.stop();
+      errorStackCaptureRef.current = null;
+    }
+    if (devToolsDetectorRef.current) {
+      devToolsDetectorRef.current.stop();
+      devToolsDetectorRef.current = null;
+    }
+    if (reduxStateTrackerRef.current) {
+      reduxStateTrackerRef.current.stop();
+      reduxStateTrackerRef.current = null;
+    }
+    if (codeSnippetExtractorRef.current) {
+      codeSnippetExtractorRef.current.stop();
+      codeSnippetExtractorRef.current = null;
+    }
+    if (websocketTrackerRef.current) {
+      websocketTrackerRef.current.stop();
+      websocketTrackerRef.current = null;
+    }
+    networkInterceptor.stop();
+
     chunksRef.current = [];
     consoleLogsRef.current = [];
     networkLogsRef.current = [];
@@ -346,6 +406,16 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     micGainRef.current = null;
     warningShownRef.current = false;
     recordingStartedRef.current = false;
+
+    // Reset counters
+    setScreenshotCount(0);
+    setNetworkRequestCount(0);
+    setErrorCount(0);
+    setStateChangeCount(0);
+    setCodeSnippetCount(0);
+    setWebsocketConnectionCount(0);
+    setDevToolsOpen(false);
+    setCurrentMetrics(null);
   }, []);
 
   const showCountdown = useCallback(async () => {
@@ -366,7 +436,6 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // NEW: Load pending recording for preview
   const loadPendingRecording = useCallback(async () => {
     const stateStr = localStorage.getItem(STORAGE_KEY);
     if (!stateStr) return;
@@ -374,21 +443,21 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     try {
       const state = JSON.parse(stateStr);
       const chunks = await loadChunks(state.sessionId);
-      
+
       if (chunks.length === 0) {
         toast.error('No recording data found');
         return;
       }
 
       const blob = new Blob(chunks, { type: 'video/webm' });
-      
+
       const userAgent = navigator.userAgent;
-      const browser = /Chrome/.test(userAgent) ? 'Chrome' : 
-                     /Firefox/.test(userAgent) ? 'Firefox' :
-                     /Safari/.test(userAgent) ? 'Safari' : 'Unknown';
+      const browser = /Chrome/.test(userAgent) ? 'Chrome' :
+        /Firefox/.test(userAgent) ? 'Firefox' :
+          /Safari/.test(userAgent) ? 'Safari' : 'Unknown';
       const os = /Windows/.test(userAgent) ? 'Windows' :
-                /Mac/.test(userAgent) ? 'macOS' :
-                /Linux/.test(userAgent) ? 'Linux' : 'Unknown';
+        /Mac/.test(userAgent) ? 'macOS' :
+          /Linux/.test(userAgent) ? 'Linux' : 'Unknown';
 
       const metadata: RecordingMetadata = {
         timestamp: new Date(state.timestamp).toISOString(),
@@ -414,7 +483,6 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // NEW: Discard pending recording
   const discardPendingRecording = useCallback(async () => {
     const stateStr = localStorage.getItem(STORAGE_KEY);
     if (stateStr) {
@@ -425,7 +493,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         logger.log('Error parsing state:', error);
       }
     }
-    
+
     localStorage.removeItem(STORAGE_KEY);
     setHasPendingRecording(false);
     setPendingRecordingPreview(null);
@@ -439,30 +507,24 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       setIsMicMuted(false);
       warningShownRef.current = false;
       recordingStartedRef.current = false;
-      chunkIndexRef.current = 0; // NEW
-      
-      // NEW: Check if mobile browser
+      chunkIndexRef.current = 0;
+
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile) {
-        const errorMsg = 'Screen recording is not available on mobile browsers. Please use the Surely mobile app for screen recording.';
+        const errorMsg = 'Screen recording not available on mobile browsers.';
         setError(errorMsg);
-        toast.error('Recording not available', {
-          description: 'Please use the Surely mobile app for screen recording on mobile devices.',
-        });
+        toast.error('Recording not available');
         throw new Error(errorMsg);
       }
 
-      // NEW: Check if getDisplayMedia is available
       if (!navigator.mediaDevices?.getDisplayMedia) {
-        const errorMsg = 'Screen recording is not supported in this browser. Please use a desktop browser like Chrome, Firefox, or Edge.';
+        const errorMsg = 'Screen recording not supported in this browser.';
         setError(errorMsg);
-        toast.error('Recording not supported', {
-          description: errorMsg,
-        });
+        toast.error('Recording not supported');
         throw new Error(errorMsg);
       }
-      
-      // Step 1: Request microphone FIRST
+
+      // Request microphone
       let micStream: MediaStream | null = null;
       try {
         micStream = await navigator.mediaDevices.getUserMedia({
@@ -470,18 +532,18 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
-            sampleRate: 48000, // High quality audio
-            channelCount: 2, // Stereo
+            sampleRate: 48000,
+            channelCount: 2,
           },
         });
         micStreamRef.current = micStream;
         logger.log('✓ Microphone access granted');
       } catch (micError) {
         logger.log('Microphone access denied:', micError);
-        throw new Error('Microphone access is required for recording. Please allow microphone permissions and try again.');
+        throw new Error('Microphone access required.');
       }
 
-      // Step 2: Request screen sharing
+      // Request screen sharing
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: 'always',
@@ -498,89 +560,64 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       });
 
       displayStreamRef.current = displayStream;
-
-      // Step 3: Show countdown AFTER screen selection
       await showCountdown();
 
-      // Step 4: Mix audio using Web Audio API with smooth initialization
+      // Mix audio
       const audioContext = new AudioContext({ sampleRate: 48000 });
       audioContextRef.current = audioContext;
-      
-      // Wait for audio context to be running
+
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
 
       const destination = audioContext.createMediaStreamDestination();
 
-      // Add system audio from display (if available) with smooth fade-in
       const systemAudioTracks = displayStream.getAudioTracks();
       if (systemAudioTracks.length > 0) {
         const systemAudioSource = audioContext.createMediaStreamSource(
           new MediaStream(systemAudioTracks)
         );
         const systemGain = audioContext.createGain();
-        
-        // Start at 0 and fade in smoothly to prevent pop
         systemGain.gain.setValueAtTime(0, audioContext.currentTime);
         systemGain.gain.linearRampToValueAtTime(1, audioContext.currentTime + 0.1);
-        
         systemAudioSource.connect(systemGain);
         systemGain.connect(destination);
-        logger.log('✓ System audio mixed with smooth fade-in');
-      } else {
-        logger.log('ℹ No system audio from tab/window');
+        logger.log('✓ System audio mixed');
       }
 
-      // Add microphone audio with gain control and smooth fade-in
       if (micStream) {
         const micSource = audioContext.createMediaStreamSource(micStream);
         const micGain = audioContext.createGain();
-        
-        // Start at 0 and fade in smoothly to prevent pop
         micGain.gain.setValueAtTime(0, audioContext.currentTime);
         micGain.gain.linearRampToValueAtTime(1, audioContext.currentTime + 0.1);
-        
         micSource.connect(micGain);
         micGain.connect(destination);
-        
         micSourceRef.current = micSource;
         micGainRef.current = micGain;
-        
-        logger.log('✓ Microphone audio mixed with smooth fade-in');
+        logger.log('✓ Microphone audio mixed');
       }
 
-      // Wait a moment for audio to stabilize
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // Create combined stream with video + mixed audio
+      // Create combined stream
       const combinedStream = new MediaStream();
-      
-      // Add video from display
       displayStream.getVideoTracks().forEach(track => {
         combinedStream.addTrack(track);
       });
-
-      // Add the single mixed audio track
       destination.stream.getAudioTracks().forEach(track => {
         combinedStream.addTrack(track);
       });
 
-      logger.log('Combined stream:', {
-        video: combinedStream.getVideoTracks().length,
-        audio: combinedStream.getAudioTracks().length,
-      });
-
       combinedStreamRef.current = combinedStream;
 
-      // Step 5: Create MediaRecorder with optimal settings
+      // Create MediaRecorder
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
         ? 'video/webm;codecs=vp9,opus'
         : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-        ? 'video/webm;codecs=vp8,opus'
-        : 'video/webm';
-        
-      const mediaRecorder = new MediaRecorder(combinedStream, { 
+          ? 'video/webm;codecs=vp8,opus'
+          : 'video/webm';
+
+      const mediaRecorder = new MediaRecorder(combinedStream, {
         mimeType,
         videoBitsPerSecond: OPTIMAL_VIDEO_BITRATE,
         audioBitsPerSecond: 128000,
@@ -591,42 +628,120 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       consoleLogsRef.current = [];
       networkLogsRef.current = [];
 
-      // Handle data available - MODIFIED: Save to IndexedDB
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunksRef.current.push(event.data);
-          // NEW: Save chunk to IndexedDB for recovery
           saveChunk(sessionId, chunkIndexRef.current, event.data);
           chunkIndexRef.current++;
         }
       };
 
-      // Handle stream stop (user clicks browser's stop sharing button)
       displayStream.getVideoTracks()[0].addEventListener('ended', () => {
         if (isRecording) {
           stopRecording();
         }
       });
 
+      // START ALL FEATURE TRACKERS
+
+      // 1. Network Interceptor
+      networkInterceptor.start({
+        onRequest: (log) => {
+          networkLogsRef.current.push(log);
+          setNetworkRequestCount(prev => prev + 1);
+        },
+      });
+
+      // 2. Screenshot Capture
+      screenshotCaptureRef.current = new ScreenshotCapture({
+        interval: 10000,
+        quality: 0.8,
+        format: 'jpeg',
+        maxScreenshots: 30,
+      });
+      await screenshotCaptureRef.current.start(displayStream);
+
+      setInterval(() => {
+        if (screenshotCaptureRef.current) {
+          setScreenshotCount(screenshotCaptureRef.current.getCount());
+        }
+      }, 1000);
+
+      // 3. Performance Tracker
+      performanceTrackerRef.current = new PerformanceTracker();
+      performanceTrackerRef.current.start(2000);
+
+      metricsIntervalRef.current = setInterval(() => {
+        if (performanceTrackerRef.current) {
+          const latest = performanceTrackerRef.current.getLatestMetric();
+          setCurrentMetrics(latest);
+        }
+      }, 2000);
+
+      // 4. Error Stack Capture
+      errorStackCaptureRef.current = new ErrorStackCapture();
+      errorStackCaptureRef.current.start();
+
+      setInterval(() => {
+        if (errorStackCaptureRef.current) {
+          setErrorCount(errorStackCaptureRef.current.getCount());
+        }
+      }, 1000);
+
+      // 5. DevTools Detector
+      devToolsDetectorRef.current = new DevToolsDetector();
+      devToolsDetectorRef.current.start(1000);
+
+      setInterval(() => {
+        if (devToolsDetectorRef.current) {
+          setDevToolsOpen(devToolsDetectorRef.current.isCurrentlyOpen());
+        }
+      }, 1000);
+
+      // 6. Redux State Tracker
+      reduxStateTrackerRef.current = new ReduxStateTracker();
+      reduxStateTrackerRef.current.start();
+
+      setInterval(() => {
+        if (reduxStateTrackerRef.current) {
+          setStateChangeCount(reduxStateTrackerRef.current.getCount());
+        }
+      }, 1000);
+
+      // 7. Code Snippet Extractor
+      codeSnippetExtractorRef.current = new CodeSnippetExtractor();
+      codeSnippetExtractorRef.current.start();
+
+      setInterval(() => {
+        if (codeSnippetExtractorRef.current) {
+          setCodeSnippetCount(codeSnippetExtractorRef.current.getCount());
+        }
+      }, 1000);
+
+      // 8. WebSocket Tracker
+      websocketTrackerRef.current = new WebSocketTracker();
+      websocketTrackerRef.current.start();
+
+      setInterval(() => {
+        if (websocketTrackerRef.current) {
+          setWebsocketConnectionCount(websocketTrackerRef.current.getActiveConnections().length);
+        }
+      }, 1000);
+
       // Start recording
-      mediaRecorder.start(1000); // Collect data every second
+      mediaRecorder.start(1000);
       recordingStartedRef.current = true;
       setIsRecording(true);
 
-      // Start timer
       timerRef.current = setInterval(() => {
         setDuration(prev => prev + 1);
       }, 1000);
 
-      logger.log('✓ Recording started successfully');
+      logger.log('✓ Recording started with ALL features');
 
     } catch (err) {
       logger.log('Error starting recording:', err);
-      setError(
-        err instanceof Error 
-          ? err.message 
-          : 'Failed to start recording'
-      );
+      setError(err instanceof Error ? err.message : 'Failed to start recording');
       cleanup();
     }
   }, [cleanup, isRecording, showCountdown, sessionId]);
@@ -635,7 +750,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.pause();
       setIsPaused(true);
-      
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -668,21 +783,31 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       const mediaRecorder = mediaRecorderRef.current;
       const finalDuration = duration;
 
-      // Smooth fade out of audio before stopping
+      // Fade out audio
       if (audioContextRef.current && micGainRef.current) {
         const ctx = audioContextRef.current;
         const currentTime = ctx.currentTime;
-        
-        // Fade out all audio over 50ms to prevent pop
         micGainRef.current.gain.linearRampToValueAtTime(0, currentTime + 0.05);
       }
 
-      // Wait for fade out before stopping
       setTimeout(() => {
-        mediaRecorder.onstop = async () => { // MODIFIED: async for cleanup
+        mediaRecorder.onstop = async () => {
           const blob = new Blob(chunksRef.current, { type: 'video/webm' });
 
-          // Get video resolution from the actual video track
+          // Collect all captured data
+          const screenshotObjects = screenshotCaptureRef.current?.stop() || [];
+          const performanceMetrics = performanceTrackerRef.current?.stop() || [];
+          const errorStackTraces = errorStackCaptureRef.current?.stop() || [];
+          const devToolsStates = devToolsDetectorRef.current?.stop() || [];
+          const stateChanges = reduxStateTrackerRef.current?.stop() || [];
+          const codeSnippets = codeSnippetExtractorRef.current?.stop() || [];
+          const websocketConnections = websocketTrackerRef.current?.stop() || [];
+
+          networkInterceptor.stop();
+
+          // Convert Screenshot objects to dataUrl strings (as per your RecordingPreview type)
+          const screenshots = screenshotObjects.map(s => s.dataUrl);
+
           const videoTrack = displayStreamRef.current?.getVideoTracks()[0];
           const settings = videoTrack?.getSettings();
           const resolution = (settings?.width && settings?.height)
@@ -690,18 +815,24 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
             : '1920x1080';
 
           const userAgent = navigator.userAgent;
-          const browser = /Chrome/.test(userAgent) ? 'Chrome' : 
-                         /Firefox/.test(userAgent) ? 'Firefox' :
-                         /Safari/.test(userAgent) ? 'Safari' : 'Unknown';
+          const browser = /Chrome/.test(userAgent) ? 'Chrome' :
+            /Firefox/.test(userAgent) ? 'Firefox' :
+              /Safari/.test(userAgent) ? 'Safari' : 'Unknown';
           const os = /Windows/.test(userAgent) ? 'Windows' :
-                    /Mac/.test(userAgent) ? 'macOS' :
-                    /Linux/.test(userAgent) ? 'Linux' : 'Unknown';
+            /Mac/.test(userAgent) ? 'macOS' :
+              /Linux/.test(userAgent) ? 'Linux' : 'Unknown';
 
           const metadata: RecordingMetadata = {
             timestamp: new Date().toISOString(),
             resolution,
             browser,
             os,
+            performanceMetrics,
+            errorStackTraces,
+            devToolsStates,
+            stateChanges,
+            codeSnippets,
+            websocketConnections,
           };
 
           const preview: RecordingPreview = {
@@ -709,18 +840,27 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
             duration: finalDuration,
             consoleLogs: [...consoleLogsRef.current],
             networkLogs: [...networkLogsRef.current],
-            screenshots: [],
+            screenshots, // Now this is string[] (dataUrls)
             metadata,
+            errorStackTraces,
+            devToolsStates,
+            stateChanges,
+            codeSnippets,
+            websocketConnections,
           };
 
           logger.log('Recording complete:', {
             duration: finalDuration,
             size: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
-            resolution,
-            mimeType: blob.type,
+            screenshots: screenshots.length,
+            networkRequests: networkLogsRef.current.length,
+            consoleLogs: consoleLogsRef.current.length,
+            errors: errorStackTraces.length,
+            stateChanges: stateChanges.length,
+            codeSnippets: codeSnippets.length,
+            websockets: websocketConnections.length,
           });
 
-          // NEW: Clear recovery data on successful stop
           await clearSession(sessionId);
           localStorage.removeItem(STORAGE_KEY);
           chunkIndexRef.current = 0;
@@ -757,17 +897,27 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     const newMutedState = !isMicMuted;
     setIsMicMuted(newMutedState);
 
-    // Use gain node to mute/unmute microphone with smooth transition
     if (micGainRef.current && audioContextRef.current) {
       const ctx = audioContextRef.current;
       const currentTime = ctx.currentTime;
-      
-      // Smooth transition to prevent clicks
       micGainRef.current.gain.cancelScheduledValues(currentTime);
       micGainRef.current.gain.setValueAtTime(micGainRef.current.gain.value, currentTime);
       micGainRef.current.gain.linearRampToValueAtTime(newMutedState ? 0 : 1, currentTime + 0.05);
     }
   }, [isMicMuted]);
+
+  const takeScreenshotNow = useCallback(async () => {
+    if (!screenshotCaptureRef.current) {
+      toast.error('Screenshot capture not available');
+      return;
+    }
+
+    const screenshot = await screenshotCaptureRef.current.captureNow();
+    if (screenshot) {
+      toast.success('Screenshot captured');
+      setScreenshotCount(screenshotCaptureRef.current.getCount());
+    }
+  }, []);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -789,16 +939,25 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         error,
         isMicMuted,
         remainingTime,
-        canRecord, // NEW
-        hasPendingRecording, // NEW
-        pendingRecordingPreview, // NEW
+        canRecord,
+        hasPendingRecording,
+        pendingRecordingPreview,
+        currentMetrics,
+        screenshotCount,
+        networkRequestCount,
+        errorCount,
+        stateChangeCount,
+        codeSnippetCount,
+        websocketConnectionCount,
+        devToolsOpen,
         startRecording,
         pauseRecording,
         resumeRecording,
         stopRecording,
-        loadPendingRecording, // NEW
-        discardPendingRecording, // NEW
+        loadPendingRecording,
+        discardPendingRecording,
         toggleMute,
+        takeScreenshotNow,
         clearError,
       }}
     >

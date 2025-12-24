@@ -4,12 +4,31 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useAI } from './AIAssistantProvider'
 import { AIChatHistory } from './AIChatHistory'
 import { AIGeneratedContentPanel } from './AIGeneratedContentPanel'
-import { X, Maximize2, Minimize2, Send, Bot, User, Sparkles, FileText, AlertCircle, PanelRightOpen, PanelRightClose, GripVertical } from 'lucide-react'
+import { X, Maximize2, Minimize2, Send, Bot, User, Sparkles, FileText, AlertCircle, PanelRightOpen, PanelRightClose, GripVertical, FileEdit } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Message } from '@/lib/ai/types'
 import { MessageContent } from './MessageContent'
 import { logger } from '@/lib/utils/logger'
+
+// Hook to listen for document context
+function useDocumentContext() {
+  const [documentContext, setDocumentContext] = useState<any>(null)
+
+  useEffect(() => {
+    const handleContextUpdate = (event: CustomEvent) => {
+      setDocumentContext(event.detail)
+    }
+
+    window.addEventListener('document-context-update', handleContextUpdate as EventListener)
+    
+    return () => {
+      window.removeEventListener('document-context-update', handleContextUpdate as EventListener)
+    }
+  }, [])
+
+  return documentContext
+}
 
 export function AIAssistant() {
   const {
@@ -37,6 +56,10 @@ export function AIAssistant() {
   const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false)
   const [chatWidth, setChatWidth] = useState(50)
   const [isDragging, setIsDragging] = useState(false)
+
+  // Document context integration
+  const documentContext = useDocumentContext()
+  const isEditingDocument = documentContext !== null
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -194,7 +217,14 @@ export function AIAssistant() {
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
 
-    const message = input.trim()
+    let message = input.trim()
+    
+    // Enhance message with document context if user is editing a document
+    if (documentContext) {
+      const docContextPrefix = `[Currently editing document: "${documentContext.title}" (${documentContext.type}) - ${documentContext.sectionCount} sections, ~${documentContext.wordCount} words]\n\n`
+      message = docContextPrefix + message
+    }
+    
     setInput('')
 
     // Create session if this is the first USER message (not counting the welcome assistant message)
@@ -205,7 +235,7 @@ export function AIAssistant() {
       hasCreatedSessionRef.current = true
 
       try {
-        const title = generateChatTitle(message)
+        const title = generateChatTitle(input.trim()) // Use original input for title
 
         logger.log('Creating new chat session with title:', title)
 
@@ -294,6 +324,60 @@ export function AIAssistant() {
     toast.success('Chat session loaded')
   }
 
+  const handleInsertToDocument = (content: string) => {
+    if (!documentContext) {
+      toast.error('No document open', {
+        description: 'Please open a document in the editor first'
+      })
+      return
+    }
+
+    // Dispatch event to insert content into document
+    const event = new CustomEvent('document-insert-content', {
+      detail: { content }
+    })
+    window.dispatchEvent(event)
+    
+    toast.success('Content sent to document', {
+      description: 'Check your document editor'
+    })
+  }
+
+  // Document context quick actions
+  const getDocumentQuickActions = () => {
+    if (!documentContext) return []
+
+    const actions: { [key: string]: string[] } = {
+      brainstorm: [
+        'Generate 5 creative ideas for this topic',
+        'Create a pros and cons list',
+        'Help me expand these ideas',
+      ],
+      meeting_notes: [
+        'Extract all action items',
+        'Summarize key points',
+        'Identify decisions made',
+      ],
+      test_plan: [
+        'Generate test scenarios',
+        'Identify coverage gaps',
+        'Analyze risks',
+      ],
+      test_strategy: [
+        'Suggest quality metrics',
+        'Recommend best practices',
+        'Review this strategy',
+      ],
+      general: [
+        'Improve this content',
+        'Create an outline',
+        'Proofread for errors',
+      ]
+    }
+
+    return actions[documentContext.type] || actions.general
+  }
+
   if (!isOpen) {
     return null
   }
@@ -313,6 +397,13 @@ export function AIAssistant() {
           </div>
 
           <div className="flex items-center gap-1">
+            {isEditingDocument && (
+              <div className="mr-2 px-2 py-1 bg-blue-500/10 rounded-lg flex items-center gap-1.5">
+                <FileEdit className="w-3.5 h-3.5 text-blue-600" />
+                <span className="text-xs font-semibold text-blue-600">Editing Doc</span>
+              </div>
+            )}
+
             {generatedContent.length > 0 && (
               <div className="mr-2 px-2 py-1 bg-primary/10 rounded-lg flex items-center gap-1.5 animate-pulse">
                 <FileText className="w-3.5 h-3.5 text-primary" />
@@ -333,10 +424,40 @@ export function AIAssistant() {
               className="p-2.5 hover:bg-muted/80 rounded-xl transition-all text-muted-foreground hover:text-foreground"
               aria-label="Close"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 w-4" />
             </button>
           </div>
         </div>
+
+        {/* Document Context Info */}
+        {isEditingDocument && (
+          <div className="px-4 py-2 bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-900/50">
+            <div className="flex items-start gap-2">
+              <FileEdit className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-blue-900 dark:text-blue-100 truncate">
+                  {documentContext.title}
+                </p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  {documentContext.type.replace('_', ' ')} • {documentContext.sectionCount} sections
+                </p>
+              </div>
+            </div>
+            
+            {/* Quick Actions */}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {getDocumentQuickActions().slice(0, 2).map((action, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setInput(action)}
+                  className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
+                >
+                  {action}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gradient-to-b from-background/50 to-background">
           {messages.length === 1 && messages[0].role === 'assistant' && (
@@ -345,9 +466,13 @@ export function AIAssistant() {
                 <Sparkles className="w-8 h-8 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground text-lg mb-2">How can I help?</h3>
+                <h3 className="font-semibold text-foreground text-lg mb-2">
+                  {isEditingDocument ? `Help with "${documentContext.title}"` : 'How can I help?'}
+                </h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Ask me to generate bug reports, test cases, or help with QA tasks
+                  {isEditingDocument 
+                    ? 'Ask me to improve, expand, or help with your document'
+                    : 'Ask me to generate bug reports, test cases, or help with QA tasks'}
                 </p>
               </div>
             </div>
@@ -393,6 +518,22 @@ export function AIAssistant() {
                       </span>
                     </div>
                   )}
+                  
+                  {/* Insert to Document button for assistant messages when editing */}
+                  {message.role === 'assistant' && isEditingDocument && !message.metadata?.generatedContent && (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleInsertToDocument(message.content)
+                        }}
+                        className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors flex items-center gap-1"
+                      >
+                        <FileEdit className="w-3 h-3" />
+                        Insert to Document
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1.5 px-1">
                   {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -427,7 +568,7 @@ export function AIAssistant() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="How can I help you today?"
+              placeholder={isEditingDocument ? `Ask about "${documentContext.title}"...` : 'How can I help you today?'}
               rows={1}
               className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-[15px] resize-none max-h-32 leading-6 border-0 focus:ring-0 focus:border-0"
               disabled={isLoading}
@@ -463,6 +604,16 @@ export function AIAssistant() {
         </div>
 
         <div className="flex items-center gap-2">
+          {isEditingDocument && (
+            <div className="px-3 py-1.5 bg-blue-500/10 rounded-lg flex items-center gap-2">
+              <FileEdit className="w-4 h-4 text-blue-600" />
+              <div className="text-sm">
+                <span className="font-semibold text-blue-600">Editing:</span>
+                <span className="text-blue-700 dark:text-blue-300 ml-1">{documentContext.title}</span>
+              </div>
+            </div>
+          )}
+
           {generatedContent.length > 0 && (
             <button
               onClick={toggleReviewPanel}
@@ -517,6 +668,36 @@ export function AIAssistant() {
               : (hasGeneratedContent ? `${chatWidth * 0.8}%` : '80%')
           }}
         >
+          {/* Document Context Banner */}
+          {isEditingDocument && (
+            <div className="px-6 py-3 bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-900/50">
+              <div className="flex items-start gap-3 max-w-4xl mx-auto">
+                <FileEdit className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                    Editing: {documentContext.title}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+                    {documentContext.type.replace('_', ' ')} • {documentContext.sectionCount} sections • ~{documentContext.wordCount} words
+                  </p>
+                  
+                  {/* Quick Actions */}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {getDocumentQuickActions().map((action, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setInput(action)}
+                        className="text-xs px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors"
+                      >
+                        {action}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto bg-gradient-to-b from-background/50 to-background">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
               {messages.length === 1 && messages[0].role === 'assistant' ? (
@@ -525,9 +706,13 @@ export function AIAssistant() {
                     <Sparkles className="w-10 h-10 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-foreground text-2xl mb-3">How can I help today?</h3>
+                    <h3 className="font-bold text-foreground text-2xl mb-3">
+                      {isEditingDocument ? `Help with "${documentContext.title}"` : 'How can I help today?'}
+                    </h3>
                     <p className="text-muted-foreground leading-relaxed max-w-md">
-                      Ask me to generate bug reports, test cases, or help with any QA tasks
+                      {isEditingDocument 
+                        ? `I can help improve, expand, or refine your ${documentContext.type.replace('_', ' ')}`
+                        : 'Ask me to generate bug reports, test cases, or help with any QA tasks'}
                     </p>
                   </div>
                 </div>
@@ -569,6 +754,22 @@ export function AIAssistant() {
                               <span className="px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-semibold text-xs">
                                 ✓ Saved to Database
                               </span>
+                            </div>
+                          )}
+                          
+                          {/* Insert to Document button for assistant messages when editing */}
+                          {message.role === 'assistant' && isEditingDocument && !message.metadata?.generatedContent && (
+                            <div className="mt-3 pt-3 border-t border-border/50">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleInsertToDocument(message.content)
+                                }}
+                                className="text-xs px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded transition-colors flex items-center gap-1.5"
+                              >
+                                <FileEdit className="w-3.5 h-3.5" />
+                                Insert to Document
+                              </button>
                             </div>
                           )}
                         </div>
@@ -618,7 +819,7 @@ export function AIAssistant() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="How can I help you today?"
+                  placeholder={isEditingDocument ? `Ask about "${documentContext.title}"...` : 'How can I help you today?'}
                   rows={1}
                   className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-[15px] resize-none max-h-32 leading-6 border-0 focus:ring-0 focus:border-0"
                   disabled={isLoading}

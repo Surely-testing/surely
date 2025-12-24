@@ -1,5 +1,6 @@
 // ============================================
 // FILE: components/documents/TiptapEditor.tsx
+// Adding back extensions step by step
 // ============================================
 'use client'
 
@@ -19,15 +20,23 @@ import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
 import { EditorToolbar } from './EditorToolbar'
 import { SlashCommands } from './SlashCommands'
+import { getDocTypePlaceholder, type DocType } from '@/lib/utils/document-templates'
 
 const lowlight = createLowlight(common)
 
 interface TiptapEditorProps {
   initialContent: any
   onChange: (content: any, headings: any[]) => void
+  onTextSelect?: (text: string, range: any, editor: any) => void
+  docType?: DocType
 }
 
-export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
+export function TiptapEditor({ 
+  initialContent, 
+  onChange, 
+  onTextSelect,
+  docType = 'general' 
+}: TiptapEditorProps) {
   const [showSlashMenu, setShowSlashMenu] = useState(false)
   const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 })
 
@@ -38,9 +47,6 @@ export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
         codeBlock: false,
         heading: {
           levels: [1, 2, 3],
-          HTMLAttributes: {
-            class: 'editor-heading',
-          },
         },
       }),
       Placeholder.configure({
@@ -48,7 +54,7 @@ export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
           if (node.type.name === 'heading') {
             return 'Heading'
           }
-          return "Type '/' for commands..."
+          return getDocTypePlaceholder(docType)
         },
       }),
       Table.configure({
@@ -59,33 +65,20 @@ export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
       TableCell,
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-primary underline',
-        },
       }),
-      Highlight.configure({
-        HTMLAttributes: {
-          class: 'bg-yellow-200 dark:bg-yellow-800',
-        },
-      }),
+      Highlight,
       TaskList,
       TaskItem.configure({
         nested: true,
-        HTMLAttributes: {
-          class: 'task-item',
-        },
       }),
       CodeBlockLowlight.configure({
         lowlight,
-        HTMLAttributes: {
-          class: 'code-block',
-        },
       }),
     ],
     content: initialContent,
     editorProps: {
       attributes: {
-        class: 'notion-editor focus:outline-none',
+        class: 'prose-editor',
       },
       handleKeyDown: (view, event) => {
         if (event.key === '/') {
@@ -107,18 +100,53 @@ export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
       const json = editor.getJSON()
       const headings = extractHeadings(editor)
       onChange(json, headings)
+      
+      // Update heading IDs after content changes
+      setTimeout(() => {
+        const { state } = editor
+        const { doc } = state
+        
+        doc.descendants((node, pos) => {
+          if (node.type.name === 'heading') {
+            const text = node.textContent
+            // Use same ID generation logic
+            const id = text
+              ? `heading-${text.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 50)}`
+              : `heading-${pos}`
+            const dom = editor.view.nodeDOM(pos) as HTMLElement
+            if (dom) {
+              dom.id = id
+            }
+          }
+        })
+      }, 0)
+    },
+    onSelectionUpdate: ({ editor }) => {
+      if (!onTextSelect) return
+      
+      const { from, to } = editor.state.selection
+      const text = editor.state.doc.textBetween(from, to, ' ')
+      
+      if (text && text.trim().length > 0) {
+        onTextSelect(text, { from, to }, editor)
+      }
     },
   })
 
   useEffect(() => {
     if (!editor) return
 
-    const handleClickOutside = () => setShowSlashMenu(false)
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.slash-commands-menu')) {
+        setShowSlashMenu(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [editor])
 
-  // Add IDs to headings for navigation
   useEffect(() => {
     if (!editor) return
 
@@ -128,7 +156,11 @@ export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
       
       doc.descendants((node, pos) => {
         if (node.type.name === 'heading') {
-          const id = `heading-${pos}`
+          const text = node.textContent
+          // Use same ID generation logic as extractHeadings
+          const id = text
+            ? `heading-${text.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 50)}`
+            : `heading-${pos}`
           const dom = editor.view.nodeDOM(pos) as HTMLElement
           if (dom) {
             dom.id = id
@@ -140,22 +172,30 @@ export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
     updateHeadingIds()
   }, [editor])
 
+  // Extract headings on initial load and when content changes
+  useEffect(() => {
+    if (!editor) return
+
+    // Extract headings immediately
+    const extractAndNotify = () => {
+      const headings = extractHeadings(editor)
+      const json = editor.getJSON()
+      onChange(json, headings)
+    }
+
+    // Run once on mount
+    extractAndNotify()
+  }, [editor])
+
   if (!editor) {
-    return (
-      <div className="animate-pulse space-y-4 px-8 py-6">
-        <div className="h-8 bg-muted rounded w-1/3" />
-        <div className="h-4 bg-muted rounded w-full" />
-        <div className="h-4 bg-muted rounded w-5/6" />
-        <div className="h-4 bg-muted rounded w-4/6" />
-      </div>
-    )
+    return <div className="p-8">Loading editor...</div>
   }
 
   return (
-    <div className="relative w-full max-w-full">
+    <div className="relative w-full">
       <EditorToolbar editor={editor} />
       
-      <div className="mt-4 w-full">
+      <div className="mt-4">
         <EditorContent editor={editor} />
       </div>
 
@@ -164,194 +204,114 @@ export function TiptapEditor({ initialContent, onChange }: TiptapEditorProps) {
           editor={editor}
           position={slashMenuPosition}
           onClose={() => setShowSlashMenu(false)}
+          docType={docType}
         />
       )}
 
       <style jsx global>{`
-        .notion-editor {
-          min-height: 70vh;
-          padding: 3rem 8rem;
-          font-size: 16px;
-          line-height: 1.7;
-          color: var(--foreground);
-        }
-
-        .notion-editor .ProseMirror-focused {
+        .prose-editor {
+          min-height: 60vh;
+          padding: 3rem 2rem;
           outline: none;
         }
 
-        /* Headings with drag handles */
-        .notion-editor h1,
-        .notion-editor h2,
-        .notion-editor h3 {
-          position: relative;
-          scroll-margin-top: 100px;
-          margin-top: 2rem;
-          margin-bottom: 0.5rem;
-          font-weight: 600;
-          line-height: 1.3;
-        }
-
-        .notion-editor h1 {
+        .prose-editor h1 {
           font-size: 2.5rem;
-          margin-top: 2.5rem;
+          font-weight: 600;
+          margin: 2rem 0 0.75rem;
         }
 
-        .notion-editor h2 {
+        .prose-editor h2 {
           font-size: 1.875rem;
-          margin-top: 2rem;
+          font-weight: 600;
+          margin: 1.5rem 0 0.75rem;
         }
 
-        .notion-editor h3 {
+        .prose-editor h3 {
           font-size: 1.5rem;
-          margin-top: 1.5rem;
+          font-weight: 600;
+          margin: 1.25rem 0 0.75rem;
         }
 
-        /* Drag Handle */
-        .notion-editor h1:hover::before,
-        .notion-editor h2:hover::before,
-        .notion-editor h3:hover::before,
-        .notion-editor p:hover::before,
-        .notion-editor ul:hover::before,
-        .notion-editor ol:hover::before {
-          content: '⋮⋮';
-          position: absolute;
-          left: -2rem;
-          color: var(--muted-foreground);
-          cursor: grab;
-          opacity: 0.5;
-          font-size: 1rem;
-          padding: 0.25rem;
+        .prose-editor p {
+          margin: 0.75rem 0;
+          line-height: 1.7;
         }
 
-        .notion-editor h1:hover::before,
-        .notion-editor h2:hover::before,
-        .notion-editor h3:hover::before {
-          top: 0.25rem;
-        }
-
-        .notion-editor p {
-          margin: 0.5rem 0;
-          min-height: 1.5rem;
-        }
-
-        .notion-editor p:empty::before {
-          content: attr(data-placeholder);
-          color: var(--muted-foreground);
-          pointer-events: none;
-        }
-
-        .notion-editor ul,
-        .notion-editor ol {
+        .prose-editor ul,
+        .prose-editor ol {
           padding-left: 2rem;
           margin: 1rem 0;
         }
 
-        .notion-editor li {
-          margin: 0.25rem 0;
-          position: relative;
+        .prose-editor li {
+          margin: 0.5rem 0;
         }
 
-        .notion-editor code {
-          background-color: hsl(var(--muted));
+        .prose-editor code {
+          background: hsl(var(--muted));
           padding: 0.2rem 0.4rem;
           border-radius: 0.25rem;
           font-size: 0.875em;
-          font-family: 'Courier New', monospace;
         }
 
-        .notion-editor pre {
-          background-color: hsl(var(--muted));
+        .prose-editor pre {
+          background: hsl(var(--muted));
           padding: 1rem;
           border-radius: 0.5rem;
+          margin: 1.5rem 0;
           overflow-x: auto;
-          margin: 1rem 0;
-          border: 1px solid hsl(var(--border));
         }
 
-        .notion-editor pre code {
-          background: none;
-          padding: 0;
-          font-size: 0.875rem;
-        }
-
-        .notion-editor blockquote {
+        .prose-editor blockquote {
           border-left: 4px solid hsl(var(--primary));
           padding-left: 1rem;
-          margin: 1rem 0;
+          margin: 1.5rem 0;
+          font-style: italic;
           color: hsl(var(--muted-foreground));
         }
 
-        .notion-editor hr {
-          border: none;
-          border-top: 1px solid hsl(var(--border));
-          margin: 2rem 0;
-        }
-
-        .notion-editor table {
+        .prose-editor table {
           border-collapse: collapse;
           width: 100%;
-          margin: 1rem 0;
-          border: 1px solid hsl(var(--border));
+          margin: 1.5rem 0;
         }
 
-        .notion-editor th,
-        .notion-editor td {
+        .prose-editor th,
+        .prose-editor td {
           border: 1px solid hsl(var(--border));
           padding: 0.75rem;
-          text-align: left;
-          min-width: 100px;
         }
 
-        .notion-editor th {
-          background-color: hsl(var(--muted));
+        .prose-editor th {
+          background: hsl(var(--muted));
           font-weight: 600;
         }
 
-        /* Task Lists */
-        .notion-editor ul[data-type="taskList"] {
+        .prose-editor ul[data-type="taskList"] {
           list-style: none;
           padding-left: 0;
         }
 
-        .notion-editor ul[data-type="taskList"] li {
+        .prose-editor ul[data-type="taskList"] li {
           display: flex;
-          align-items: flex-start;
           gap: 0.5rem;
         }
 
-        .notion-editor ul[data-type="taskList"] input[type="checkbox"] {
+        .prose-editor ul[data-type="taskList"] input {
           margin-top: 0.35rem;
           cursor: pointer;
-          width: 1rem;
-          height: 1rem;
         }
 
-        .notion-editor mark {
-          background-color: hsl(var(--primary) / 0.2);
+        .prose-editor mark {
+          background: hsl(var(--primary) / 0.2);
           padding: 0.1rem 0.2rem;
           border-radius: 0.25rem;
         }
 
-        /* Empty state */
-        .notion-editor .is-editor-empty:first-child::before {
-          content: attr(data-placeholder);
-          float: left;
-          color: hsl(var(--muted-foreground));
-          pointer-events: none;
-          height: 0;
-        }
-
-        @media (max-width: 1024px) {
-          .notion-editor {
-            padding: 2rem 4rem;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .notion-editor {
-            padding: 1rem 2rem;
-          }
+        .prose-editor a {
+          color: hsl(var(--primary));
+          text-decoration: underline;
         }
       `}</style>
     </div>
@@ -365,8 +325,12 @@ function extractHeadings(editor: Editor): any[] {
 
   doc.descendants((node, pos) => {
     if (node.type.name === 'heading') {
-      const id = `heading-${pos}`
       const text = node.textContent
+      // Create stable ID from text content
+      const id = text
+        ? `heading-${text.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 50)}`
+        : `heading-${pos}`
+      
       headings.push({
         id,
         level: node.attrs.level,

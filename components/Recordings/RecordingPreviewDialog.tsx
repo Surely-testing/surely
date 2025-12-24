@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { RecordingPreview } from '@/types/recording.types';
+import { NetworkLog, RecordingPreview } from '@/types/recording.types';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import { NetworkRequestInspector } from '@/components/Recordings/NetworkRequestInspector';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '../ui/Badge';
@@ -42,9 +43,10 @@ export function RecordingPreviewDialog({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState<string>('');
-  const [trimRange, setTrimRange] = useState<{ start: number; end: number }>({ 
-    start: 0, 
-    end: preview.duration 
+  const [selectedNetworkLog, setSelectedNetworkLog] = useState<NetworkLog | null>(null);
+  const [trimRange, setTrimRange] = useState<{ start: number; end: number }>({
+    start: 0,
+    end: preview.duration
   });
   const videoRef = useRef<HTMLVideoElement>(null) as React.RefObject<HTMLVideoElement>;
 
@@ -58,17 +60,17 @@ export function RecordingPreviewDialog({
     // Smooth audio playback initialization
     if (videoRef.current) {
       const video = videoRef.current;
-      
+
       // CRITICAL: Set volume to 0 immediately to prevent pop
       video.volume = 0;
       video.muted = false;
-      
+
       // Handle volume fade-in when video metadata is loaded
       const handleLoadedMetadata = () => {
         // Keep volume at 0 initially
         video.volume = 0;
       };
-      
+
       // Gradually increase volume when playback starts
       const handlePlaying = () => {
         // Small delay to ensure playback has started
@@ -77,7 +79,7 @@ export function RecordingPreviewDialog({
           const targetVol = 1;
           const steps = 10;
           const interval = 30; // 300ms total fade
-          
+
           const fadeInterval = setInterval(() => {
             currentVol += targetVol / steps;
             if (currentVol >= targetVol) {
@@ -89,10 +91,10 @@ export function RecordingPreviewDialog({
           }, interval);
         }, 10);
       };
-      
+
       video.addEventListener('loadedmetadata', handleLoadedMetadata);
       video.addEventListener('playing', handlePlaying);
-      
+
       return () => {
         video.removeEventListener('loadedmetadata', handleLoadedMetadata);
         video.removeEventListener('playing', handlePlaying);
@@ -114,14 +116,14 @@ export function RecordingPreviewDialog({
       const video = document.createElement('video');
       video.src = URL.createObjectURL(blob);
       video.muted = false;
-      
+
       video.onloadedmetadata = async () => {
         try {
           const canvas = document.createElement('canvas');
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           const ctx = canvas.getContext('2d', { willReadFrequently: false });
-          
+
           if (!ctx) {
             reject(new Error('Failed to get canvas context'));
             return;
@@ -130,7 +132,7 @@ export function RecordingPreviewDialog({
           const canvasStream = canvas.captureStream(30);
           const videoTrack = canvasStream.getVideoTracks()[0];
           const combinedStream = new MediaStream([videoTrack]);
-          
+
           let audioContext: AudioContext | null = null;
           try {
             audioContext = new AudioContext();
@@ -138,7 +140,7 @@ export function RecordingPreviewDialog({
             const destination = audioContext.createMediaStreamDestination();
             source.connect(destination);
             source.connect(audioContext.destination);
-            
+
             const audioTracks = destination.stream.getAudioTracks();
             if (audioTracks.length > 0) {
               audioTracks.forEach(track => combinedStream.addTrack(track));
@@ -152,7 +154,7 @@ export function RecordingPreviewDialog({
           if (!MediaRecorder.isTypeSupported(mimeType)) {
             mimeType = 'video/webm';
           }
-            
+
           const mediaRecorder = new MediaRecorder(combinedStream, {
             mimeType,
             videoBitsPerSecond: 2500000,
@@ -176,14 +178,14 @@ export function RecordingPreviewDialog({
 
           mediaRecorder.start(100);
           video.currentTime = start;
-          
+
           const drawFrame = () => {
             if (video.currentTime >= end) {
               mediaRecorder.stop();
               video.pause();
               return;
             }
-            
+
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             requestAnimationFrame(drawFrame);
           };
@@ -283,7 +285,7 @@ export function RecordingPreviewDialog({
           const logsJson = JSON.stringify(preview.consoleLogs, null, 2);
           const logsBlob = new Blob([logsJson], { type: 'application/json' });
           const logFileName = `${suiteId}/${recording.id}/console_logs.json`;
-          
+
           const { error: consoleError } = await supabase.storage
             .from('recordings')
             .upload(logFileName, logsBlob, {
@@ -309,7 +311,7 @@ export function RecordingPreviewDialog({
           const logsJson = JSON.stringify(preview.networkLogs, null, 2);
           const logsBlob = new Blob([logsJson], { type: 'application/json' });
           const logFileName = `${suiteId}/${recording.id}/network_logs.json`;
-          
+
           const { error: networkError } = await supabase.storage
             .from('recordings')
             .upload(logFileName, logsBlob, {
@@ -368,9 +370,9 @@ export function RecordingPreviewDialog({
   };
 
   return (
-    <Dialog open onOpenChange={() => {}}>
-      <DialogContent 
-        className="w-[95vw] sm:w-[90vw] lg:w-[85vw] xl:w-[80vw] h-[95vh] sm:h-[90vh] lg:h-[85vh] xl:h-[80vh] max-w-[95vw] sm:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw] max-h-[95vh] sm:max-h-[90vh] lg:max-h-[85vh] xl:max-h-[80vh] p-0 gap-0 overflow-hidden !rounded-3xl" 
+    <Dialog open onOpenChange={() => { }}>
+      <DialogContent
+        className="w-[95vw] sm:w-[90vw] lg:w-[85vw] xl:w-[80vw] h-[95vh] sm:h-[90vh] lg:h-[85vh] xl:h-[80vh] max-w-[95vw] sm:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw] max-h-[95vh] sm:max-h-[90vh] lg:max-h-[85vh] xl:max-h-[80vh] p-0 gap-0 overflow-hidden !rounded-3xl"
         aria-describedby="recording-preview-description"
       >
         <div className="flex flex-col h-full w-full overflow-hidden">
@@ -381,9 +383,9 @@ export function RecordingPreviewDialog({
               Preview and edit your recording before saving
             </span>
             <div className="flex items-center gap-2 sm:gap-3">
-              <Button 
-                size="sm" 
-                onClick={handleSave} 
+              <Button
+                size="sm"
+                onClick={handleSave}
                 disabled={!title.trim()}
               >
                 <Upload className="h-4 w-4 mr-2" />
@@ -400,7 +402,7 @@ export function RecordingPreviewDialog({
 
           {/* Main Content with padding */}
           <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
-            
+
             {/* Left: Video Section - Minimal padding to maximize video size */}
             <div className="w-full lg:w-[70%] flex flex-col min-h-0 overflow-hidden px-6 sm:px-8 py-6 sm:py-8 gap-6 sm:gap-8">
               {/* Video Player */}
@@ -428,7 +430,7 @@ export function RecordingPreviewDialog({
 
             {/* Right: Sidebar with better internal spacing */}
             <div className="w-full lg:w-[30%] border-t lg:border-t-0 lg:border-l flex flex-col min-h-0 overflow-hidden">
-              
+
               {/* Form Section */}
               <div className="shrink-0 border-b max-h-[40vh] lg:max-h-[35vh] overflow-hidden">
                 <ScrollArea className="h-full">
@@ -482,7 +484,7 @@ export function RecordingPreviewDialog({
                 </div>
 
                 <div className="flex-1 min-h-0 relative overflow-hidden">
-                  
+
                   {/* Info Tab */}
                   <TabsContent value="info" className="absolute inset-0 mt-0 overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden">
                     <ScrollArea className="w-full h-full">
@@ -505,7 +507,7 @@ export function RecordingPreviewDialog({
                                 Duration
                               </dt>
                               <dd className="text-sm font-mono">
-                                {Math.floor(trimRange.end - trimRange.start) / 60 >= 1 
+                                {Math.floor(trimRange.end - trimRange.start) / 60 >= 1
                                   ? `${Math.floor((trimRange.end - trimRange.start) / 60)}:${String(Math.floor((trimRange.end - trimRange.start) % 60)).padStart(2, '0')}`
                                   : `0:${String(Math.floor(trimRange.end - trimRange.start)).padStart(2, '0')}`
                                 }
@@ -601,7 +603,11 @@ export function RecordingPreviewDialog({
                             ) : (
                               <div className="divide-y">
                                 {preview.networkLogs.map((log, index) => (
-                                  <div key={index} className="py-3 text-xs hover:bg-muted/50">
+                                  <div
+                                    key={index}
+                                    className="py-3 text-xs hover:bg-muted/50 cursor-pointer transition-colors"
+                                    onClick={() => setSelectedNetworkLog(log)}
+                                  >
                                     <div className="flex items-center justify-between mb-2 gap-2">
                                       <div className="flex items-center gap-2">
                                         <Badge variant="info" className="text-[10px] px-1.5 py-0">
@@ -622,6 +628,12 @@ export function RecordingPreviewDialog({
                                             {log.duration}ms
                                           </span>
                                         )}
+                                        {log.type === 'graphql' && (
+                                          <Badge variant="default" className="text-[10px]">GraphQL</Badge>
+                                        )}
+                                        {log.type === 'websocket' && (
+                                          <Badge variant="default" className="text-[10px]">WS</Badge>
+                                        )}
                                       </div>
                                     </div>
                                     <div className="text-muted-foreground text-[10px] break-all">
@@ -635,6 +647,14 @@ export function RecordingPreviewDialog({
                         </Card>
                       </div>
                     </ScrollArea>
+
+                    {selectedNetworkLog && (
+                      <NetworkRequestInspector
+                        log={selectedNetworkLog}
+                        open={!!selectedNetworkLog}
+                        onClose={() => setSelectedNetworkLog(null)}
+                      />
+                    )}
                   </TabsContent>
 
                   {/* Screenshots Tab */}

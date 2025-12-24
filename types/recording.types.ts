@@ -35,6 +35,12 @@ export interface RecordingMetadata {
   thumbnail_url?: string;
   logs_count?: number;
   requests_count?: number;
+  performanceMetrics?: PerformanceMetric[];     // NEW
+  errorStackTraces?: ErrorStackTrace[];         // NEW
+  devToolsStates?: DevToolsState[];             // NEW
+  stateChanges?: StateChange[];                 // NEW
+  codeSnippets?: CodeSnippet[];                 // NEW
+  websocketConnections?: WebSocketConnection[]; // NEW
 }
 
 export interface ConsoleLog {
@@ -44,15 +50,32 @@ export interface ConsoleLog {
   stack?: string;
 }
 
+export interface Screenshot {
+  id: string;
+  timestamp: number;
+  dataUrl: string;
+  width: number;
+  height: number;
+  size: number;
+}
+
+
 export interface NetworkLog {
+  id: string;
   timestamp: number;
   method: string;
   url: string;
   status?: number;
   statusText?: string;
-  type: string;
-  size?: number;
   duration?: number;
+  requestHeaders?: Record<string, string>;      // NEW
+  responseHeaders?: Record<string, string>;     // NEW
+  requestBody?: any;                            // NEW
+  responseBody?: any;                           // NEW
+  error?: string;                               // NEW
+  type: 'fetch' | 'xhr' | 'websocket' | 'graphql'; // UPDATED
+  size?: number;
+  websocketMessages?: WebSocketMessage[];       // NEW
 }
 
 export interface RecordingSession {
@@ -73,6 +96,11 @@ export interface RecordingPreview {
   screenshots: string[];
   metadata: RecordingMetadata;
   thumbnail_url?: string;
+  errorStackTraces?: ErrorStackTrace[];         // NEW
+  devToolsStates?: DevToolsState[];             // NEW
+  stateChanges?: StateChange[];                 // NEW
+  codeSnippets?: CodeSnippet[];                 // NEW
+  websocketConnections?: WebSocketConnection[]; // NEW
 }
 
 export interface RecordingFilters {
@@ -81,4 +109,88 @@ export interface RecordingFilters {
   dateFrom?: string;
   dateTo?: string;
   sort?: 'newest' | 'oldest' | 'duration';
+}
+
+// Error Stack Traces
+export interface ErrorStackTrace {
+  timestamp: number;
+  message: string;
+  stack: string;
+  type: 'error' | 'unhandledRejection' | 'console.error';
+  url?: string;
+  lineNumber?: number;
+  columnNumber?: number;
+  resolvedStack?: string;
+}
+
+// DevTools State
+export interface DevToolsState {
+  isOpen: boolean;
+  orientation?: 'vertical' | 'horizontal' | 'detached';
+  timestamp: number;
+}
+
+// Redux/State Changes
+export interface StateChange {
+  timestamp: number;
+  library: 'redux' | 'zustand' | 'mobx' | 'recoil' | 'jotai' | 'unknown';
+  action?: string;
+  previousState?: any;
+  nextState?: any;
+  diff?: any;
+}
+
+// Code Snippets
+export interface CodeSnippet {
+  timestamp: number;
+  language: string;
+  code: string;
+  source: 'console' | 'sources' | 'elements' | 'network';
+  fileName?: string;
+  lineNumber?: number;
+}
+
+// WebSocket Messages
+export interface WebSocketMessage {
+  id: string;
+  timestamp: number;
+  direction: 'sent' | 'received';
+  data: any;
+  size: number;
+  type: string;
+  parsed?: any;
+}
+
+export interface WebSocketConnection {
+  id: string;
+  url: string;
+  protocols?: string | string[];
+  startTime: number;
+  endTime?: number;
+  state: 'connecting' | 'open' | 'closing' | 'closed';
+  messages: WebSocketMessage[];
+  totalBytesSent: number;
+  totalBytesReceived: number;
+}
+
+// Performance Metrics
+export interface PerformanceMetric {
+  timestamp: number;
+  fps: number;
+  memory: {
+    used: number;
+    total: number;
+    limit: number;
+  } | null;
+  cpu: number | null;
+  loadTimes: {
+    fcp?: number;
+    lcp?: number;
+    fid?: number;
+    cls?: number;
+    ttfb?: number;
+    tti?: number;
+  };
+  resourceCount: number;
+  pageLoadTime: number;
 }

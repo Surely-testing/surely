@@ -4,15 +4,15 @@
 'use client'
 
 import React, { useState } from 'react'
-import { 
-  Menu, 
-  Bell, 
-  Search, 
-  LogOut, 
-  User, 
+import {
+  Menu,
+  Bell,
+  Search,
+  LogOut,
+  User,
   Settings as SettingsIcon,
   ChevronDown,
-  ChevronUp,
+  ChevronUp,  Archive,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { signOut } from '@/lib/actions/auth'
@@ -49,7 +49,7 @@ export function Header({ user, profile, currentSuite, onMenuClick }: HeaderProps
   const [quickActionsVisible, setQuickActionsVisible] = useState(true)
   const [showPreview, setShowPreview] = useState(false)
   const [recordingPreview, setRecordingPreview] = useState<RecordingPreview | null>(null)
-  
+
   const { isRecording } = useRecording()
 
   const handleStopComplete = (preview: RecordingPreview) => {
@@ -160,6 +160,14 @@ export function Header({ user, profile, currentSuite, onMenuClick }: HeaderProps
                         <SettingsIcon className="h-4 w-4 mr-3" />
                         Settings
                       </Link>
+                      <Link
+                        href="/dashboard/archive-trash"
+                        className="flex items-center px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Archive className="h-4 w-4 mr-3" />
+                        Archive & Trash
+                      </Link>
                     </div>
                     <div className="border-t border-border py-2">
                       <button
@@ -196,8 +204,8 @@ export function Header({ user, profile, currentSuite, onMenuClick }: HeaderProps
             <div className="px-6 h-full flex items-center justify-between">
               <div className="flex items-center gap-4">
                 {/* Recording Controls */}
-                <SharedRecordingControls 
-                  variant="full" 
+                <SharedRecordingControls
+                  variant="full"
                   onStopComplete={handleStopComplete}
                   suiteId={currentSuite?.id}
                 />
