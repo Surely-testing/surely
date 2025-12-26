@@ -13,7 +13,11 @@ export default function RecordingsPage() {
   return (
     <>
       <Toaster />
-      <RecordingsView suiteId={suite.id} />
+      <RecordingsView
+        suiteId={suite.id}
+        suiteName={suite.name}
+        accountId={suite.owner_id}  // Use owner_id instead of account_id
+      />
     </>
   )
 }

@@ -2003,6 +2003,7 @@ export type Database = {
           owner_type: string
           status: string | null
           updated_at: string | null
+          account_id: string | null
         }
         Insert: {
           admins?: string[] | null
@@ -2016,6 +2017,7 @@ export type Database = {
           owner_type: string
           status?: string | null
           updated_at?: string | null
+          account_id?: string | null
         }
         Update: {
           admins?: string[] | null
@@ -2029,6 +2031,7 @@ export type Database = {
           owner_type?: string
           status?: string | null
           updated_at?: string | null
+          account_id?: string | null
         }
         Relationships: []
       }

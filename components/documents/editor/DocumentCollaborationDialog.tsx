@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { logger } from '@/lib/utils/logger'
-import type { DocumentWithCreator, DocumentCollaborator, TeamMember, CollaboratorPermission } from './document-page.types'
+import type { DocumentWithCreator, DocumentCollaborator, TeamMember, CollaboratorPermission } from '../views/document-page.types'
 
 interface DocumentCollaborationDialogProps {
   open: boolean

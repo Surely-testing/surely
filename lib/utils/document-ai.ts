@@ -1,12 +1,41 @@
 // ============================================
 // FILE: lib/utils/document-ai.ts
-// ARTIFACT 1 OF 4
-// AI utilities for document editing assistance
+// Fixed to use API routes instead of direct client calls
 // ============================================
 
-import { aiService } from '@/lib/ai/ai-service'
 import { getDocTypeAIContext, type DocType } from './document-templates'
 import type { Editor } from '@tiptap/react'
+
+/**
+ * Call AI service via API route (server-side)
+ */
+async function callDocumentAI(endpoint: string, body: any) {
+  try {
+    const response = await fetch(`/api/ai/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      return { 
+        success: false, 
+        error: error.message || 'AI request failed',
+        userMessage: error.userMessage || 'Failed to process AI request. Please try again.'
+      }
+    }
+
+    return await response.json()
+  } catch (error: any) {
+    console.error('Document AI error:', error)
+    return { 
+      success: false, 
+      error: error.message,
+      userMessage: 'Network error. Please check your connection and try again.'
+    }
+  }
+}
 
 /**
  * AI Writing Assistance - Grammar Check
@@ -16,7 +45,7 @@ export async function checkGrammar(text: string) {
     return { success: false, error: 'Please select more text (at least 10 characters)' }
   }
 
-  const result = await aiService.checkGrammar(text, { style: 'professional' })
+  const result = await callDocumentAI('grammar-check', { text })
   
   if (result.success && result.data) {
     return {
@@ -27,7 +56,7 @@ export async function checkGrammar(text: string) {
     }
   }
   
-  return { success: false, error: result.userMessage }
+  return { success: false, error: result.userMessage || result.error }
 }
 
 /**
@@ -41,11 +70,7 @@ export async function rewriteText(
     return { success: false, error: 'Please select more text to rewrite' }
   }
 
-  const result = await aiService.rewriteContent(text, {
-    style,
-    action: 'improve',
-    tone: 'neutral'
-  })
+  const result = await callDocumentAI('rewrite', { text, style })
   
   if (result.success && result.data) {
     return {
@@ -57,7 +82,7 @@ export async function rewriteText(
     }
   }
   
-  return { success: false, error: result.userMessage }
+  return { success: false, error: result.userMessage || result.error }
 }
 
 /**
@@ -68,11 +93,7 @@ export async function improveText(text: string) {
     return { success: false, error: 'Please select more text to improve' }
   }
 
-  const result = await aiService.rewriteContent(text, {
-    action: 'improve',
-    style: 'professional',
-    tone: 'neutral'
-  })
+  const result = await callDocumentAI('improve', { text })
   
   if (result.success && result.data) {
     return {
@@ -83,7 +104,7 @@ export async function improveText(text: string) {
     }
   }
   
-  return { success: false, error: result.userMessage }
+  return { success: false, error: result.userMessage || result.error }
 }
 
 /**
@@ -94,32 +115,25 @@ export async function generateDocumentSuggestions(
   content: any,
   headings: any[]
 ) {
-  const context = getDocTypeAIContext(docType)
-  
-  const result = await aiService.generateSuggestions({
-    currentPage: 'document-editor',
-    recentActions: ['writing', docType],
-    pageData: { 
-      docType, 
-      headings, 
-      contentLength: JSON.stringify(content).length,
-      sectionCount: headings.length
-    },
-    userRole: 'writer'
+  const result = await callDocumentAI('suggestions', {
+    docType,
+    headings,
+    contentLength: JSON.stringify(content).length,
+    sectionCount: headings.length
   })
   
-  // Type guard to check if response has suggestions
-  if (result.success && result.data && 'suggestions' in result.data) {
+  if (result.success && result.suggestions) {
     return {
       success: true,
-      suggestions: result.data.suggestions.map((s: any) => ({
+      suggestions: result.suggestions.map((s: any) => ({
         ...s,
-        type: 'suggestion'
+        type: 'insight', // Mark as insight, not actionable content
+        isActionable: false // Flag that this shouldn't be inserted
       }))
     }
   }
   
-  return { success: false, error: result.userMessage || 'Failed to generate suggestions' }
+  return { success: false, error: result.userMessage || result.error || 'Failed to generate suggestions' }
 }
 
 /**
@@ -133,6 +147,13 @@ export function applySuggestionToEditor(
   if (!editor) return false
 
   try {
+    // Check if this is an actionable suggestion or just advice
+    if (suggestion.isActionable === false || suggestion.type === 'insight') {
+      // For insights/advice, don't insert - show message instead
+      console.log('This is an insight/advice, not actionable content')
+      return false
+    }
+
     const suggestionText = typeof suggestion.suggestion === 'string' 
       ? suggestion.suggestion 
       : suggestion.description || suggestion.title

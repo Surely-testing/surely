@@ -6,9 +6,9 @@
 import { useState, useEffect } from 'react'
 import { Plus, RefreshCw, FileText } from 'lucide-react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { DocumentEditor } from './DocumentEditor'
-import { DocumentsControlBar } from './DocumentsControlBar'
-import { DocumentsContentArea } from './DocumentContentArea'
+import { DocumentEditor } from './editor/DocumentEditor'
+import { DocumentsControlBar } from './views/DocumentsControlBar'
+import { DocumentsContentArea } from './views/DocumentContentArea'
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { createClient } from '@/lib/supabase/client'
@@ -23,8 +23,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/Button'
-import { useDocumentState } from './document-page.utils'
-import type { DocumentWithCreator, Suite } from './document-page.types'
+import { useDocumentState } from './views/document-page.utils'
+import type { DocumentWithCreator, Suite } from './views/document-page.types'
 
 interface DocumentsPageViewProps {
   suiteId: string

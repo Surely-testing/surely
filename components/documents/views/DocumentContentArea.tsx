@@ -8,8 +8,8 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Pagination } from '@/components/shared/Pagination'
-import { DocumentsGrid } from './DocumentsGrid'
-import { DocumentsTable } from './DocumentsTable'
+import { DocumentsGrid } from '../DocumentsGrid'
+import { DocumentsTable } from '../DocumentsTable'
 import type { DocumentWithCreator, ViewMode, GroupBy } from './document-page.types'
 
 interface DocumentsContentAreaProps {

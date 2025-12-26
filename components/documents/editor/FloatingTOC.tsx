@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/documents/FloatingTOC.tsx
-// Fixed to navigate to headings in scrollable container
+// Fixed scrolling with better debugging
 // ============================================
 'use client'
 
@@ -17,9 +17,11 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
   useEffect(() => {
     if (headings.length === 0) return
 
-    // Find the editor's scrollable container by ID
     const scrollContainer = document.getElementById('document-editor-scroll-container')
-    if (!scrollContainer) return
+    if (!scrollContainer) {
+      console.warn('TOC: Scroll container not found')
+      return
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -36,47 +38,88 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
       }
     )
 
-    headings.forEach((heading) => {
-      const element = document.getElementById(heading.id)
-      if (element) {
-        observer.observe(element)
-      }
-    })
+    // Wait a bit for DOM to be ready
+    const timeout = setTimeout(() => {
+      headings.forEach((heading) => {
+        const element = document.getElementById(heading.id)
+        if (element) {
+          observer.observe(element)
+        } else {
+          console.warn('TOC: Heading element not found:', heading.id, heading.text)
+        }
+      })
+    }, 100)
 
-    return () => observer.disconnect()
+    return () => {
+      clearTimeout(timeout)
+      observer.disconnect()
+    }
   }, [headings])
 
   const scrollToHeading = (id: string) => {
-    const element = document.getElementById(id)
+    console.log('TOC: Attempting to scroll to:', id)
+    
+    // Find the heading element - try multiple selectors
+    let element = document.getElementById(id)
+    
     if (!element) {
-      console.log('Element not found:', id)
+      // Try finding by data attribute
+      element = document.querySelector(`[data-heading-id="${id}"]`) as HTMLElement
+    }
+    
+    if (!element) {
+      // Try finding heading by text (last resort)
+      const heading = headings.find(h => h.id === id)
+      if (heading) {
+        const allHeadings = document.querySelectorAll('.prose-editor h1, .prose-editor h2, .prose-editor h3')
+        element = Array.from(allHeadings).find(h => h.textContent?.trim() === heading.text) as HTMLElement
+      }
+    }
+    
+    if (!element) {
+      console.error('TOC: Could not find element for:', id)
       return
     }
 
-    // Find the editor's scrollable container by ID
+    console.log('TOC: Found element:', element)
+
     const scrollContainer = document.getElementById('document-editor-scroll-container')
     
     if (scrollContainer) {
-      // Get element position relative to container
       const elementRect = element.getBoundingClientRect()
       const containerRect = scrollContainer.getBoundingClientRect()
       
-      // Calculate scroll position with offset
       const scrollTop = scrollContainer.scrollTop
       const elementTop = elementRect.top - containerRect.top + scrollTop
-      const offset = 100 // Space from top
+      const offset = 120 // Increased offset to account for toolbar
       
-      console.log('Scrolling to:', { elementTop, offset, finalPosition: elementTop - offset })
+      console.log('TOC: Scrolling container', {
+        currentScrollTop: scrollTop,
+        elementTop,
+        offset,
+        finalPosition: elementTop - offset
+      })
       
-      // Scroll the container
       scrollContainer.scrollTo({
         top: elementTop - offset,
         behavior: 'smooth'
       })
       
       setActiveId(id)
+      
+      // Highlight the element briefly
+      element.style.transition = 'background-color 0.3s'
+      element.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'
+      setTimeout(() => {
+        element!.style.backgroundColor = ''
+      }, 1000)
     } else {
-      console.log('Scroll container not found')
+      console.error('TOC: Scroll container not found')
+      
+      // Fallback to window scroll
+      console.log('TOC: Falling back to window scroll')
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setActiveId(id)
     }
   }
 
@@ -84,7 +127,7 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
 
   if (isMinimized) {
     return (
-      <div className="fixed top-24 left-6 z-40">
+      <div className="fixed top-24 left-14 z-40">
         <Button
           variant="outline"
           size="sm"
@@ -98,7 +141,7 @@ export function FloatingTOC({ headings }: { headings: any[] }) {
   }
 
   return (
-    <Card className="fixed top-24 left-6 w-64 max-h-[calc(100vh-140px)] overflow-hidden shadow-xl z-40 flex flex-col">
+    <Card className="fixed top-24 left-14 w-80 max-h-[calc(100vh-140px)] overflow-hidden shadow-xl z-40 flex flex-col">
       <div className="flex items-center justify-between p-3 border-b">
         <h3 className="font-semibold text-sm">Contents</h3>
         <Button

@@ -1,9 +1,10 @@
 // ============================================
-// types/recording.types.ts
-// Added thumbnail_url and additional fields
+// types/recording.types.ts - COMPLETE FINAL VERSION
+// REPLACE YOUR ENTIRE FILE WITH THIS
 // ============================================
 
 import { Tables } from "./database.types";
+import type { Annotation } from '@/lib/recording/annotation-system';
 
 // Extend the base Recording type with additional fields
 export type Recording = Tables<'recordings'> & {
@@ -35,12 +36,14 @@ export interface RecordingMetadata {
   thumbnail_url?: string;
   logs_count?: number;
   requests_count?: number;
-  performanceMetrics?: PerformanceMetric[];     // NEW
-  errorStackTraces?: ErrorStackTrace[];         // NEW
-  devToolsStates?: DevToolsState[];             // NEW
-  stateChanges?: StateChange[];                 // NEW
-  codeSnippets?: CodeSnippet[];                 // NEW
-  websocketConnections?: WebSocketConnection[]; // NEW
+  performanceMetrics?: PerformanceMetric[];
+  errorStackTraces?: ErrorStackTrace[];
+  devToolsStates?: DevToolsState[];
+  stateChanges?: StateChange[];
+  codeSnippets?: CodeSnippet[];
+  websocketConnections?: WebSocketConnection[];
+  annotations?: Annotation[];        // ADDED
+  annotationsUrl?: string;           // ADDED
 }
 
 export interface ConsoleLog {
@@ -59,7 +62,6 @@ export interface Screenshot {
   size: number;
 }
 
-
 export interface NetworkLog {
   id: string;
   timestamp: number;
@@ -68,14 +70,14 @@ export interface NetworkLog {
   status?: number;
   statusText?: string;
   duration?: number;
-  requestHeaders?: Record<string, string>;      // NEW
-  responseHeaders?: Record<string, string>;     // NEW
-  requestBody?: any;                            // NEW
-  responseBody?: any;                           // NEW
-  error?: string;                               // NEW
-  type: 'fetch' | 'xhr' | 'websocket' | 'graphql'; // UPDATED
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
+  requestBody?: any;
+  responseBody?: any;
+  error?: string;
+  type: 'fetch' | 'xhr' | 'websocket' | 'graphql';
   size?: number;
-  websocketMessages?: WebSocketMessage[];       // NEW
+  websocketMessages?: WebSocketMessage[];
 }
 
 export interface RecordingSession {
@@ -96,11 +98,12 @@ export interface RecordingPreview {
   screenshots: string[];
   metadata: RecordingMetadata;
   thumbnail_url?: string;
-  errorStackTraces?: ErrorStackTrace[];         // NEW
-  devToolsStates?: DevToolsState[];             // NEW
-  stateChanges?: StateChange[];                 // NEW
-  codeSnippets?: CodeSnippet[];                 // NEW
-  websocketConnections?: WebSocketConnection[]; // NEW
+  errorStackTraces?: ErrorStackTrace[];
+  devToolsStates?: DevToolsState[];
+  stateChanges?: StateChange[];
+  codeSnippets?: CodeSnippet[];
+  websocketConnections?: WebSocketConnection[];
+  annotations?: Annotation[];        // ADDED
 }
 
 export interface RecordingFilters {

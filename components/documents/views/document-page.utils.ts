@@ -4,7 +4,7 @@
 // ============================================
 
 import { useMemo, useState } from 'react'
-import type { DocumentWithCreator, DocumentType, SortField, SortOrder, GroupBy, ViewMode } from './document-page.types'
+import type { DocumentWithCreator, DocumentType, SortField, SortOrder, GroupBy, ViewMode } from './views/document-page.types'
 
 // Hook for managing document filters, sorting, and pagination
 export function useDocumentState(documents: DocumentWithCreator[]) {

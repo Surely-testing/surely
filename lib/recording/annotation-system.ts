@@ -1,15 +1,12 @@
 // ============================================
-// lib/recording/annotation-system.ts
-// Complete annotation system for video recordings
+// lib/recording/annotation-system.ts - COMPLETE FINAL VERSION
+// REPLACE YOUR ENTIRE FILE WITH THIS
 // ============================================
 
 export type AnnotationType = 
   | 'freehand' 
-  | 'rectangle' 
-  | 'circle' 
-  | 'arrow' 
-  | 'text' 
-  | 'highlight'
+  | 'blur'
+  | 'highlight';
 
 export interface Point {
   x: number
@@ -395,10 +392,7 @@ export class AnnotationSystem {
 
     const byType: Record<AnnotationType, number> = {
       freehand: 0,
-      rectangle: 0,
-      circle: 0,
-      arrow: 0,
-      text: 0,
+      blur: 0,
       highlight: 0,
     }
 

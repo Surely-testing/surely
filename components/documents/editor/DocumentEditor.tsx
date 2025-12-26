@@ -30,24 +30,24 @@ import {
   Lock,
   Globe,
 } from 'lucide-react'
-import { TiptapEditor } from './tiptapEditor'
+import { TiptapEditor } from '../tiptap/tiptapEditor'
 import { FloatingTOC } from './FloatingTOC'
 import { ExportDialog } from './ExportDialog'
 import { ImportDialog } from './ImportDialog'
 import { ShareDialog } from './ShareDialog'
 import { DocumentCollaborationDialog } from './DocumentCollaborationDialog'
-import { AISuggestionsPanel } from './AISuggestionsPanel'
+import { AISuggestionsPanel } from '../ai/AISuggestionsPanel'
 import { updateDocument } from '@/lib/actions/documents'
 import { toast } from 'sonner'
 import { useDebounce } from '@/lib/hooks/useDebounce'
 import { logger } from '@/lib/utils/logger'
 
 // Import utilities
-import { 
-  DOC_TYPES, 
-  getDocumentTemplate, 
+import {
+  DOC_TYPES,
+  getDocumentTemplate,
   isContentEmpty,
-  type DocType 
+  type DocType
 } from '@/lib/utils/document-templates'
 import {
   checkGrammar,
@@ -80,10 +80,10 @@ interface DocumentEditorProps {
   isOrganization?: boolean // ADD THIS
 }
 
-export function DocumentEditor({ 
-  document, 
-  onClose, 
-  suites, 
+export function DocumentEditor({
+  document,
+  onClose,
+  suites,
   currentUserId,
   onCollaborationChange,
   isOrganization = false // ADD THIS with default value
@@ -93,7 +93,7 @@ export function DocumentEditor({
   const [docType, setDocType] = useState<DocType>(document.file_type || 'general')
   const [content, setContent] = useState(document.content || { type: 'doc', content: [] })
   const [headings, setHeadings] = useState<any[]>([])
-  
+
   // UI state
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -101,7 +101,7 @@ export function DocumentEditor({
   const [showImport, setShowImport] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [showCollaboration, setShowCollaboration] = useState(false)
-  
+
   // AI state
   const [selectedText, setSelectedText] = useState('')
   const [selectionRange, setSelectionRange] = useState<any>(null)
@@ -118,7 +118,7 @@ export function DocumentEditor({
   useEffect(() => {
     const save = async () => {
       if (!debouncedTitle && !debouncedContent) return
-      
+
       setIsSaving(true)
       try {
         const result = await updateDocument(document.id, {
@@ -128,7 +128,7 @@ export function DocumentEditor({
         })
 
         if (result.error) throw new Error(result.error)
-        
+
         setLastSaved(new Date())
       } catch (error: any) {
         logger.log('Auto-save failed:', error)
@@ -181,15 +181,15 @@ export function DocumentEditor({
   // Handle document type change
   const handleDocTypeChange = (newType: DocType) => {
     const typeConfig = DOC_TYPES.find(t => t.value === newType)
-    
+
     const isEmpty = isContentEmpty(content)
-    
+
     logger.log('Changing doc type:', { newType, isEmpty, currentContent: content })
-    
+
     if (isEmpty) {
       const template = getDocumentTemplate(newType)
       logger.log('Applying template:', template)
-      
+
       if (template) {
         setContent(template)
         toast.success(`${typeConfig?.label} template applied`, {
@@ -200,7 +200,7 @@ export function DocumentEditor({
       const shouldReplace = window.confirm(
         `You have existing content. Do you want to replace it with the ${typeConfig?.label} template?`
       )
-      
+
       if (shouldReplace) {
         const template = getDocumentTemplate(newType)
         if (template) {
@@ -209,9 +209,9 @@ export function DocumentEditor({
         }
       }
     }
-    
+
     setDocType(newType)
-    
+
     if (newType === 'brainstorm') {
       toast.info('💡 Brainstorm mode: Use your main AI assistant for collaborative ideation', {
         duration: 4000
@@ -241,11 +241,11 @@ export function DocumentEditor({
 
     setIsProcessingAI(true)
     const loadingToast = toast.loading('Checking grammar...')
-    
+
     try {
       const result = await checkGrammar(selectedText)
       toast.dismiss(loadingToast)
-      
+
       if (result.success) {
         setAISuggestions([{
           type: 'grammar',
@@ -273,11 +273,11 @@ export function DocumentEditor({
 
     setIsProcessingAI(true)
     const loadingToast = toast.loading(`Rewriting in ${style} style...`)
-    
+
     try {
       const result = await rewriteText(selectedText, style)
       toast.dismiss(loadingToast)
-      
+
       if (result.success) {
         setAISuggestions([{
           type: 'rewrite',
@@ -306,11 +306,11 @@ export function DocumentEditor({
 
     setIsProcessingAI(true)
     const loadingToast = toast.loading('Improving text...')
-    
+
     try {
       const result = await improveText(selectedText)
       toast.dismiss(loadingToast)
-      
+
       if (result.success) {
         setAISuggestions([{
           type: 'improvement',
@@ -333,11 +333,11 @@ export function DocumentEditor({
   const handleGenerateSuggestions = async () => {
     setIsProcessingAI(true)
     const loadingToast = toast.loading('Generating suggestions...')
-    
+
     try {
       const result = await generateDocumentSuggestions(docType, content, headings)
       toast.dismiss(loadingToast)
-      
+
       if (result.success && result.suggestions) {
         setAISuggestions(result.suggestions)
         toast.success(`${result.suggestions.length} suggestions generated`)
@@ -358,14 +358,24 @@ export function DocumentEditor({
       return
     }
 
+    // Check if this is an insight/advice rather than actionable content
+    if (suggestion.type === 'insight' || suggestion.type === 'tip' || suggestion.type === 'warning') {
+      toast.info('This is advice, not actionable content', {
+        description: 'Use this suggestion as guidance for manual improvements'
+      })
+      return
+    }
+
     const success = applySuggestionToEditor(editorInstance, suggestion, selectionRange)
-    
+
     if (success) {
       toast.success('Suggestion applied')
       setAISuggestions(aiSuggestions.filter(s => s !== suggestion))
       setSelectedText('')
     } else {
-      toast.error('Failed to apply suggestion')
+      toast.error('Cannot apply this type of suggestion automatically', {
+        description: 'Please use it as guidance for manual edits'
+      })
     }
   }
 
@@ -387,7 +397,7 @@ export function DocumentEditor({
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            
+
             <div className="flex items-center gap-2 flex-1 max-w-2xl">
               <Input
                 value={title}
@@ -429,8 +439,8 @@ export function DocumentEditor({
             {/* AI Writing Tools - Show when text is selected */}
             {selectedText && selectedText.length > 2 && !isProcessingAI && (
               <div className="flex items-center gap-1 mr-2 p-1 bg-muted rounded-lg">
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={handleCheckGrammar}
                   title="Check Grammar"
@@ -438,8 +448,8 @@ export function DocumentEditor({
                 >
                   <CheckCircle2 className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={handleImproveText}
                   title="Improve Text"
@@ -447,8 +457,8 @@ export function DocumentEditor({
                 >
                   <Sparkles className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={() => handleRewriteText('professional')}
                   title="Rewrite Professional"
@@ -459,9 +469,9 @@ export function DocumentEditor({
               </div>
             )}
 
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleGenerateSuggestions}
               disabled={isProcessingAI}
               title="AI Suggestions"
@@ -484,9 +494,9 @@ export function DocumentEditor({
 
             {/* Collaboration Button - ONLY SHOW FOR ORGANIZATIONS */}
             {isOrganization && (
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowCollaboration(true)}
                 className="bg-primary/10 hover:bg-primary/20 border-primary/30"
               >
@@ -559,7 +569,7 @@ export function DocumentEditor({
         documentId={document.id}
         suites={suites}
       />
-      
+
       {/* Collaboration Dialog - ONLY RENDER FOR ORGANIZATIONS */}
       {isOrganization && (
         <DocumentCollaborationDialog

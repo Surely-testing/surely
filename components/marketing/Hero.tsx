@@ -171,8 +171,8 @@ const Hero = () => {
                   <CheckCircle className="h-6 w-6 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">99.9%</p>
-                  <p className="text-xs text-muted-foreground">Bug Detection</p>
+                  <p className="text-2xl font-bold text-foreground">79.9%</p>
+                  <p className="text-xs text-muted-foreground">Faster Release</p>
                 </div>
               </div>
             </div>
