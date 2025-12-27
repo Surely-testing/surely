@@ -101,6 +101,11 @@ export const suiteNavigation: NavSection[] = [
         href: '/dashboard/members',
         icon: Users,
       },
+      {
+        title: 'Tools',
+        href: '/dashboard/tools',
+        icon: FolderOpen,
+      },
     ],
   },
 ]

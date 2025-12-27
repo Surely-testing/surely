@@ -113,7 +113,7 @@ export function RecordWithExtensionButton({
             <DialogHeader>
               <DialogTitle>Extension Required</DialogTitle>
               <DialogDescription>
-                The Surely Test Recorder extension is required to record tests across any website.
+                The Surely Recorder extension is required to record tests across any website.
               </DialogDescription>
             </DialogHeader>
 
@@ -121,7 +121,6 @@ export function RecordWithExtensionButton({
               <div className="bg-muted rounded-lg p-4">
                 <h4 className="font-semibold mb-2">Why do I need this?</h4>
                 <ul className="text-sm text-muted-foreground space-y-2">
-                  <li>✓ Record tests on any website, not just this app</li>
                   <li>✓ Capture network requests and console logs</li>
                   <li>✓ Annotate with drawing, blur, and highlight tools</li>
                   <li>✓ Works across all your tabs and applications</li>
@@ -188,7 +187,7 @@ export function RecordWithExtensionButton({
       ) : (
         <>
           <Circle className="h-4 w-4 fill-red-500 text-red-500" />
-          <span>Record Test</span>
+          <span>Record Screen</span>
         </>
       )}
     </Button>
