@@ -37,54 +37,25 @@ export const APITester: React.FC<APITesterContainerProps> = ({ suiteId }) => {
   const [currentWorkflow, setCurrentWorkflow] = useState<Workflow | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveDialogType, setSaveDialogType] = useState<'request' | 'workflow'>('request');
-  const [suiteOwnershipVerified, setSuiteOwnershipVerified] = useState(false);
-  const [verifying, setVerifying] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Verify suite ownership on mount
+  // Load data on mount - let RLS handle permissions
   useEffect(() => {
-    const verifySuiteOwnership = async () => {
-      if (!user) {
-        setVerifying(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from('test_suites')
-          .select('id, owner_id')
-          .eq('id', suiteId)
-          .single();
-
-        if (error) {
-          console.error('Error verifying suite:', error);
-          toast.error('Could not verify suite ownership');
-          setVerifying(false);
-          return;
-        }
-
-        if (data.owner_id === user.id) {
-          setSuiteOwnershipVerified(true);
-          loadData();
-        } else {
-          toast.error('You do not have access to this test suite');
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        toast.error('Failed to verify suite access');
-      } finally {
-        setVerifying(false);
-      }
-    };
-
-    verifySuiteOwnership();
+    if (user && suiteId) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
   }, [suiteId, user]);
 
   const loadData = async () => {
+    setLoading(true);
     await Promise.all([
       loadSavedRequests(),
       loadSavedWorkflows()
     ]);
+    setLoading(false);
   };
 
   const loadSavedRequests = async () => {
@@ -130,11 +101,6 @@ export const APITester: React.FC<APITesterContainerProps> = ({ suiteId }) => {
   const saveCurrentRequest = async () => {
     if (!user) {
       toast.error('You must be logged in to save requests');
-      return;
-    }
-
-    if (!suiteOwnershipVerified) {
-      toast.error('Cannot verify suite ownership');
       return;
     }
 
@@ -202,11 +168,6 @@ export const APITester: React.FC<APITesterContainerProps> = ({ suiteId }) => {
   const saveCurrentWorkflow = async () => {
     if (!user) {
       toast.error('You must be logged in to save workflows');
-      return;
-    }
-
-    if (!suiteOwnershipVerified) {
-      toast.error('Cannot verify suite ownership');
       return;
     }
 
@@ -306,12 +267,12 @@ export const APITester: React.FC<APITesterContainerProps> = ({ suiteId }) => {
   };
 
   // Show loading state
-  if (verifying) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px] py-12">
         <div className="text-center px-4">
           <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Verifying access...</p>
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
@@ -328,23 +289,6 @@ export const APITester: React.FC<APITesterContainerProps> = ({ suiteId }) => {
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Please log in to use the API Testing Suite
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show access denied state
-  if (!suiteOwnershipVerified) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px] py-12 px-4">
-        <div className="text-center max-w-md">
-          <AlertCircle className="w-12 h-12 sm:w-16 sm:h-16 text-red-400 mx-auto mb-4" />
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Access Denied
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            You do not have permission to access this test suite
           </p>
         </div>
       </div>
