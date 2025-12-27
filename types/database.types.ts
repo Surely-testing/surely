@@ -241,6 +241,82 @@ export type Database = {
           },
         ]
       }
+      api_request_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          request: Json
+          response: Json
+          suite_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          request: Json
+          response: Json
+          suite_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          request?: Json
+          response?: Json
+          suite_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_request_history_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_requests: {
+        Row: {
+          body: string | null
+          created_at: string | null
+          headers: Json | null
+          id: string
+          method: string
+          name: string
+          suite_id: string
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string | null
+          headers?: Json | null
+          id?: string
+          method: string
+          name: string
+          suite_id: string
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string | null
+          headers?: Json | null
+          id?: string
+          method?: string
+          name?: string
+          suite_id?: string
+          updated_at?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_requests_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       archived_items: {
         Row: {
           archived_at: string | null
@@ -325,6 +401,95 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "asset_relationships_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      benchmark_configs: {
+        Row: {
+          created_at: string | null
+          duration: number
+          id: string
+          name: string
+          ramp_up_time: number
+          suite_id: string
+          target_url: string
+          updated_at: string | null
+          virtual_users: number
+        }
+        Insert: {
+          created_at?: string | null
+          duration?: number
+          id?: string
+          name: string
+          ramp_up_time?: number
+          suite_id: string
+          target_url: string
+          updated_at?: string | null
+          virtual_users?: number
+        }
+        Update: {
+          created_at?: string | null
+          duration?: number
+          id?: string
+          name?: string
+          ramp_up_time?: number
+          suite_id?: string
+          target_url?: string
+          updated_at?: string | null
+          virtual_users?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "benchmark_configs_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      benchmark_runs: {
+        Row: {
+          config: Json
+          config_id: string | null
+          created_at: string | null
+          id: string
+          results: Json
+          status: string
+          suite_id: string
+        }
+        Insert: {
+          config: Json
+          config_id?: string | null
+          created_at?: string | null
+          id?: string
+          results: Json
+          status: string
+          suite_id: string
+        }
+        Update: {
+          config?: Json
+          config_id?: string | null
+          created_at?: string | null
+          id?: string
+          results?: Json
+          status?: string
+          suite_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "benchmark_runs_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "benchmark_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "benchmark_runs_suite_id_fkey"
             columns: ["suite_id"]
             isOneToOne: false
             referencedRelation: "test_suites"
@@ -626,8 +791,71 @@ export type Database = {
           },
         ]
       }
+      contact_messages: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          message: string
+          name: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          message: string
+          name: string
+          subject: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          message?: string
+          name?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      document_collaborators: {
+        Row: {
+          added_at: string | null
+          added_by: string
+          document_id: string
+          id: string
+          permission: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string | null
+          added_by: string
+          document_id: string
+          id?: string
+          permission?: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string | null
+          added_by?: string
+          document_id?: string
+          id?: string
+          permission?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_collaborators_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
+          archived: boolean | null
           content: string | null
           created_at: string | null
           created_by: string
@@ -638,8 +866,10 @@ export type Database = {
           suite_id: string
           title: string
           updated_at: string | null
+          visibility: string | null
         }
         Insert: {
+          archived?: boolean | null
           content?: string | null
           created_at?: string | null
           created_by: string
@@ -650,8 +880,10 @@ export type Database = {
           suite_id: string
           title: string
           updated_at?: string | null
+          visibility?: string | null
         }
         Update: {
+          archived?: boolean | null
           content?: string | null
           created_at?: string | null
           created_by?: string
@@ -662,6 +894,7 @@ export type Database = {
           suite_id?: string
           title?: string
           updated_at?: string | null
+          visibility?: string | null
         }
         Relationships: [
           {
@@ -951,6 +1184,7 @@ export type Database = {
       }
       recordings: {
         Row: {
+          archived: boolean
           created_at: string | null
           created_by: string
           duration: number | null
@@ -963,6 +1197,7 @@ export type Database = {
           url: string
         }
         Insert: {
+          archived?: boolean
           created_at?: string | null
           created_by: string
           duration?: number | null
@@ -975,6 +1210,7 @@ export type Database = {
           url: string
         }
         Update: {
+          archived?: boolean
           created_at?: string | null
           created_by?: string
           duration?: number | null
@@ -1393,6 +1629,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "suite_members_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_analyses: {
+        Row: {
+          created_at: string | null
+          file_name: string
+          id: string
+          insights: Json
+          stats: Json
+          suite_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_name: string
+          id?: string
+          insights?: Json
+          stats: Json
+          suite_id: string
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string
+          id?: string
+          insights?: Json
+          stats?: Json
+          suite_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_analyses_suite_id_fkey"
             columns: ["suite_id"]
             isOneToOne: false
             referencedRelation: "test_suites"
@@ -2052,6 +2323,86 @@ export type Database = {
           {
             foreignKeyName: "user_sessions_current_suite_id_fkey"
             columns: ["current_suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_analysis: {
+        Row: {
+          created_at: string | null
+          id: string
+          optimizations: Json
+          suite_id: string
+          total_savings: number | null
+          workflow_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          optimizations?: Json
+          suite_id: string
+          total_savings?: number | null
+          workflow_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          optimizations?: Json
+          suite_id?: string
+          total_savings?: number | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_analysis_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_analysis_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflows: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          steps: Json
+          suite_id: string
+          total_duration: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          steps?: Json
+          suite_id: string
+          total_duration?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          steps?: Json
+          suite_id?: string
+          total_duration?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflows_suite_id_fkey"
+            columns: ["suite_id"]
             isOneToOne: false
             referencedRelation: "test_suites"
             referencedColumns: ["id"]

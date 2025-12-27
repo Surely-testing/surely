@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/dashboard/DashboardShell.tsx - WITH COUNTDOWN
+// FILE: components/dashboard/DashboardShell.tsx - WITH ANNOTATIONS
 // ============================================
 'use client'
 
@@ -9,8 +9,6 @@ import { AIAssistantProvider } from '@/components/ai/AIAssistantProvider'
 import { AIAssistant } from '@/components/ai/AIAssistant'
 import { AIFloatingButton } from '@/components/ai/AIFloatingButton'
 import { ContextualTips } from '@/components/ai/ContextualTips'
-import { RecordingProvider } from '@/providers/RecordingContext'
-import { CountdownOverlay } from '../Recordings/CountDownOverlay'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { useSuiteContext } from '@/providers/SuiteContextProvider'
@@ -30,7 +28,7 @@ export function DashboardShell({ user, profile, suites, children }: DashboardShe
   const { suite: currentSuite } = useSuiteContext()
 
   return (
-    <RecordingProvider>
+    
       <AIAssistantProvider
         userId={user.id}
         suiteId={currentSuite.id}
@@ -64,11 +62,8 @@ export function DashboardShell({ user, profile, suites, children }: DashboardShe
           <ContextualTips />
           <AIFloatingButton />
           <AIAssistant />
-          
-          {/* Recording Countdown Overlay */}
-          <CountdownOverlay />
         </div>
       </AIAssistantProvider>
-    </RecordingProvider>
+    
   )
 }

@@ -4,24 +4,21 @@
 'use client'
 
 import React, { useState } from 'react'
-import { 
-  Menu, 
-  Bell, 
-  Search, 
-  LogOut, 
-  User, 
+import {
+  Menu,
+  Bell,
+  Search,
+  LogOut,
+  User,
   Settings as SettingsIcon,
   ChevronDown,
-  ChevronUp,
+  ChevronUp,  Archive,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { signOut } from '@/lib/actions/auth'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getInitials } from '@/lib/utils/formatters'
-import { SharedRecordingControls } from '../Recordings/SharedRecordingControls'
-import { RecordingPreviewDialog } from '../Recordings/RecordingPreviewDialog'
-import { useRecording } from '@/providers/RecordingContext'
 import type { Suite } from '@/types/dashboard.types'
 import type { RecordingPreview } from '@/types/recording.types'
 
@@ -49,8 +46,7 @@ export function Header({ user, profile, currentSuite, onMenuClick }: HeaderProps
   const [quickActionsVisible, setQuickActionsVisible] = useState(true)
   const [showPreview, setShowPreview] = useState(false)
   const [recordingPreview, setRecordingPreview] = useState<RecordingPreview | null>(null)
-  
-  const { isRecording } = useRecording()
+
 
   const handleStopComplete = (preview: RecordingPreview) => {
     setRecordingPreview(preview)
@@ -160,6 +156,14 @@ export function Header({ user, profile, currentSuite, onMenuClick }: HeaderProps
                         <SettingsIcon className="h-4 w-4 mr-3" />
                         Settings
                       </Link>
+                      <Link
+                        href="/dashboard/archive-trash"
+                        className="flex items-center px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Archive className="h-4 w-4 mr-3" />
+                        Archive & Trash
+                      </Link>
                     </div>
                     <div className="border-t border-border py-2">
                       <button
@@ -194,42 +198,12 @@ export function Header({ user, profile, currentSuite, onMenuClick }: HeaderProps
         {quickActionsVisible && (
           <div className="border-t border-border bg-muted/30 h-16"> {/* FIXED HEIGHT */}
             <div className="px-6 h-full flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {/* Recording Controls */}
-                <SharedRecordingControls 
-                  variant="full" 
-                  onStopComplete={handleStopComplete}
-                  suiteId={currentSuite?.id}
-                />
-              </div>
 
-              {/* Recording Status Badge */}
-              {isRecording && (
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-full">
-                  <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-xs font-medium text-red-700 dark:text-red-400">
-                    Recording Active
-                  </span>
-                </div>
-              )}
+              <span>More Buttons</span>
             </div>
           </div>
         )}
       </header>
-
-      {/* Preview Dialog */}
-      {showPreview && recordingPreview && currentSuite && (
-        <RecordingPreviewDialog
-          preview={recordingPreview}
-          suiteId={currentSuite.id}
-          sprintId={null}
-          onClose={() => {
-            setShowPreview(false)
-            setRecordingPreview(null)
-          }}
-          onSaved={handleSaved}
-        />
-      )}
     </>
   )
 }

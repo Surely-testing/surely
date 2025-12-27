@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
-import { RecordingPlayer } from '@/components/Recordings/RecordingPlayer';
+import { RecordingPlayer } from '@/components/Recordings/post-rec/RecordingPlayer';
 import { logger } from '@/lib/utils/logger';
 
 interface PageProps {

@@ -7,8 +7,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Recording, RecordingFilters } from '@/types/recording.types';
 import { RecordingGrid } from './RecordingGrid';
-import { RecordingToolbar } from './RecordingToolbar';
-import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select,
   SelectContent,
@@ -16,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/Select';
-import { Search, Grid3x3, List, CheckSquare, Square, Play, Clock, Calendar, Filter, RefreshCw, ChevronLeft } from 'lucide-react';
+import { Search, Grid3x3, List, Play, Clock, Calendar, Filter, RefreshCw, ChevronLeft } from 'lucide-react';
 import { getRecordings, deleteRecording } from '@/lib/actions/recordings';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { BulkActionsBar, type ActionGroup } from '@/components/shared/BulkActionBar';
@@ -28,18 +26,22 @@ import {
   TableCell,
   TableGrid,
   TableCheckbox,
-  TableEmpty,
   TableHeaderText,
   TableDescriptionText,
 } from '@/components/ui/Table';
 import { logger } from '@/lib/utils/logger';
+import { RecordWithExtensionButton } from './RecordWithExtensionButton';
 
 interface RecordingsViewProps {
   suiteId: string;
+  suiteName: string;
+  accountId: string;
 }
 
 export function RecordingsView({
   suiteId,
+  suiteName,
+  accountId,
 }: RecordingsViewProps) {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -170,9 +172,6 @@ export function RecordingsView({
       setSelectedRecordings(paginatedRecordings.map(r => r.id));
     }
   }, [selectedRecordings, paginatedRecordings]);
-
-  const allSelected = paginatedRecordings.length > 0 &&
-    selectedRecordings.length === paginatedRecordings.length;
 
   const handleBulkAction = useCallback(async (actionId: string, selectedIds: string[]) => {
     switch (actionId) {
@@ -332,22 +331,26 @@ export function RecordingsView({
   if (recordings.length === 0 && !isLoading) {
     return (
       <div className="space-y-4 md:space-y-6">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Recordings
-          </h1>
-          <span className="text-sm text-muted-foreground">(0)</span>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Recordings
+            </h1>
+            <span className="text-sm text-muted-foreground">(0)</span>
+          </div>
+
+          <RecordWithExtensionButton
+            testSuiteId={suiteId}
+            testSuiteName={suiteName}
+            accountId={accountId}
+            onRecordingComplete={fetchRecordings}
+          />
         </div>
 
         <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
           <Play className="h-16 w-16 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-2">No recordings yet</h3>
           <p className="text-sm text-muted-foreground mb-6">Start recording test sessions to see them here</p>
-
-          <RecordingToolbar
-            suiteId={suiteId}
-            onRecordingSaved={fetchRecordings}
-          />
         </div>
       </div>
     );
@@ -365,44 +368,48 @@ export function RecordingsView({
           </span>
         </div>
 
-        <div className="relative overflow-hidden">
-          <div className="flex items-center justify-end gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
-            <div
-              className="flex items-center gap-2 transition-all duration-300 ease-in-out"
-              style={{
-                maxWidth: isDrawerOpen ? '1000px' : '0px',
-                opacity: isDrawerOpen ? 1 : 0,
-                marginRight: isDrawerOpen ? '0.5rem' : '0',
-                pointerEvents: isDrawerOpen ? 'auto' : 'none',
-              }}
-            >
+        <div className="flex items-center gap-2">
+          <RecordWithExtensionButton
+            testSuiteId={suiteId}
+            testSuiteName={suiteName}
+            accountId={accountId}
+            onRecordingComplete={fetchRecordings}
+          />
+
+          <div className="relative overflow-hidden">
+            <div className="flex items-center justify-end gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
+              <div
+                className="flex items-center gap-2 transition-all duration-300 ease-in-out"
+                style={{
+                  maxWidth: isDrawerOpen ? '1000px' : '0px',
+                  opacity: isDrawerOpen ? 1 : 0,
+                  marginRight: isDrawerOpen ? '0.5rem' : '0',
+                  pointerEvents: isDrawerOpen ? 'auto' : 'none',
+                }}
+              >
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleDrawer}
+                className="inline-flex items-center justify-center p-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
+                aria-label="Toggle menu"
+              >
+                <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  fetchRecordings();
+                }}
+                disabled={isLoading}
+                className="inline-flex items-center justify-center p-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                title="Refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={handleToggleDrawer}
-              className="inline-flex items-center justify-center p-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
-              aria-label="Toggle menu"
-            >
-              <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
-            </button>
-
-            <RecordingToolbar
-              suiteId={suiteId}
-              onRecordingSaved={fetchRecordings}
-            />
-
-            <button
-              type="button"
-              onClick={() => {
-                fetchRecordings();
-              }}
-              disabled={isLoading}
-              className="inline-flex items-center justify-center p-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-              title="Refresh"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
           </div>
         </div>
       </div>

@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import type { BugWithCreator } from '@/types/bug.types'
 import { BugDrawerHeader } from './BugDrawerHeader'
 import { BugDrawerContent } from './BugDrawerContent'
-import { RecordingPlayer } from '../Recordings/RecordingPlayer'
+import { RecordingPlayer } from '../Recordings/post-rec/RecordingPlayer'
 
 interface BugDetailsDrawerProps {
     isOpen: boolean

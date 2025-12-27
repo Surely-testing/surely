@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Search, RefreshCw, Filter, Upload, Sparkles, Play, GitBranch, ChevronLeft, Grid, List, FileQuestion } from 'lucide-react'
+import { Plus, RefreshCw, Upload, Sparkles, Play, GitBranch, Filter } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/utils/logger'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import { TestCaseForm } from './TestCaseForm'
@@ -12,6 +12,8 @@ import { TestCaseTable } from './TestCaseTable'
 import { TestCaseGrid } from './TestCaseGrid'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useAI } from '@/components/ai/AIAssistantProvider'
+import { TestCaseControlBar } from './views/TestCaseControlBar'
+import { TestCaseDialogs } from './views/TestCaseDialogs'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,42 +22,48 @@ import {
 } from '@/components/ui/Dropdown'
 import type { TestCase } from '@/types/test-case.types'
 import type { TestCaseRow } from './TestCaseTable'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/Select';
 import type { ActionOption } from '@/components/shared/BulkActionBar'
-
-interface TestCasesViewProps {
-  suiteId: string
-  canWrite?: boolean
-}
-
-type ViewMode = 'grid' | 'table'
-type SortField = 'created_at' | 'updated_at' | 'title' | 'priority';
-type SortOrder = 'asc' | 'desc';
-type GroupBy = 'none' | 'priority' | 'status';
+import type {
+  ViewMode,
+  SortField,
+  SortOrder,
+  GroupBy,
+  DialogState,
+  BulkDialogState,
+  TestCasesViewProps,
+} from '@/types/test-case-view.types'
+import {
+  convertToTestCaseRows,
+  filterTestCases,
+  sortTestCases,
+  groupTestCases,
+} from './views/test-case-utils'
+import { FileQuestion } from 'lucide-react'
 
 export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps) {
   const router = useRouter()
-  const { supabase } = useSupabase()
+  const { supabase, user } = useSupabase()
+  const { setIsOpen, sendMessage } = useAI()
+
+  // State
   const [testCases, setTestCases] = useState<TestCase[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [isLoading, setIsLoading] = useState(true)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [groupBy, setGroupBy] = useState<GroupBy>('none');
-  const { setIsOpen, sendMessage } = useAI()
+  const [sortField, setSortField] = useState<SortField>('created_at')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [groupBy, setGroupBy] = useState<GroupBy>('none')
+
+  // Dialog states
+  const [deleteDialog, setDeleteDialog] = useState<DialogState>({ open: false, testCaseId: null })
+  const [archiveDialog, setArchiveDialog] = useState<DialogState>({ open: false, testCaseId: null })
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState<BulkDialogState>({ open: false, count: 0 })
+  const [bulkArchiveDialog, setBulkArchiveDialog] = useState<BulkDialogState>({ open: false, count: 0 })
 
   const fetchTestCases = async () => {
     setIsLoading(true)
@@ -92,10 +100,8 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           toast.success('Test case created')
         } else if (payload.eventType === 'UPDATE') {
           setTestCases(prev => prev.map(tc => tc.id === payload.new.id ? payload.new as TestCase : tc))
-          toast.success('Test case updated')
         } else if (payload.eventType === 'DELETE') {
           setTestCases(prev => prev.filter(tc => tc.id !== payload.old.id))
-          toast.success('Test case deleted')
         }
       })
       .subscribe()
@@ -103,7 +109,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     return () => { supabase.removeChannel(channel) }
   }, [suiteId, supabase])
 
-  // Show form if creating/editing - PLACE THIS BEFORE ANY OTHER RETURNS
+  // Show form if creating/editing
   if (isCreateModalOpen) {
     return (
       <div className="space-y-4 md:space-y-6">
@@ -119,94 +125,99 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     )
   }
 
-  const getFilteredAndSortedTestCases = () => {
-    let filtered = testCases.filter(tc => {
-      const matchesSearch = tc.title.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesPriority = priorityFilter === 'all' || tc.priority === priorityFilter
-      const matchesStatus = statusFilter === 'all' || tc.status === statusFilter
-      return matchesSearch && matchesPriority && matchesStatus
-    })
+  // Computed values
+  const filtered = filterTestCases(testCases, searchQuery, priorityFilter, statusFilter)
+  const sorted = sortTestCases(filtered, sortField, sortOrder)
+  const grouped = groupTestCases(sorted, groupBy)
+  const activeFiltersCount = (priorityFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
 
-    filtered.sort((a, b) => {
-      let aVal: any = a[sortField];
-      let bVal: any = b[sortField];
-
-      if (sortField === 'created_at' || sortField === 'updated_at') {
-        aVal = aVal ? new Date(aVal).getTime() : 0;
-        bVal = bVal ? new Date(bVal).getTime() : 0;
-      }
-
-      if (aVal === null || aVal === undefined) return sortOrder === 'asc' ? 1 : -1;
-      if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
-
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc'
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
-      }
-
-      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  };
-
-  const filteredTestCases = getFilteredAndSortedTestCases();
-
-  const convertToTestCaseRows = (testCases: TestCase[]): TestCaseRow[] => {
-    return testCases.map(tc => ({
-      id: tc.id,
-      suite_id: tc.suite_id,
-      title: tc.title,
-      description: tc.description,
-      steps: tc.steps,
-      expected_result: tc.expected_result,
-      priority: tc.priority,
-      status: tc.status,
-      sprint_id: tc.sprint_id || null,
-      created_by: tc.created_by,
-      created_at: tc.created_at,
-      updated_at: tc.updated_at,
-      last_result: (tc as any).last_result || null,
-      assigned_to: (tc as any).assigned_to || null,
-      module: (tc as any).module || null,
-      type: (tc as any).type || null,
-      is_automated: (tc as any).is_automated || null,
-      tags: (tc as any).tags || null,
-    }));
-  };
-
-  const getGroupedTestCases = () => {
-    if (groupBy === 'none') {
-      return { 'All Test Cases': filteredTestCases };
+  // Handlers
+  const moveToTrash = async (testCaseId: string) => {
+    if (!user) {
+      toast.error('You must be logged in')
+      return
     }
 
-    const grouped: Record<string, typeof filteredTestCases> = {};
+    try {
+      const { data: testCase, error: fetchError } = await supabase
+        .from('test_cases')
+        .select('*')
+        .eq('id', testCaseId)
+        .single()
 
-    filteredTestCases.forEach(tc => {
-      let groupKey = 'Uncategorized';
+      if (fetchError) throw fetchError
 
-      switch (groupBy) {
-        case 'priority':
-          groupKey = tc.priority ? tc.priority.toUpperCase() : 'NO PRIORITY';
-          break;
-        case 'status':
-          groupKey = tc.status ? tc.status.toUpperCase() : 'NO STATUS';
-          break;
-      }
+      // Set expiration to 30 days from now
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 30)
 
-      if (!grouped[groupKey]) {
-        grouped[groupKey] = [];
-      }
-      grouped[groupKey].push(tc);
-    });
+      const { error: trashError } = await supabase
+        .from('trash')
+        .insert({
+          suite_id: suiteId,
+          asset_type: 'testCases',
+          asset_id: testCaseId,
+          asset_data: testCase,
+          deleted_by: user.id,
+          expires_at: expiresAt.toISOString()
+        })
 
-    return grouped;
-  };
+      if (trashError) throw trashError
 
-  const groupedTestCases = getGroupedTestCases();
+      const { error: deleteError } = await supabase
+        .from('test_cases')
+        .delete()
+        .eq('id', testCaseId)
+
+      if (deleteError) throw deleteError
+
+      toast.success('Test case moved to trash')
+    } catch (error: any) {
+      logger.log('Move to trash failed:', error)
+      toast.error('Failed to delete test case', { description: error.message })
+    }
+  }
+
+  const moveToArchive = async (testCaseId: string) => {
+    if (!user) {
+      toast.error('You must be logged in')
+      return
+    }
+
+    try {
+      const { data: testCase, error: fetchError } = await supabase
+        .from('test_cases')
+        .select('*')
+        .eq('id', testCaseId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const { error: archiveError } = await supabase
+        .from('archived_items')
+        .insert({
+          suite_id: suiteId,
+          asset_type: 'testCases',
+          asset_id: testCaseId,
+          asset_data: testCase,
+          archived_by: user.id
+        })
+
+      if (archiveError) throw archiveError
+
+      const { error: deleteError } = await supabase
+        .from('test_cases')
+        .delete()
+        .eq('id', testCaseId)
+
+      if (deleteError) throw deleteError
+
+      toast.success('Test case archived')
+    } catch (error: any) {
+      logger.log('Archive failed:', error)
+      toast.error('Failed to archive test case', { description: error.message })
+    }
+  }
 
   const handleBulkAction = async (
     actionId: string,
@@ -217,27 +228,12 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     try {
       switch (actionId) {
         case 'delete':
-          if (!confirm(`Are you sure you want to delete ${testCaseIds.length} test case${testCaseIds.length > 1 ? 's' : ''}?`)) {
-            return
-          }
-          const { error: deleteError } = await supabase
-            .from('test_cases')
-            .delete()
-            .in('id', testCaseIds)
-
-          if (deleteError) throw deleteError
-          toast.success(`Deleted ${testCaseIds.length} test case${testCaseIds.length > 1 ? 's' : ''}`)
-          break
+          setBulkDeleteDialog({ open: true, count: testCaseIds.length })
+          return
 
         case 'archive':
-          const { error: archiveError } = await supabase
-            .from('test_cases')
-            .update({ status: 'archived' })
-            .in('id', testCaseIds)
-
-          if (archiveError) throw archiveError
-          toast.success(`Archived ${testCaseIds.length} test case${testCaseIds.length > 1 ? 's' : ''}`)
-          break
+          setBulkArchiveDialog({ open: true, count: testCaseIds.length })
+          return
 
         case 'change_priority':
           if (!option?.value) return
@@ -273,40 +269,123 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     }
   }
 
+  const confirmBulkDelete = async () => {
+    if (!user) {
+      toast.error('You must be logged in')
+      return
+    }
+
+    try {
+      const { data: testCasesData, error: fetchError } = await supabase
+        .from('test_cases')
+        .select('*')
+        .in('id', selectedIds)
+
+      if (fetchError) throw fetchError
+
+      // Set expiration to 30 days from now
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 30)
+
+      const trashItems = testCasesData.map(tc => ({
+        suite_id: suiteId,
+        asset_type: 'testCases' as const,
+        asset_id: tc.id,
+        asset_data: tc,
+        deleted_by: user.id,
+        expires_at: expiresAt.toISOString()
+      }))
+
+      const { error: trashError } = await supabase
+        .from('trash')
+        .insert(trashItems)
+
+      if (trashError) throw trashError
+
+      const { error: deleteError } = await supabase
+        .from('test_cases')
+        .delete()
+        .in('id', selectedIds)
+
+      if (deleteError) throw deleteError
+
+      toast.success(`Moved ${selectedIds.length} test case${selectedIds.length > 1 ? 's' : ''} to trash`)
+      setSelectedIds([])
+      setBulkDeleteDialog({ open: false, count: 0 })
+      await fetchTestCases()
+    } catch (error: any) {
+      logger.log('Bulk delete failed:', error)
+      toast.error('Failed to delete test cases', { description: error.message })
+    }
+  }
+
+  const confirmBulkArchive = async () => {
+    if (!user) {
+      toast.error('You must be logged in')
+      return
+    }
+
+    try {
+      const { data: testCasesData, error: fetchError } = await supabase
+        .from('test_cases')
+        .select('*')
+        .in('id', selectedIds)
+
+      if (fetchError) throw fetchError
+
+      const archiveItems = testCasesData.map(tc => ({
+        suite_id: suiteId,
+        asset_type: 'testCases' as const,
+        asset_id: tc.id,
+        asset_data: tc,
+        archived_by: user.id
+      }))
+
+      const { error: archiveError } = await supabase
+        .from('archived_items')
+        .insert(archiveItems)
+
+      if (archiveError) throw archiveError
+
+      const { error: deleteError } = await supabase
+        .from('test_cases')
+        .delete()
+        .in('id', selectedIds)
+
+      if (deleteError) throw deleteError
+
+      toast.success(`Archived ${selectedIds.length} test case${selectedIds.length > 1 ? 's' : ''}`)
+      setSelectedIds([])
+      setBulkArchiveDialog({ open: false, count: 0 })
+      await fetchTestCases()
+    } catch (error: any) {
+      logger.log('Bulk archive failed:', error)
+      toast.error('Failed to archive test cases', { description: error.message })
+    }
+  }
+
   const handleEdit = (testCaseId: string) => {
     router.push(`/dashboard/test-cases/${testCaseId}/edit`)
   }
 
   const handleDelete = async (testCaseId: string) => {
-    if (!confirm('Are you sure you want to delete this test case?')) return
+    setDeleteDialog({ open: true, testCaseId })
+  }
 
-    try {
-      const { error } = await supabase
-        .from('test_cases')
-        .delete()
-        .eq('id', testCaseId)
-
-      if (error) throw error
-      toast.success('Test case deleted')
-    } catch (error: any) {
-      logger.log('Delete failed:', error)
-      toast.error('Failed to delete test case', { description: error.message })
-    }
+  const confirmDelete = async () => {
+    if (!deleteDialog.testCaseId) return
+    await moveToTrash(deleteDialog.testCaseId)
+    setDeleteDialog({ open: false, testCaseId: null })
   }
 
   const handleArchive = async (testCaseId: string) => {
-    try {
-      const { error } = await supabase
-        .from('test_cases')
-        .update({ status: 'archived' })
-        .eq('id', testCaseId)
+    setArchiveDialog({ open: true, testCaseId })
+  }
 
-      if (error) throw error
-      toast.success('Test case archived')
-    } catch (error: any) {
-      logger.log('Archive failed:', error)
-      toast.error('Failed to archive test case', { description: error.message })
-    }
+  const confirmArchive = async () => {
+    if (!archiveDialog.testCaseId) return
+    await moveToArchive(archiveDialog.testCaseId)
+    setArchiveDialog({ open: false, testCaseId: null })
   }
 
   const handleDuplicate = async (testCaseId: string) => {
@@ -319,14 +398,13 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
       if (fetchError) throw fetchError
 
+      const { id, created_at, updated_at, ...rest } = original
+
       const { error: insertError } = await supabase
         .from('test_cases')
         .insert({
-          ...original,
-          id: undefined,
+          ...rest,
           title: `${original.title} (Copy)`,
-          created_at: undefined,
-          updated_at: undefined,
         })
 
       if (insertError) throw insertError
@@ -342,10 +420,10 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   }
 
   const handleSelectAll = () => {
-    if (selectedIds.length === filteredTestCases.length && filteredTestCases.length > 0) {
+    if (selectedIds.length === sorted.length && sorted.length > 0) {
       setSelectedIds([])
     } else {
-      setSelectedIds(filteredTestCases.map(tc => tc.id))
+      setSelectedIds(sorted.map(tc => tc.id))
     }
   }
 
@@ -354,13 +432,11 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   }
 
   const clearFilters = () => {
-    setPriorityFilter('all');
-    setStatusFilter('all');
-    setSortField('created_at');
-    setSortOrder('desc');
-  };
-
-  const activeFiltersCount = (priorityFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+    setPriorityFilter('all')
+    setStatusFilter('all')
+    setSortField('created_at')
+    setSortOrder('desc')
+  }
 
   const handleAIGenerate = () => {
     setIsOpen(true)
@@ -371,6 +447,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     }, 100)
   }
 
+  // Loading state
   if (isLoading) {
     return (
       <div className="space-y-4 md:space-y-6">
@@ -400,6 +477,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     )
   }
 
+  // Empty state
   if (testCases.length === 0) {
     const emptyStateActions = canWrite ? [
       {
@@ -420,7 +498,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         variant: 'accent' as const,
         icon: Sparkles,
       },
-    ] : undefined;
+    ] : undefined
 
     return (
       <>
@@ -444,451 +522,163 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header with Action Buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Test Cases
-          </h1>
-          <span className="text-sm text-muted-foreground">
-            ({testCases.length})
-          </span>
-        </div>
-
-        {/* Action Buttons Container */}
-        <div className="flex items-center justify-end gap-2">
-          {canWrite && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
-                >
-                  <Plus className="h-4 w-4 lg:mr-2" />
-                  <span className="hidden lg:inline">Actions</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Test Case
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/dashboard/test-cases/import')}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/dashboard/traceability')}>
-                  <GitBranch className="h-4 w-4 mr-2" />
-                  Traceability
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          <Link
-            href="/dashboard/test-runs"
-            className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
-          >
-            <Play className="h-4 w-4 lg:mr-2" />
-            <span className="hidden lg:inline">Test Runs</span>
-          </Link>
-
-          {canWrite && (
-            <button
-              type="button"
-              onClick={handleAIGenerate}
-              className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 whitespace-nowrap"
-            >
-              <Sparkles className="h-4 w-4 lg:mr-2" />
-              <span className="hidden lg:inline">AI Generate</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={fetchTestCases}
-            disabled={isLoading}
-            className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-      </div>
-
-      {/* Controls Bar */}
-      <div className="bg-card border-b border-border">
-        <div className="px-3 py-2">
-          <div className="flex flex-col gap-3 lg:gap-0">
-            {/* Mobile Layout */}
-            <div className="lg:hidden space-y-3">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search test cases..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  disabled={isLoading}
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  disabled={isLoading}
-                  className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
-                >
-                  <Filter className="w-4 h-4" />
-                  <span>Filter</span>
-                  {activeFiltersCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                      {activeFiltersCount}
-                    </span>
-                  )}
-                </button>
-
-                <Select
-                  value={`${sortField}-${sortOrder}`}
-                  onValueChange={(value) => {
-                    const [field, order] = value.split('-');
-                    setSortField(field as SortField);
-                    setSortOrder(order as SortOrder);
-                  }}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
-                    <SelectValue placeholder="Sort by..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created_at-desc">Newest First</SelectItem>
-                    <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                    <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
-                    <SelectItem value="title-asc">Title (A-Z)</SelectItem>
-                    <SelectItem value="title-desc">Title (Z-A)</SelectItem>
-                    <SelectItem value="priority-desc">Priority (High-Low)</SelectItem>
-                    <SelectItem value="priority-asc">Priority (Low-High)</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={groupBy}
-                  onValueChange={(value) => setGroupBy(value as GroupBy)}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
-                    <SelectValue placeholder="Group by..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Grouping</SelectItem>
-                    <SelectItem value="priority">Group by Priority</SelectItem>
-                    <SelectItem value="status">Group by Status</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length === filteredTestCases.length && filteredTestCases.length > 0}
-                    onChange={handleSelectAll}
-                    disabled={isLoading}
-                    className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Select All
-                  </span>
-                </div>
-
-                <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    disabled={isLoading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                      ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                    title="Grid View"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('table')}
-                    disabled={isLoading}
-                    className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                      ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                    title="Table View"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Desktop Layout (lg+ screens) - Original Design */}
-            <div className="hidden lg:flex lg:flex-col lg:gap-0">
-              <div className="flex items-center justify-between gap-4">
-                {/* Left Side: Select All */}
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length === filteredTestCases.length && filteredTestCases.length > 0}
-                    onChange={handleSelectAll}
-                    disabled={isLoading}
-                    className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Select All
-                  </span>
-                </div>
-
-                {/* Right Side: Search, Filter, Sort, Group, View Toggle */}
-                <div className="flex items-center gap-3 flex-1 justify-end">
-                  {/* Search */}
-                  <div className="relative flex-1 max-w-xs">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Search test cases..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      disabled={isLoading}
-                      className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-                    />
-                  </div>
-
-                  {/* Filter Button */}
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    disabled={isLoading}
-                    className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
-                  >
-                    <Filter className="w-4 h-4" />
-                    Filter
-                    {activeFiltersCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                        {activeFiltersCount}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Sort Dropdown */}
-                  <Select
-                    value={`${sortField}-${sortOrder}`}
-                    onValueChange={(value) => {
-                      const [field, order] = value.split('-');
-                      setSortField(field as SortField);
-                      setSortOrder(order as SortOrder);
-                    }}
-                    disabled={isLoading}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Sort by..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="created_at-desc">Newest First</SelectItem>
-                      <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                      <SelectItem value="updated_at-desc">Recently Updated</SelectItem>
-                      <SelectItem value="title-asc">Title (A-Z)</SelectItem>
-                      <SelectItem value="title-desc">Title (Z-A)</SelectItem>
-                      <SelectItem value="priority-desc">Priority (High-Low)</SelectItem>
-                      <SelectItem value="priority-asc">Priority (Low-High)</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {/* Group By Dropdown */}
-                  <Select
-                    value={groupBy}
-                    onValueChange={(value) => setGroupBy(value as GroupBy)}
-                    disabled={isLoading}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Group by..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Grouping</SelectItem>
-                      <SelectItem value="priority">Group by Priority</SelectItem>
-                      <SelectItem value="status">Group by Status</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {/* View Toggle */}
-                  <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                    <button
-                      onClick={() => setViewMode('grid')}
-                      disabled={isLoading}
-                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                        }`}
-                      title="Grid View"
-                    >
-                      <Grid className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode('table')}
-                      disabled={isLoading}
-                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                        ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                        }`}
-                      title="Table View"
-                    >
-                      <List className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+    <>
+      <div className="space-y-4 md:space-y-6">
+        {/* Header with Action Buttons */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Test Cases
+            </h1>
+            <span className="text-sm text-muted-foreground">
+              ({testCases.length})
+            </span>
           </div>
 
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-foreground">Filters</h3>
-                {activeFiltersCount > 0 && (
+          {/* Action Buttons Container */}
+          <div className="flex items-center justify-end gap-2">
+            {canWrite && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <button
-                    onClick={clearFilters}
-                    className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
+                    type="button"
+                    className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
                   >
-                    Clear All
+                    <Plus className="h-4 w-4 lg:mr-2" />
+                    <span className="hidden lg:inline">Actions</span>
                   </button>
-                )}
-              </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => setIsCreateModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Test Case
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/dashboard/test-cases/import')}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/dashboard/traceability')}>
+                    <GitBranch className="h-4 w-4 mr-2" />
+                    Traceability
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Priority Filter */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                    Priority
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {(['low', 'medium', 'high', 'critical'] as const).map(priority => (
-                      <button
-                        key={priority}
-                        onClick={() => setPriorityFilter(priorityFilter === priority ? 'all' : priority)}
-                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${priorityFilter === priority
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background text-foreground border-border hover:border-primary'
-                          }`}
-                      >
-                        {priority}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            <Link
+              href="/dashboard/test-runs"
+              className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
+            >
+              <Play className="h-4 w-4 lg:mr-2" />
+              <span className="hidden lg:inline">Test Runs</span>
+            </Link>
 
-                {/* Status Filter */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                    Status
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {(['active', 'archived'] as const).map(status => (
-                      <button
-                        key={status}
-                        onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
-                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${statusFilter === status
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background text-foreground border-border hover:border-primary'
-                          }`}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+            {canWrite && (
+              <button
+                type="button"
+                onClick={handleAIGenerate}
+                className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-semibold text-primary-foreground bg-gradient-accent rounded-lg hover:shadow-glow-accent transition-all duration-200 whitespace-nowrap"
+              >
+                <Sparkles className="h-4 w-4 lg:mr-2" />
+                <span className="hidden lg:inline">AI Generate</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={fetchTestCases}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Stats Bar */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {filteredTestCases.length} of {testCases.length} test cases
-          {selectedIds.length > 0 && ` • ${selectedIds.length} selected`}
-        </p>
-      </div>
+        {/* Control Bar */}
+        <TestCaseControlBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          showFilters={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          activeFiltersCount={activeFiltersCount}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSortChange={(field, order) => {
+            setSortField(field)
+            setSortOrder(order)
+          }}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          selectAllChecked={selectedIds.length === sorted.length && sorted.length > 0}
+          onSelectAllChange={handleSelectAll}
+          isLoading={isLoading}
+          priorityFilter={priorityFilter}
+          onPriorityFilterChange={setPriorityFilter}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          onClearFilters={clearFilters}
+        />
 
-      {/* Content Area */}
-      {filteredTestCases.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-          <Filter className="h-12 w-12 text-muted-foreground mb-3" />
-          <h3 className="text-lg font-medium text-foreground mb-1">
-            No test cases found
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Try adjusting your filters or search query
+        {/* Stats Bar */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {sorted.length} of {testCases.length} test cases
+            {selectedIds.length > 0 && ` • ${selectedIds.length} selected`}
           </p>
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
-          >
-            Clear Filters
-          </button>
         </div>
-      ) : groupBy === 'none' ? (
-        // No grouping - render normally
-        viewMode === 'grid' ? (
-          <TestCaseGrid
-            testCases={convertToTestCaseRows(filteredTestCases)}
-            suiteId={suiteId}
-            onBulkAction={handleBulkAction}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onArchive={handleArchive}
-            onDuplicate={handleDuplicate}
-            onRun={handleRun}
-            selectedIds={selectedIds}
-            onSelectionChange={handleSelectionChange}
-          />
-        ) : (
-          <TestCaseTable
-            testCases={convertToTestCaseRows(filteredTestCases)}
-            suiteId={suiteId}
-            onBulkAction={handleBulkAction}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onArchive={handleArchive}
-            onDuplicate={handleDuplicate}
-            onRun={handleRun}
-            selectedIds={selectedIds}
-            onSelectionChange={handleSelectionChange}
-          />
-        )
-      ) : (
-        // With grouping - render grouped sections
-        <div className="space-y-6">
-          {Object.entries(groupedTestCases).map(([groupName, groupTestCases]) => {
-            const groupRows: TestCaseRow[] = groupTestCases.map(tc => ({
-              id: tc.id,
-              suite_id: tc.suite_id,
-              title: tc.title,
-              description: tc.description,
-              steps: tc.steps,
-              expected_result: tc.expected_result,
-              priority: tc.priority,
-              status: tc.status,
-              sprint_id: tc.sprint_id || null,
-              created_by: tc.created_by,
-              created_at: tc.created_at,
-              updated_at: tc.updated_at,
-              last_result: (tc as any).last_result || null,
-              assigned_to: (tc as any).assigned_to || null,
-              module: (tc as any).module || null,
-              type: (tc as any).type || null,
-              is_automated: (tc as any).is_automated || null,
-              tags: (tc as any).tags || null,
-            }));
 
-            return (
+        {/* Content Area */}
+        {sorted.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium text-foreground mb-1">
+              No test cases found
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Try adjusting your filters or search query
+            </p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
+            >
+              Clear Filters
+            </button>
+          </div>
+        ) : groupBy === 'none' ? (
+          viewMode === 'grid' ? (
+            <TestCaseGrid
+              testCases={convertToTestCaseRows(sorted)}
+              suiteId={suiteId}
+              onBulkAction={handleBulkAction}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onArchive={handleArchive}
+              onDuplicate={handleDuplicate}
+              onRun={handleRun}
+              selectedIds={selectedIds}
+              onSelectionChange={handleSelectionChange}
+            />
+          ) : (
+            <TestCaseTable
+              testCases={convertToTestCaseRows(sorted)}
+              suiteId={suiteId}
+              onBulkAction={handleBulkAction}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onArchive={handleArchive}
+              onDuplicate={handleDuplicate}
+              onRun={handleRun}
+              selectedIds={selectedIds}
+              onSelectionChange={handleSelectionChange}
+            />
+          )
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(grouped).map(([groupName, groupTestCases]) => (
               <div key={groupName}>
                 <div className="flex items-center gap-2 mb-3">
                   <h3 className="text-sm font-semibold text-foreground uppercase">
@@ -900,7 +690,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                 </div>
                 {viewMode === 'grid' ? (
                   <TestCaseGrid
-                    testCases={groupRows}
+                    testCases={convertToTestCaseRows(groupTestCases)}
                     suiteId={suiteId}
                     onBulkAction={handleBulkAction}
                     onEdit={handleEdit}
@@ -913,7 +703,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                   />
                 ) : (
                   <TestCaseTable
-                    testCases={groupRows}
+                    testCases={convertToTestCaseRows(groupTestCases)}
                     suiteId={suiteId}
                     onBulkAction={handleBulkAction}
                     onEdit={handleEdit}
@@ -926,10 +716,26 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                   />
                 )}
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Dialogs */}
+      <TestCaseDialogs
+        deleteDialog={deleteDialog}
+        onDeleteDialogChange={setDeleteDialog}
+        onConfirmDelete={confirmDelete}
+        archiveDialog={archiveDialog}
+        onArchiveDialogChange={setArchiveDialog}
+        onConfirmArchive={confirmArchive}
+        bulkDeleteDialog={bulkDeleteDialog}
+        onBulkDeleteDialogChange={setBulkDeleteDialog}
+        onConfirmBulkDelete={confirmBulkDelete}
+        bulkArchiveDialog={bulkArchiveDialog}
+        onBulkArchiveDialogChange={setBulkArchiveDialog}
+        onConfirmBulkArchive={confirmBulkArchive}
+      />
+    </>
   )
 }

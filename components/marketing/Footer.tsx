@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Mail } from "lucide-react";
 import { LOGO_URL } from "@/config/logo";
 
@@ -12,9 +13,9 @@ const Footer: React.FC = () => {
         <footer className="bg-muted py-8 sm:py-12 md:py-16 transition-colors duration-200">
             <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Main Footer Content */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
-                    {/* Brand Section - Full Width on Mobile */}
-                    <div className="sm:col-span-2 lg:col-span-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8 md:gap-12">
+                    {/* Brand Section */}
+                    <div className="md:col-span-2 lg:col-span-3">
                         {/* Logo */}
                         <div className="flex items-center mb-4 sm:mb-6">
                             <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex-shrink-0">
@@ -34,13 +35,13 @@ const Footer: React.FC = () => {
 
                         {/* Social Links */}
                         <div className="flex gap-3">
-                            <a 
-                                href="mailto:contact@example.com"
+                            <Link 
+                                href="/contact"
                                 className="bg-background hover:bg-orange-50 dark:hover:bg-orange-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-orange-200 dark:border-orange-600 hover:border-orange-300 dark:hover:border-orange-500 hover:shadow-md touch-manipulation active:scale-95"
                                 aria-label="Email us"
                             >
                                 <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400" />
-                            </a>
+                            </Link>
                         </div>
                     </div>
 
@@ -50,16 +51,55 @@ const Footer: React.FC = () => {
                             Product
                         </h4>
                         <ul className="space-y-2 sm:space-y-3">
-                            {['Features', 'Pricing', 'Integrations', 'API'].map((item) => (
-                                <li key={item}>
-                                    <a 
-                                        href="#" 
-                                        className="text-sm sm:text-base text-muted-foreground hover:text-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
-                                    >
-                                        {item}
-                                    </a>
-                                </li>
-                            ))}
+                            <li>
+                                <Link 
+                                    href="/features" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Features
+                                </Link>
+                            </li>
+                            <li>
+                                <Link 
+                                    href="/pricing" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Pricing
+                                </Link>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* Company Links */}
+                    <div className="min-w-0">
+                        <h4 className="font-semibold text-foreground mb-3 sm:mb-4 text-sm sm:text-base">
+                            Company
+                        </h4>
+                        <ul className="space-y-2 sm:space-y-3">
+                            <li>
+                                <Link 
+                                    href="/events" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Events
+                                </Link>
+                            </li>
+                            <li>
+                                <Link 
+                                    href="/careers" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Careers
+                                </Link>
+                            </li>
+                            <li>
+                                <Link 
+                                    href="/blog" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Blog
+                                </Link>
+                            </li>
                         </ul>
                     </div>
 
@@ -69,16 +109,22 @@ const Footer: React.FC = () => {
                             Support
                         </h4>
                         <ul className="space-y-2 sm:space-y-3">
-                            {['Documentation', 'Help Center', 'Contact', 'Status'].map((item) => (
-                                <li key={item}>
-                                    <a 
-                                        href="#" 
-                                        className="text-sm sm:text-base text-muted-foreground hover:text-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
-                                    >
-                                        {item}
-                                    </a>
-                                </li>
-                            ))}
+                            <li>
+                                <Link 
+                                    href="/help" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Help Center
+                                </Link>
+                            </li>
+                            <li>
+                                <Link 
+                                    href="/contact" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Contact
+                                </Link>
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -93,15 +139,24 @@ const Footer: React.FC = () => {
 
                         {/* Legal Links */}
                         <div className="flex flex-wrap justify-center sm:justify-end items-center gap-4 sm:gap-6">
-                            {['Privacy', 'Terms', 'Security'].map((item, index) => (
-                                <a 
-                                    key={item}
-                                    href="#" 
-                                    className="text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors whitespace-nowrap touch-manipulation py-1"
-                                >
-                                    {item}
-                                </a>
-                            ))}
+                            <Link 
+                                href="/privacy"
+                                className="text-xs sm:text-sm text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors whitespace-nowrap touch-manipulation py-1"
+                            >
+                                Privacy
+                            </Link>
+                            <Link 
+                                href="/terms"
+                                className="text-xs sm:text-sm text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors whitespace-nowrap touch-manipulation py-1"
+                            >
+                                Terms
+                            </Link>
+                            <Link 
+                                href="/security"
+                                className="text-xs sm:text-sm text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors whitespace-nowrap touch-manipulation py-1"
+                            >
+                                Security
+                            </Link>
                         </div>
                     </div>
                 </div>

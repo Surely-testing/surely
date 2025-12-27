@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/Dropdown'
 import { cn } from '@/lib/utils/cn'
-import { logger } from '@/lib/utils/logger'
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   meeting_notes: 'Meeting Notes',
@@ -37,6 +36,9 @@ interface DocumentsGridProps {
   onOpen: (doc: Document) => void
   selectedDocIds: string[]
   onToggleSelect: (id: string) => void
+  onDelete?: (doc: Document) => void
+  onShare?: (doc: Document) => void
+  onArchive?: (doc: Document) => void
 }
 
 // Helper function to extract plain text from document content
@@ -99,22 +101,36 @@ function formatTimeAgo(dateString: string): string {
   return `${years} year${years > 1 ? 's' : ''} ago`
 }
 
-export function DocumentsGrid({ documents, onOpen, selectedDocIds, onToggleSelect }: DocumentsGridProps) {
+export function DocumentsGrid({ 
+  documents, 
+  onOpen, 
+  selectedDocIds, 
+  onToggleSelect,
+  onDelete,
+  onShare,
+  onArchive 
+}: DocumentsGridProps) {
   const [hoveredDoc, setHoveredDoc] = useState<string | null>(null)
 
   const handleShare = (e: React.MouseEvent, doc: Document) => {
     e.stopPropagation()
-    logger.log('Share document:', doc.id)
+    if (onShare) {
+      onShare(doc)
+    }
   }
 
   const handleDelete = (e: React.MouseEvent, doc: Document) => {
     e.stopPropagation()
-    logger.log('Delete document:', doc.id)
+    if (onDelete) {
+      onDelete(doc)
+    }
   }
 
   const handleArchive = (e: React.MouseEvent, doc: Document) => {
     e.stopPropagation()
-    logger.log('Archive document:', doc.id)
+    if (onArchive) {
+      onArchive(doc)
+    }
   }
 
   return (
