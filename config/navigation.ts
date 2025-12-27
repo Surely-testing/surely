@@ -11,6 +11,12 @@ import {
   Users,
   Settings,
   type LucideIcon,
+  Video,
+  Hammer,
+  FlaskConical,
+  Wrench,
+  FileJson,
+  ClipboardList,
 } from 'lucide-react'
 
 export type NavItem = {
@@ -64,7 +70,7 @@ export const suiteNavigation: NavSection[] = [
       {
         title: 'Test Cases',
         href: '/dashboard/test-cases',
-        icon: FileText,
+        icon: ClipboardList,
       },
       {
         title: 'Bugs',
@@ -84,17 +90,17 @@ export const suiteNavigation: NavSection[] = [
       {
         title: 'Test Data',
         href: '/dashboard/test-data',
-        icon: FolderOpen,
+        icon: FileJson,
       },
       {
         title: 'Recordings',
         href: '/dashboard/recordings',
-        icon: FolderOpen,
+        icon: Video,
       },
       {
         title: 'Documents',
         href: '/dashboard/documents',
-        icon: FolderOpen,
+        icon: FileText,
       },
       {
         title: 'Members',
@@ -104,7 +110,7 @@ export const suiteNavigation: NavSection[] = [
       {
         title: 'Tools',
         href: '/dashboard/tools',
-        icon: FolderOpen,
+        icon: Wrench,
       },
     ],
   },

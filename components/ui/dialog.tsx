@@ -1,3 +1,8 @@
+// ============================================
+// components/ui/dialog.tsx
+// Dialog component using Radix UI
+// ============================================
+
 "use client"
 
 import * as React from "react"
