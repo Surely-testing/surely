@@ -1,14 +1,29 @@
-// Extension Bridge - Add this to your Next.js app
-// This allows your web app to communicate with the browser extension
+// lib/extension/extension-bridge.ts
+// Fixed bridge with DIRECT recording start from web app
 
-import { createClient } from '@/lib/supabase/client';
+export interface ExtensionAuthContext {
+  accountId: string;
+  testSuiteId: string;
+  testSuiteName: string;
+  sprintId?: string | null;
+  userToken: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+}
 
-export class ExtensionBridge {
+export interface RecordingStartResponse {
+  success: boolean;
+  error?: string;
+}
+
+class ExtensionBridge {
   private static instance: ExtensionBridge;
-  private extensionInstalled: boolean = false;
-  private extensionVersion: string | null = null;
+  private authContext: ExtensionAuthContext | null = null;
+  private recordingCompleteCallbacks: ((recordingId: string) => void)[] = [];
 
-  private constructor() {}
+  private constructor() {
+    this.setupMessageListener();
+  }
 
   static getInstance(): ExtensionBridge {
     if (!ExtensionBridge.instance) {
@@ -17,182 +32,167 @@ export class ExtensionBridge {
     return ExtensionBridge.instance;
   }
 
-  // Check if extension is installed
+  private setupMessageListener() {
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+
+      const message = event.data;
+
+      switch (message.type) {
+        case 'EXTENSION_PONG':
+          console.log('[Bridge] Extension detected, version:', message.version);
+          break;
+
+        case 'RECORDING_STARTED':
+          console.log('[Bridge] Recording started successfully');
+          break;
+
+        case 'RECORDING_START_FAILED':
+          console.error('[Bridge] Recording failed to start:', message.error);
+          break;
+
+        case 'RECORDING_SAVED':
+          console.log('[Bridge] Recording saved:', message.recordingId);
+          this.handleRecordingComplete(message.recordingId);
+          break;
+
+        case 'RECORDING_SAVE_FAILED':
+          console.error('[Bridge] Recording save failed:', message.error);
+          break;
+      }
+    });
+  }
+
+  /**
+   * Set auth context (call this when user navigates to test suite page)
+   */
+  setAuthContext(context: ExtensionAuthContext): void {
+    console.log('[Bridge] Setting auth context');
+    this.authContext = context;
+    
+    // Send to extension immediately
+    this.sendAuthContextToExtension();
+  }
+
+  /**
+   * Send auth context to extension via window messaging
+   */
+  private sendAuthContextToExtension(): void {
+    if (!this.authContext) {
+      console.warn('[Bridge] No auth context available to send');
+      return;
+    }
+
+    console.log('[Bridge] Sending auth context to extension');
+    
+    window.postMessage({
+      type: 'SET_AUTH_CONTEXT',
+      data: this.authContext
+    }, '*');
+  }
+
+  /**
+   * Check if extension is installed
+   */
   async checkExtension(): Promise<boolean> {
     return new Promise((resolve) => {
-      // Send ping message (listener will respond)
+      // Send ping
       window.postMessage({ type: 'EXTENSION_PING' }, '*');
 
-      const timeout = setTimeout(() => {
-        this.extensionInstalled = false;
-        resolve(false);
-      }, 1000);
-
-      const handleMessage = (event: MessageEvent) => {
+      // Listen for pong
+      const handlePong = (event: MessageEvent) => {
         if (event.source !== window) return;
-
+        
         if (event.data.type === 'EXTENSION_PONG') {
-          clearTimeout(timeout);
-          window.removeEventListener('message', handleMessage);
-          this.extensionInstalled = true;
-          this.extensionVersion = event.data.version;
+          window.removeEventListener('message', handlePong);
           resolve(true);
         }
       };
 
-      window.addEventListener('message', handleMessage);
+      window.addEventListener('message', handlePong);
+
+      // Timeout after 2 seconds
+      setTimeout(() => {
+        window.removeEventListener('message', handlePong);
+        resolve(false);
+      }, 2000);
     });
   }
 
-  // Start recording from web app
-  async startRecording(options: {
-    testSuiteId: string;
-    testSuiteName: string;
-    accountId: string;
-    sprintId?: string | null;
-  }): Promise<{ success: boolean; error?: string }> {
-    try {
-      // Check if extension is installed
-      const isInstalled = await this.checkExtension();
-      
-      if (!isInstalled) {
-        return {
-          success: false,
-          error: 'Extension not installed. Please install the Surely Test Recorder extension.'
-        };
-      }
-
-      // Get Supabase credentials
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        return {
-          success: false,
-          error: 'Not authenticated'
-        };
-      }
-
-      // Get Supabase URL and anon key from environment
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        return {
-          success: false,
-          error: 'Supabase configuration missing'
-        };
-      }
-
-      console.log('[ExtensionBridge] Sending START_RECORDING to extension');
-
-      // Send message to extension (listener will forward to SURELY_START_RECORDING)
-      window.postMessage({
-        type: 'START_RECORDING',
-        data: {
-          testSuiteId: options.testSuiteId,
-          testSuiteName: options.testSuiteName,
-          accountId: options.accountId,
-          sprintId: options.sprintId || null,
-          userToken: session.access_token,
-          supabaseUrl,
-          supabaseAnonKey
-        }
-      }, '*');
-
-      // Wait for confirmation
-      return await this.waitForRecordingStart();
-
-    } catch (error) {
-      console.error('[ExtensionBridge] Error starting recording:', error);
+  /**
+   * Start recording directly from web app
+   */
+  async startRecording(): Promise<RecordingStartResponse> {
+    if (!this.authContext) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to start recording'
+        error: 'No authentication context available. Please refresh the page.'
       };
     }
-  }
 
-  // Wait for recording to start
-  private waitForRecordingStart(): Promise<{ success: boolean; error?: string }> {
     return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        window.removeEventListener('message', handleMessage);
-        console.error('[ExtensionBridge] Timeout waiting for RECORDING_STARTED');
-        resolve({
-          success: false,
-          error: 'Recording start timeout - extension did not respond in 10 seconds'
-        });
-      }, 10000); // 10 seconds to allow for countdown
+      console.log('[Bridge] Requesting recording start');
 
-      const handleMessage = (event: MessageEvent) => {
+      // Send start recording message with auth context
+      window.postMessage({
+        type: 'START_RECORDING',
+        data: this.authContext
+      }, '*');
+
+      // Listen for response
+      const handleResponse = (event: MessageEvent) => {
         if (event.source !== window) return;
 
         if (event.data.type === 'RECORDING_STARTED') {
-          console.log('[ExtensionBridge] ✅ Received RECORDING_STARTED');
-          clearTimeout(timeout);
-          window.removeEventListener('message', handleMessage);
+          window.removeEventListener('message', handleResponse);
           resolve({ success: true });
         } else if (event.data.type === 'RECORDING_START_FAILED') {
-          console.error('[ExtensionBridge] ❌ Received RECORDING_START_FAILED:', event.data.error);
-          clearTimeout(timeout);
-          window.removeEventListener('message', handleMessage);
-          resolve({
-            success: false,
+          window.removeEventListener('message', handleResponse);
+          resolve({ 
+            success: false, 
             error: event.data.error || 'Failed to start recording'
           });
         }
       };
 
-      window.addEventListener('message', handleMessage);
+      window.addEventListener('message', handleResponse);
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        window.removeEventListener('message', handleResponse);
+        resolve({ 
+          success: false, 
+          error: 'Recording start timeout - extension may not be responding'
+        });
+      }, 30000);
     });
   }
 
-  // Update context (when user switches test suite)
-  updateContext(options: {
-    testSuiteId: string;
-    testSuiteName: string;
-    accountId: string;
-    sprintId?: string | null;
-  }) {
-    window.postMessage({
-      type: 'UPDATE_CONTEXT',
-      data: {
-        testSuiteId: options.testSuiteId,
-        testSuiteName: options.testSuiteName,
-        accountId: options.accountId,
-        sprintId: options.sprintId || null
-      }
-    }, '*');
-  }
-
-  // Check if extension is installed
-  isInstalled(): boolean {
-    return this.extensionInstalled;
-  }
-
-  // Get extension version
-  getVersion(): string | null {
-    return this.extensionVersion;
-  }
-
-  // Listen for recording completion
-  onRecordingComplete(callback: (recordingId: string) => void) {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.source !== window) return;
-
-      if (event.data.type === 'RECORDING_COMPLETED') {
-        callback(event.data.recordingId);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
+  /**
+   * Register callback for when recording is completed
+   */
+  onRecordingComplete(callback: (recordingId: string) => void): () => void {
+    this.recordingCompleteCallbacks.push(callback);
 
     // Return cleanup function
     return () => {
-      window.removeEventListener('message', handleMessage);
+      const index = this.recordingCompleteCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.recordingCompleteCallbacks.splice(index, 1);
+      }
     };
+  }
+
+  private handleRecordingComplete(recordingId: string) {
+    this.recordingCompleteCallbacks.forEach(callback => {
+      try {
+        callback(recordingId);
+      } catch (error) {
+        console.error('[Bridge] Error in recording complete callback:', error);
+      }
+    });
   }
 }
 
-// Export singleton
+// Export singleton instance
 export const extensionBridge = ExtensionBridge.getInstance();

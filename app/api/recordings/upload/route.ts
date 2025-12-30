@@ -1,186 +1,146 @@
-// ============================================
-// app/api/recordings/upload/route.ts - SUPABASE VERSION
-// ============================================
+// app/api/recordings/upload/route.ts
+// API endpoint to receive recording from extension and save to Supabase
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { logger } from '@/lib/utils/logger';
+import { createClient } from '@supabase/supabase-js';
 
-// IMPORTANT: Configure body size limits
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb', // Increase from default 1mb to 50mb
-    },
-  },
-};
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-// For App Router (Next.js 13+), use maxDuration
-export const maxDuration = 60; // 60 seconds timeout (adjust as needed)
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-/**
- * POST /api/recordings/upload
- * Upload video recording to Supabase Storage
- */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    // Authenticate user
+    const body = await request.json();
+    
     const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+      testSuiteId,
+      accountId,
+      sprintId,
+      title,
+      description,
+      videoData, // base64 data URL
+      duration,
+      metadata
+    } = body;
 
-    if (authError || !user) {
-      logger.log('Auth error:', authError);
+    // Validate required fields
+    if (!testSuiteId || !accountId || !title || !videoData || !duration) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Parse request
-    const formData = await request.formData();
-    const videoFile = formData.get('video') as File;
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const suiteId = formData.get('suiteId') as string;
-
-    if (!videoFile || !title || !suiteId) {
-      return NextResponse.json(
-        { error: 'Video file, title, and suite ID are required' },
+        { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // CHECK FILE SIZE (Add this validation)
-    const maxSize = 50 * 1024 * 1024; // 50MB in bytes
-    if (videoFile.size > maxSize) {
-      return NextResponse.json(
-        { 
-          error: `File too large. Maximum size is ${maxSize / 1024 / 1024}MB. Your file is ${(videoFile.size / 1024 / 1024).toFixed(2)}MB`,
-          code: 'FILE_TOO_LARGE'
-        },
-        { status: 413 }
-      );
-    }
+    console.log('[API] Received recording upload request');
+    console.log('[API] Test Suite:', testSuiteId);
+    console.log('[API] Duration:', duration);
 
-    logger.log('Upload request:', {
-      fileName: videoFile.name,
-      fileSize: `${(videoFile.size / 1024 / 1024).toFixed(2)} MB`,
-      fileType: videoFile.type,
-      title,
-      suiteId,
-    });
-
-    // Verify user has access to the suite
-    const { data: suite, error: suiteError } = await supabase
-      .from('test_suites')
-      .select('id, name, owner_id, admins, members')
-      .eq('id', suiteId)
-      .single();
-
-    if (suiteError || !suite) {
-      logger.log('Suite error:', suiteError);
-      return NextResponse.json(
-        { error: 'Test suite not found' },
-        { status: 404 }
-      );
-    }
-
-    const hasAccess =
-      suite.owner_id === user.id ||
-      suite.admins?.includes(user.id) ||
-      suite.members?.includes(user.id);
-
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Access denied to this test suite' },
-        { status: 403 }
-      );
-    }
+    // Convert base64 data URL to buffer
+    const base64Data = videoData.split(',')[1];
+    const videoBuffer = Buffer.from(base64Data, 'base64');
+    
+    console.log('[API] Video size:', (videoBuffer.length / 1024 / 1024).toFixed(2), 'MB');
 
     // Generate unique filename
     const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 15);
-    const fileName = `${suiteId}/${timestamp}-${randomId}.webm`;
+    const filename = `recordings/${accountId}/${testSuiteId}/${timestamp}.webm`;
 
-    // Convert File to ArrayBuffer for Supabase
-    const arrayBuffer = await videoFile.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-
-    // Upload to Supabase Storage
-    logger.log('Uploading to Supabase Storage...');
+    // Upload video to Supabase Storage
+    console.log('[API] Uploading to storage:', filename);
+    
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('recordings') // Bucket name
-      .upload(fileName, buffer, {
+      .from('recordings')
+      .upload(filename, videoBuffer, {
         contentType: 'video/webm',
         cacheControl: '3600',
-        upsert: false,
+        upsert: false
       });
 
     if (uploadError) {
-      logger.log('Upload error:', uploadError);
-      return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}` },
-        { status: 500 }
-      );
+      console.error('[API] Upload error:', uploadError);
+      throw new Error(`Failed to upload video: ${uploadError.message}`);
     }
+
+    console.log('[API] Upload successful');
 
     // Get public URL
     const { data: urlData } = supabase.storage
       .from('recordings')
-      .getPublicUrl(fileName);
+      .getPublicUrl(filename);
 
     const videoUrl = urlData.publicUrl;
 
-    logger.log('Upload successful:', videoUrl);
+    // Save recording metadata to database
+    console.log('[API] Saving to database');
+    
+    const { data: recording, error: dbError } = await supabase
+      .from('recordings')
+      .insert({
+        test_suite_id: testSuiteId,
+        account_id: accountId,
+        sprint_id: sprintId,
+        title: title,
+        description: description || null,
+        video_url: videoUrl,
+        video_path: filename,
+        duration: duration,
+        status: 'completed',
+        metadata: {
+          timestamp: metadata.timestamp,
+          resolution: metadata.resolution,
+          browser: metadata.browser,
+          os: metadata.os,
+          console_logs: metadata.consoleLogs || [],
+          network_logs: metadata.networkLogs || [],
+          annotations: metadata.annotations || [],
+          websocket_connections: metadata.websocketConnections || []
+        },
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-    // Log activity
-    await supabase.from('activity_logs').insert({
-      user_id: user.id,
-      action: 'recording_uploaded',
-      resource_type: 'recording',
-      metadata: {
-        fileName,
-        title,
-        suiteId,
-        suiteName: suite.name,
-        fileSize: videoFile.size,
-      },
-    });
+    if (dbError) {
+      console.error('[API] Database error:', dbError);
+      
+      // Try to clean up uploaded file
+      await supabase.storage
+        .from('recordings')
+        .remove([filename]);
+      
+      throw new Error(`Failed to save recording: ${dbError.message}`);
+    }
+
+    console.log('[API] Recording saved successfully:', recording.id);
 
     return NextResponse.json({
       success: true,
-      url: videoUrl,
-      fileName,
-      fileSize: videoFile.size,
+      recordingId: recording.id,
+      videoUrl: videoUrl
     });
 
   } catch (error) {
-    logger.log('Upload error:', error);
-
-    if (error && typeof error === 'object') {
-      const err = error as any;
-      
-      logger.log('Error details:', {
-        message: err.message,
-        code: err.code,
-        stack: err.stack,
-      });
-      
-      if (err.message) {
-        return NextResponse.json(
-          { error: `Upload failed: ${err.message}` },
-          { status: 500 }
-        );
-      }
-    }
-
+    console.error('[API] Error processing recording:', error);
+    
     return NextResponse.json(
-      { error: 'Failed to save recording. Please try again.' },
+      { 
+        error: error instanceof Error ? error.message : 'Failed to process recording'
+      },
       { status: 500 }
     );
   }
+}
+
+// Handle OPTIONS for CORS
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
 }

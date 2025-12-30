@@ -220,7 +220,7 @@ export function BugForm({
           .from('suite_members')
           .select(`
             user_id,
-            profiles!suite_members_user_id_fkey (
+            profiles (
               id,
               name,
               email
