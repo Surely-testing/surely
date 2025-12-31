@@ -1,26 +1,19 @@
 // ============================================
 // FILE: components/sprints/SprintsView.tsx
-// COMPLETE FIX - Delete dialog working with improved UX
+// Main component - orchestrates toolbar, content, and actions
+// FIXED: No duplicate toasts + proper status-based actions
 // ============================================
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { SprintBoard } from './SprintBoard';
-import { SprintTable } from './SprintTable';
+import { SprintsToolbar } from './views/SprintsToolbar';
+import { SprintsContent } from './views/SprintsContent';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Pagination } from '@/components/shared/Pagination';
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
 import SprintForm from './SprintForm';
-import { Plus, RefreshCw, Search, Filter, X, ChevronLeft, Grid, List } from 'lucide-react';
+import { Plus, RefreshCw, ChevronLeft } from 'lucide-react';
 import { useSuiteContext } from '@/providers/SuiteContextProvider';
 import { logger } from '@/lib/utils/logger';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/Select';
 import { toast } from 'sonner';
 import { deleteSprint } from '@/lib/actions/sprints';
 
@@ -32,28 +25,54 @@ interface SprintsViewProps {
 }
 
 type ViewMode = 'grid' | 'table';
+type SortField = 'name' | 'created_at' | 'end_date';
+type SortOrder = 'asc' | 'desc';
 
 export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = false }: SprintsViewProps) {
+  // Form state
   const [showForm, setShowForm] = useState(false);
   const [editingSprint, setEditingSprint] = useState<any | null>(null);
+  
+  // UI state
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'end_date'>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [selectedSprints, setSelectedSprints] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [loadingActions, setLoadingActions] = useState<string[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  
+  // Filter and sort state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  
+  // Selection and pagination state
+  const [selectedSprints, setSelectedSprints] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // Bulk actions state
+  const [loadingActions, setLoadingActions] = useState<string[]>([]);
+  
+  // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sprintToDelete, setSprintToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const context = useSuiteContext();
   const canAdmin = context?.canAdmin ?? true;
+
+  // Helper functions for status-based permissions
+  const canDeleteSprint = (sprint: any) => {
+    return sprint.status === 'planning' || sprint.status === 'on-hold';
+  };
+
+  const canArchiveSprint = (sprint: any) => {
+    return sprint.status === 'completed';
+  };
+
+  const canStartSprint = (sprint: any) => {
+    return sprint.status === 'planning';
+  };
 
   // Filter and sort sprints
   const filteredAndSortedSprints = useMemo(() => {
@@ -107,13 +126,21 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
     return filteredAndSortedSprints.slice(startIndex, endIndex);
   }, [filteredAndSortedSprints, currentPage, itemsPerPage]);
 
-  const handleSuccess = () => {
+  // Active filters count
+  const activeFiltersCount = (statusFilter !== 'all' ? 1 : 0);
+
+  // FIXED: Only ONE toast here, not in the hook
+  const handleSuccess = async () => {
     setShowForm(false);
     setEditingSprint(null);
-    toast.success(editingSprint ? 'Sprint updated successfully' : 'Sprint created successfully');
+    
+    // Refresh data first
     if (onRefresh) {
-      onRefresh();
+      await onRefresh();
     }
+    
+    // Then show ONE toast
+    toast.success(editingSprint ? 'Sprint updated successfully' : 'Sprint created successfully');
   };
 
   const handleCreateSprint = () => {
@@ -141,6 +168,118 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
     }
   };
 
+  const handleDeleteSprint = (sprintId: string) => {
+    logger.log('handleDeleteSprint called with ID:', sprintId);
+    
+    // Find the sprint
+    const sprint = sprints.find(s => s.id === sprintId);
+    
+    // Check if it can be deleted
+    if (!sprint || !canDeleteSprint(sprint)) {
+      toast.error(
+        `Cannot delete this sprint. Only 'planning' or 'on-hold' sprints can be deleted. This sprint is '${sprint?.status}'.`
+      );
+      return;
+    }
+    
+    setSprintToDelete(sprintId);
+    setDeleteDialogOpen(true);
+  };
+
+  // FIXED: Only ONE toast here
+  const confirmDelete = async () => {
+    if (!sprintToDelete) return;
+
+    logger.log('Confirming delete for sprint:', sprintToDelete);
+    setIsDeleting(true);
+
+    try {
+      const result = await deleteSprint(sprintToDelete);
+      logger.log('Result from deleteSprint:', result);
+      
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      
+      // Refresh first
+      if (onRefresh) {
+        logger.log('Calling onRefresh...');
+        await onRefresh();
+      }
+      
+      // Then show ONE toast
+      toast.success('Sprint deleted successfully');
+    } catch (error) {
+      logger.log('Delete error:', error);
+      toast.error('Failed to delete sprint');
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setSprintToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    logger.log('Cancel delete clicked');
+    setDeleteDialogOpen(false);
+    setSprintToDelete(null);
+  };
+
+  const handleArchiveSprint = async (sprintId: string) => {
+    const sprint = sprints.find(s => s.id === sprintId);
+    
+    if (!sprint || !canArchiveSprint(sprint)) {
+      toast.error(
+        `Cannot archive this sprint. Only 'completed' sprints can be archived. This sprint is '${sprint?.status}'.`
+      );
+      return;
+    }
+    
+    try {
+      // TODO: Implement actual archive API call
+      toast.success('Sprint archived');
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } catch (error) {
+      toast.error('Failed to archive sprint');
+    }
+  };
+
+  const handleDuplicateSprint = async (sprintId: string) => {
+    try {
+      // TODO: Implement actual duplicate API call
+      toast.success('Sprint duplicated');
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } catch (error) {
+      toast.error('Failed to duplicate sprint');
+    }
+  };
+
+  const handleStartSprint = async (sprintId: string) => {
+    const sprint = sprints.find(s => s.id === sprintId);
+    
+    if (!sprint || !canStartSprint(sprint)) {
+      toast.error(
+        `Cannot start this sprint. Only 'planning' sprints can be started. This sprint is '${sprint?.status}'.`
+      );
+      return;
+    }
+    
+    try {
+      // TODO: Implement actual start API call
+      toast.success('Sprint started');
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } catch (error) {
+      toast.error('Failed to start sprint');
+    }
+  };
+
   const handleBulkAction = async (
     actionId: string,
     selectedIds: string[],
@@ -150,6 +289,30 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
     setLoadingActions(prev => [...prev, actionId]);
 
     try {
+      // Get selected sprints
+      const selectedSprintObjs = sprints.filter(s => selectedIds.includes(s.id));
+
+      // Validate based on action
+      if (actionId === 'delete') {
+        const cannotDelete = selectedSprintObjs.filter(s => !canDeleteSprint(s));
+        if (cannotDelete.length > 0) {
+          toast.error(
+            `Cannot delete ${cannotDelete.length} sprint(s). Only 'planning' or 'on-hold' sprints can be deleted.`
+          );
+          return;
+        }
+      }
+
+      if (actionId === 'archive') {
+        const cannotArchive = selectedSprintObjs.filter(s => !canArchiveSprint(s));
+        if (cannotArchive.length > 0) {
+          toast.error(
+            `Cannot archive ${cannotArchive.length} sprint(s). Only 'completed' sprints can be archived.`
+          );
+          return;
+        }
+      }
+
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -187,86 +350,6 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
     }
   };
 
-  const handleDeleteSprint = (sprintId: string) => {
-    logger.log('handleDeleteSprint called with ID:', sprintId);
-    setSprintToDelete(sprintId);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!sprintToDelete) return;
-
-    logger.log('Confirming delete for sprint:', sprintToDelete);
-    setIsDeleting(true);
-
-    try {
-      const result = await deleteSprint(sprintToDelete);
-      logger.log('Result from deleteSprint:', result);
-      
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      
-      toast.success('Sprint deleted successfully');
-      
-      // Force refetch
-      if (onRefresh) {
-        logger.log('Calling onRefresh...');
-        await onRefresh();
-      }
-    } catch (error) {
-      logger.log('Delete error:', error);
-      toast.error('Failed to delete sprint');
-    } finally {
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
-      setSprintToDelete(null);
-    }
-  };
-
-  const cancelDelete = () => {
-    logger.log('Cancel delete clicked');
-    setDeleteDialogOpen(false);
-    setSprintToDelete(null);
-  };
-
-  const handleArchiveSprint = async (sprintId: string) => {
-    try {
-      // TODO: Implement actual archive API call
-      toast.success('Sprint archived');
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } catch (error) {
-      toast.error('Failed to archive sprint');
-    }
-  };
-
-  const handleDuplicateSprint = async (sprintId: string) => {
-    try {
-      // TODO: Implement actual duplicate API call
-      toast.success('Sprint duplicated');
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } catch (error) {
-      toast.error('Failed to duplicate sprint');
-    }
-  };
-
-  const handleStartSprint = async (sprintId: string) => {
-    try {
-      // TODO: Implement actual start API call
-      toast.success('Sprint started');
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } catch (error) {
-      toast.error('Failed to start sprint');
-    }
-  };
-
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
@@ -275,18 +358,15 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
     setCurrentPage(1);
   };
 
-  const hasActiveFilters = searchTerm || statusFilter !== 'all' || sortBy !== 'created_at' || sortOrder !== 'desc';
-  const activeFiltersCount = (statusFilter !== 'all' ? 1 : 0);
-
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    setSelectedSprints([]); // Clear selection when changing pages
+    setSelectedSprints([]);
   };
 
   const handleItemsPerPageChange = (items: number) => {
     setItemsPerPage(items);
-    setCurrentPage(1); // Reset to first page
-    setSelectedSprints([]); // Clear selection
+    setCurrentPage(1);
+    setSelectedSprints([]);
   };
 
   const handleToggleDrawer = () => {
@@ -299,6 +379,11 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
     } else {
       setSelectedSprints(filteredAndSortedSprints.map(s => s.id));
     }
+  };
+
+  const handleSortChange = (field: SortField, order: SortOrder) => {
+    setSortBy(field);
+    setSortOrder(order);
   };
 
   // If showing form, render it instead of the main view
@@ -320,7 +405,6 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   if (isLoading) {
     return (
       <div className="space-y-6 pb-24">
-        {/* Header Skeleton */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -334,7 +418,6 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
           </div>
         </div>
 
-        {/* Content Card Skeleton */}
         <div className="rounded-lg overflow-hidden border border-border">
           <div className="px-3 py-2 border-b border-border">
             <div className="flex items-center justify-between gap-4">
@@ -360,21 +443,17 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   if (sprints.length === 0) {
     return (
       <div className="space-y-6 pb-24">
-        {/* Header - Keep this visible */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
                 Sprints
               </h1>
-              <span className="text-sm text-muted-foreground">
-                (0)
-              </span>
+              <span className="text-sm text-muted-foreground">(0)</span>
             </div>
           </div>
         </div>
 
-        {/* Empty State Component */}
         <EmptyState
           icon={Plus}
           iconSize={64}
@@ -442,7 +521,11 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
                     className="inline-flex items-center justify-center p-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 flex-shrink-0"
                     aria-label="Toggle menu"
                   >
-                    <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isDrawerOpen ? 'rotate-180' : 'rotate-0'}`} />
+                    <ChevronLeft 
+                      className={`h-5 w-5 transition-transform duration-300 ${
+                        isDrawerOpen ? 'rotate-180' : 'rotate-0'
+                      }`} 
+                    />
                   </button>
                 )}
 
@@ -460,332 +543,56 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
         </div>
 
         {/* Main Content Card */}
-        <div>
-          {/* Unified Controls Bar */}
-          <div className="bg-card border-b border-border">
-            <div className="px-3 py-2">
-              <div className="flex flex-col gap-3 lg:gap-0">
-                {/* Mobile Layout (< lg screens) */}
-                <div className="lg:hidden space-y-3">
-                  {/* Row 1: Search (Full Width) */}
-                  <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Search sprints..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      disabled={isLoading}
-                      className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-                    />
-                  </div>
+        <div className="rounded-lg overflow-hidden">
+          {/* Toolbar */}
+          <SprintsToolbar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            showFilters={showFilters}
+            onToggleFilters={() => setShowFilters(!showFilters)}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            activeFiltersCount={activeFiltersCount}
+            onClearFilters={clearFilters}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortChange={handleSortChange}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            selectAllChecked={
+              selectedSprints.length === filteredAndSortedSprints.length && 
+              filteredAndSortedSprints.length > 0
+            }
+            onSelectAllChange={handleSelectAll}
+            isLoading={isLoading}
+            totalCount={sprints.length}
+            filteredCount={filteredAndSortedSprints.length}
+            selectedCount={selectedSprints.length}
+          />
 
-                  {/* Row 2: Filter & Sort */}
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {/* Filter Button */}
-                    <button
-                      onClick={() => setShowFilters(!showFilters)}
-                      disabled={isLoading}
-                      className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
-                    >
-                      <Filter className="w-4 h-4" />
-                      <span>Filter</span>
-                      {activeFiltersCount > 0 && (
-                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                          {activeFiltersCount}
-                        </span>
-                      )}
-                    </button>
-
-                    {/* Sort Dropdown */}
-                    <Select
-                      value={`${sortBy}-${sortOrder}`}
-                      onValueChange={(value) => {
-                        const [field, order] = value.split('-');
-                        setSortBy(field as 'name' | 'created_at' | 'end_date');
-                        setSortOrder(order as 'asc' | 'desc');
-                      }}
-                      disabled={isLoading}
-                    >
-                      <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
-                        <SelectValue placeholder="Sort by..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="created_at-desc">Newest First</SelectItem>
-                        <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                        <SelectItem value="end_date-desc">End Date (Latest)</SelectItem>
-                        <SelectItem value="end_date-asc">End Date (Earliest)</SelectItem>
-                        <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-                        <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Row 3: Select All (Left) | View Toggle (Right) */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedSprints.length === filteredAndSortedSprints.length && filteredAndSortedSprints.length > 0}
-                        onChange={handleSelectAll}
-                        disabled={isLoading}
-                        className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                      />
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Select All
-                      </span>
-                    </div>
-
-                    {/* View Toggle */}
-                    <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                      <button
-                        onClick={() => setViewMode('grid')}
-                        disabled={isLoading}
-                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                          }`}
-                        title="Grid View"
-                      >
-                        <Grid className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setViewMode('table')}
-                        disabled={isLoading}
-                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                          }`}
-                        title="Table View"
-                      >
-                        <List className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Desktop Layout (lg+ screens) */}
-                <div className="hidden lg:flex lg:flex-col lg:gap-0">
-                  <div className="flex items-center justify-between gap-4">
-                    {/* Left Side: Select All */}
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedSprints.length === filteredAndSortedSprints.length && filteredAndSortedSprints.length > 0}
-                        onChange={handleSelectAll}
-                        disabled={isLoading}
-                        className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                      />
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Select All
-                      </span>
-                    </div>
-
-                    {/* Right Side: Search, Filter, Sort, View Toggle */}
-                    <div className="flex items-center gap-3 flex-1 justify-end">
-                      {/* Search */}
-                      <div className="relative flex-1 max-w-xs">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                        <input
-                          type="text"
-                          placeholder="Search sprints..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          disabled={isLoading}
-                          className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-                        />
-                      </div>
-
-                      {/* Filter Button */}
-                      <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        disabled={isLoading}
-                        className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
-                      >
-                        <Filter className="w-4 h-4" />
-                        Filter
-                        {activeFiltersCount > 0 && (
-                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                            {activeFiltersCount}
-                          </span>
-                        )}
-                      </button>
-
-                      {/* Sort Dropdown */}
-                      <Select
-                        value={`${sortBy}-${sortOrder}`}
-                        onValueChange={(value) => {
-                          const [field, order] = value.split('-');
-                          setSortBy(field as 'name' | 'created_at' | 'end_date');
-                          setSortOrder(order as 'asc' | 'desc');
-                        }}
-                        disabled={isLoading}
-                      >
-                        <SelectTrigger className="w-[200px]">
-                          <SelectValue placeholder="Sort by..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="created_at-desc">Newest First</SelectItem>
-                          <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                          <SelectItem value="end_date-desc">End Date (Latest)</SelectItem>
-                          <SelectItem value="end_date-asc">End Date (Earliest)</SelectItem>
-                          <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-                          <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      {/* View Toggle */}
-                      <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                        <button
-                          onClick={() => setViewMode('grid')}
-                          disabled={isLoading}
-                          className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                            }`}
-                          title="Grid View"
-                        >
-                          <Grid className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setViewMode('table')}
-                          disabled={isLoading}
-                          className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                            }`}
-                          title="Table View"
-                        >
-                          <List className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filters Panel */}
-              {showFilters && (
-                <div className="mt-4 pt-4 border-t border-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-foreground">Filters</h3>
-                    {activeFiltersCount > 0 && (
-                      <button
-                        onClick={clearFilters}
-                        className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
-                      >
-                        Clear All
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Status Filter */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                        Status
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {(['planning', 'active', 'on-hold', 'completed', 'archived'] as const).map(status => (
-                          <button
-                            key={status}
-                            onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
-                            className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${statusFilter === status
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-foreground border-border hover:border-primary'
-                              }`}
-                          >
-                            {status}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div className="pt-6">
-            {/* Stats Bar */}
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {filteredAndSortedSprints.length} of {sprints.length} sprints
-                {selectedSprints.length > 0 && ` • ${selectedSprints.length} selected`}
-              </p>
-            </div>
-
-            {/* No Results */}
-            {filteredAndSortedSprints.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                <Filter className="h-12 w-12 text-muted-foreground mb-3" />
-                <h3 className="text-lg font-medium text-foreground mb-1">
-                  No sprints found
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Try adjusting your filters or search query
-                </p>
-                <button
-                  onClick={clearFilters}
-                  className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            ) : viewMode === 'grid' ? (
-              <>
-                <SprintBoard
-                  sprints={paginatedSprints}
-                  suiteId={suiteId}
-                  selectedSprints={selectedSprints}
-                  onSelectionChange={setSelectedSprints}
-                  onEdit={handleEditSprint}
-                  onDelete={handleDeleteSprint}
-                />
-
-                {filteredAndSortedSprints.length > itemsPerPage && (
-                  <div className="mt-6">
-                    <Pagination
-                      currentPage={currentPage}
-                      totalItems={filteredAndSortedSprints.length}
-                      itemsPerPage={itemsPerPage}
-                      onPageChange={handlePageChange}
-                      onItemsPerPageChange={handleItemsPerPageChange}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <SprintTable
-                  sprints={paginatedSprints}
-                  suiteId={suiteId}
-                  selectedSprints={selectedSprints}
-                  onSelectionChange={setSelectedSprints}
-                  onEdit={handleEditSprint}
-                  onDelete={handleDeleteSprint}
-                  onArchive={handleArchiveSprint}
-                  onDuplicate={handleDuplicateSprint}
-                  onStart={handleStartSprint}
-                />
-
-                {filteredAndSortedSprints.length > itemsPerPage && (
-                  <div className="mt-6">
-                    <Pagination
-                      currentPage={currentPage}
-                      totalItems={filteredAndSortedSprints.length}
-                      itemsPerPage={itemsPerPage}
-                      onPageChange={handlePageChange}
-                      onItemsPerPageChange={handleItemsPerPageChange}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          {/* Content */}
+          <SprintsContent
+            viewMode={viewMode}
+            sprints={paginatedSprints}
+            suiteId={suiteId}
+            selectedSprints={selectedSprints}
+            onSelectionChange={setSelectedSprints}
+            onEdit={handleEditSprint}
+            onDelete={handleDeleteSprint}
+            onArchive={handleArchiveSprint}
+            onDuplicate={handleDuplicateSprint}
+            onStart={handleStartSprint}
+            currentPage={currentPage}
+            totalItems={filteredAndSortedSprints.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+            onItemsPerPageChange={handleItemsPerPageChange}
+            onClearFilters={clearFilters}
+            isLoading={isLoading}
+          />
         </div>
 
+        {/* Bulk Actions Bar */}
         <BulkActionsBar
           selectedItems={selectedSprints}
           onClearSelection={() => setSelectedSprints([])}

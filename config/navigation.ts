@@ -63,7 +63,7 @@ export const suiteNavigation: NavSection[] = [
     title: 'Suite',
     items: [
       {
-        title: 'Overview',
+        title: 'Dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
       },

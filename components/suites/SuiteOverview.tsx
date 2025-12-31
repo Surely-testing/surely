@@ -1,11 +1,6 @@
-// ============================================
-// FILE: components/suites/SuiteOverview.tsx
-// Updated with theme system - NO hardcoded colors
-// ============================================
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useTestCaseStats } from '@/lib/hooks/useTestCases';
 import { useBugStats } from '@/lib/hooks/useBugs';
 import { useSprints } from '@/lib/hooks/useSprints';
@@ -14,6 +9,9 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { logger } from '@/lib/utils/logger';
+import { HistoricalTrends } from '../stats/HistoricalTrends';
+import { PerformanceBenchmark } from '../stats/PerformanceBenchmark';
+import { TestRunAnalysis } from '../stats/TestAnalysis';
 import {
     LayoutDashboard,
     FileCheck,
@@ -46,7 +44,8 @@ import {
     SlidersHorizontal,
     Search,
     Download,
-    ArrowUpRight
+    ArrowUpRight,
+    ChevronDown
 } from 'lucide-react';
 
 // Import metric components
@@ -70,9 +69,6 @@ type TabType = 'overview' | 'test-cases' | 'bugs' | 'sprints' | 'documents' | 'r
 export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOverviewProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [showFilters, setShowFilters] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [dateRange, setDateRange] = useState('7d');
 
     const { data: testCaseStats, isLoading: loadingTestCases, refetch: refetchTestCases } = useTestCaseStats(suiteId);
     const { data: bugStats, isLoading: loadingBugs, refetch: refetchBugs } = useBugStats(suiteId);
@@ -102,19 +98,6 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
         }
     };
 
-    // Add right after the hook declarations
-    // logger.log('🔍 Debug Info:', {
-    //     suiteId,
-    //     testCaseStats,
-    //     bugStats,
-    //     sprints,
-    //     loadingTestCases,
-    //     loadingBugs,
-    //     loadingSprints,
-    //     hasData,
-    //     isConnected
-    // });
-
     const calculateTrend = (current: number, previous: number) => {
         if (previous === 0) return { value: 0, isPositive: true };
         const change = ((current - previous) / previous) * 100;
@@ -123,11 +106,7 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
 
     const testCaseTrend = calculateTrend(testCaseStats?.total || 0, 85);
     const bugTrend = calculateTrend(bugStats?.by_status.open || 0, 12);
-    const resolutionTrend = calculateTrend(Math.round(bugStats?.resolution_rate || 0), 68);
-    const coverageTrend = calculateTrend(
-        testCaseStats?.total ? Math.round(((testCaseStats?.by_status.active || 0) / testCaseStats.total) * 100) : 0,
-        72
-    );
+    const passRateTrend = calculateTrend(Math.round(testCaseStats?.pass_rate || 0), 87);
 
     const activeSprints = sprints?.filter(s => s.status === 'active') || [];
     const totalTests = testCaseStats?.total || 0;
@@ -176,386 +155,572 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
         );
     }
 
+    const passedTests = Math.round((passRate / 100) * totalTests);
+    const failedTests = Math.round(((100 - passRate) / 100) * totalTests * 0.6);
+    const blockedTests = Math.round(((100 - passRate) / 100) * totalTests * 0.3);
+    const pendingTests = totalTests - passedTests - failedTests - blockedTests;
+
     return (
-        <div className="space-y-4 md:space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="min-w-0">
-                    <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
-                        {suiteName} Dashboard
-                    </h1>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mt-2">
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                            Comprehensive QA metrics and insights
-                        </p>
-                        <div className="flex items-center gap-1.5">
-                            <Circle className={`w-2 h-2 ${isConnected ? 'fill-success text-success' : 'fill-error text-error'}`} />
-                            <span className="text-xs text-muted-foreground">
-                                {isConnected ? 'Connected' : 'Connecting...'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-4 md:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border transition-all ${showFilters
-                            ? 'bg-primary/10 border-primary text-primary'
-                            : 'bg-card border-border text-foreground hover:bg-muted'
-                            }`}
-                    >
-                        <SlidersHorizontal className="w-4 h-4" />
-                        <span className="hidden sm:inline">Filters</span>
-                    </button>
-                    <button
-                        onClick={handleRefresh}
-                        disabled={isRefreshing}
-                        className="flex items-center gap-2 px-4 md:px-4 py-2 text-xs sm:text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-all"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        <span className="hidden sm:inline">Refresh</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Filters Panel */}
-            {showFilters && (
-                <Card className="p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-muted-foreground mb-2">
-                                Search
-                            </label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search..."
-                                    className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
-                                />
+        <div className="min-h-screen bg-gradient-to-br from-muted/30 to-muted/10">
+            {/* Header - Mobile First */}
+            <header className="bg-card/95 border-b border-border sticky top-0 z-10 backdrop-blur-sm">
+                <div className="px-4 sm:px-6 py-3 sm:py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                            <h1 className="text-xl sm:text-2xl font-semibold text-foreground truncate">
+                                {suiteName} Dashboard
+                            </h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-muted-foreground">
+                                    Sprint 2025-Q4
+                                </p>
+                                <span className="text-xs text-muted-foreground">•</span>
+                                <div className="flex items-center gap-1">
+                                    <Circle className={`w-1.5 h-1.5 ${isConnected ? 'fill-success text-success' : 'fill-error text-error'}`} />
+                                    <span className="text-xs text-muted-foreground">
+                                        {isConnected ? 'Live' : 'Connecting...'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-xs font-medium text-muted-foreground mb-2">
-                                Date Range
-                            </label>
-                            <select
-                                value={dateRange}
-                                onChange={(e) => setDateRange(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
-                            >
-                                <option value="7d">Last 7 days</option>
-                                <option value="30d">Last 30 days</option>
-                                <option value="90d">Last 90 days</option>
-                                <option value="all">All time</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-muted-foreground mb-2">
-                                Status
-                            </label>
-                            <select className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <option value="all">All Status</option>
-                                <option value="active">Active</option>
-                                <option value="archived">Archived</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-muted-foreground mb-2">
-                                Priority
-                            </label>
-                            <select className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <option value="all">All Priorities</option>
-                                <option value="critical">Critical</option>
-                                <option value="high">High</option>
-                                <option value="medium">Medium</option>
-                                <option value="low">Low</option>
-                            </select>
-                        </div>
-                    </div>
-                </Card>
-            )}
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {/* Total Test Cases */}
-                <Card className="p-4 border-b-2 border-b-primary">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
-                            <FileCheck className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <span className={`flex items-center gap-1 text-xs font-medium ${testCaseTrend.isPositive ? 'text-success' : 'text-error'}`}>
-                            {testCaseTrend.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            {testCaseTrend.value}%
-                        </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">Total Tests</p>
-                    <p className="text-2xl font-bold text-foreground">{totalTests}</p>
-                </Card>
+                        <div className="flex items-center gap-2">
+                            {/* View Selector Dropdown */}
+                            <div className="relative flex-1 sm:flex-initial">
+                                <select
+                                    value={activeTab}
+                                    onChange={(e) => setActiveTab(e.target.value as TabType)}
+                                    className="w-full sm:w-auto appearance-none pl-3 pr-10 py-2 text-xs sm:text-sm font-medium border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                                    {tabs.map((tab) => (
+                                        <option key={tab.id} value={tab.id}>
+                                            {tab.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                            </div>
 
-                {/* Open Bugs */}
-                <Card className="p-4 border-b-2 border-b-error">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
-                            <Bug className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <span className={`flex items-center gap-1 text-xs font-medium ${bugTrend.isPositive ? 'text-error' : 'text-success'}`}>
-                            {bugTrend.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            {bugTrend.value}%
-                        </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">Open Bugs</p>
-                    <p className="text-2xl font-bold text-foreground">{openBugs}</p>
-                </Card>
-
-                {/* Pass Rate */}
-                <Card className="p-4 border-b-2 border-b-success">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
-                            <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <span className={`flex items-center gap-1 text-xs font-medium ${coverageTrend.isPositive ? 'text-success' : 'text-error'}`}>
-                            {coverageTrend.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            {coverageTrend.value}%
-                        </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">Execution Rate</p>
-                    <p className="text-2xl font-bold text-foreground">{executionRate}%</p>
-                </Card>
-
-                {/* Active Tests */}
-                <Card className="p-4 border-b-2 border-b-accent">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
-                            <PlayCircle className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <span className="text-xs font-medium text-muted-foreground">
-                            {activeTests}/{totalTests}
-                        </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">Active Tests</p>
-                    <p className="text-2xl font-bold text-foreground">{activeTests}</p>
-                </Card>
-
-                {/* Sprints */}
-                <Card className="p-4 border-b-2 border-b-warning">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
-                            <Rocket className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <Badge variant="success" size="sm">{activeSprints.length}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">Sprints</p>
-                    <p className="text-2xl font-bold text-foreground">{sprints?.length || 0}</p>
-                </Card>
-
-                {/* Resolution Rate */}
-                <Card className="p-4 border-b-2 border-b-info">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
-                            <Target className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <span className={`flex items-center gap-1 text-xs font-medium ${resolutionTrend.isPositive ? 'text-success' : 'text-error'}`}>
-                            {resolutionTrend.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            {resolutionTrend.value}%
-                        </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">Resolution</p>
-                    <p className="text-2xl font-bold text-foreground">{resolutionRate}%</p>
-                </Card>
-            </div>
-
-            {/* Navigation Tabs */}
-            <div className="border-b border-border">
-                <nav className="flex gap-6 overflow-x-auto">
-                    {tabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        return (
                             <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as TabType)}
-                                className={`flex items-center gap-2 px-1 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                                    }`}
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                className="p-2 sm:px-4 sm:py-2 text-foreground bg-card border border-border rounded-lg hover:bg-muted disabled:opacity-50 transition-all"
+                                title="Refresh"
                             >
-                                <Icon className="w-4 h-4" />
-                                {tab.label}
+                                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                             </button>
-                        );
-                    })}
-                </nav>
-            </div>
 
-            {/* Tab Content */}
-            {activeTab === 'overview' ? (
-                <div className="space-y-6">
-                    {/* Test Cases & Bugs Breakdown */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Test Cases Breakdown */}
-                        <Card className="p-6">
-                            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                                <FileCheck className="w-5 h-5" />
-                                Test Cases by Status
-                            </h2>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between p-4 bg-primary/10 rounded-xl border border-primary/20">
-                                    <div className="flex items-center gap-3">
-                                        <PlayCircle className="w-5 h-5 text-primary" />
-                                        <span className="text-sm font-medium text-foreground">Active</span>
-                                    </div>
-                                    <span className="text-sm font-semibold text-foreground">{activeTests}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border">
-                                    <div className="flex items-center gap-3">
-                                        <PauseCircle className="w-5 h-5 text-muted-foreground" />
-                                        <span className="text-sm font-medium text-foreground">Archived</span>
-                                    </div>
-                                    <span className="text-sm font-semibold text-foreground">{archivedTests}</span>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 pt-6 border-t border-border">
-                                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">By Priority</h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="flex items-center justify-between p-3 bg-error/10 rounded-lg border border-error/20">
-                                        <span className="text-xs font-medium text-foreground">Critical</span>
-                                        <span className="text-sm font-semibold text-error">{testCaseStats?.by_priority.critical || 0}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-warning/10 rounded-lg border border-warning/20">
-                                        <span className="text-xs font-medium text-foreground">High</span>
-                                        <span className="text-sm font-semibold text-warning">{testCaseStats?.by_priority.high || 0}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-info/10 rounded-lg border border-info/20">
-                                        <span className="text-xs font-medium text-foreground">Medium</span>
-                                        <span className="text-sm font-semibold text-info">{testCaseStats?.by_priority.medium || 0}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-success/10 rounded-lg border border-success/20">
-                                        <span className="text-xs font-medium text-foreground">Low</span>
-                                        <span className="text-sm font-semibold text-success">{testCaseStats?.by_priority.low || 0}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
-
-                        {/* Bugs Overview */}
-                        <Card className="p-6">
-                            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                                <Bug className="w-5 h-5" />
-                                Bugs Overview
-                            </h2>
-
-                            <div className="space-y-3 mb-6">
-                                <div className="flex items-center justify-between p-4 bg-error/10 rounded-xl border border-error/20">
-                                    <div className="flex items-center gap-3">
-                                        <AlertTriangle className="w-5 h-5 text-error" />
-                                        <span className="text-sm font-medium text-foreground">Open</span>
-                                    </div>
-                                    <span className="text-sm font-semibold text-foreground">{openBugs}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-4 bg-info/10 rounded-xl border border-info/20">
-                                    <div className="flex items-center gap-3">
-                                        <PlayCircle className="w-5 h-5 text-info" />
-                                        <span className="text-sm font-medium text-foreground">In Progress</span>
-                                    </div>
-                                    <span className="text-sm font-semibold text-foreground">{inProgressBugs}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-4 bg-success/10 rounded-xl border border-success/20">
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle2 className="w-5 h-5 text-success" />
-                                        <span className="text-sm font-medium text-foreground">Resolved</span>
-                                    </div>
-                                    <span className="text-sm font-semibold text-foreground">{resolvedBugs}</span>
-                                </div>
-                            </div>
-
-                            <div className="pt-6 border-t border-border">
-                                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">By Severity</h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="flex items-center justify-between p-3 bg-error/10 rounded-lg border border-error/20">
-                                        <span className="text-xs font-medium text-foreground">Critical</span>
-                                        <span className="text-sm font-semibold text-error">{criticalBugs}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-warning/10 rounded-lg border border-warning/20">
-                                        <span className="text-xs font-medium text-foreground">High</span>
-                                        <span className="text-sm font-semibold text-warning">{highBugs}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-info/10 rounded-lg border border-info/20">
-                                        <span className="text-xs font-medium text-foreground">Medium</span>
-                                        <span className="text-sm font-semibold text-info">{mediumBugs}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-success/10 rounded-lg border border-success/20">
-                                        <span className="text-xs font-medium text-foreground">Low</span>
-                                        <span className="text-sm font-semibold text-success">{lowBugs}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
+                            <button className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-background btn-primary rounded-lg hover:bg-primary/90 transition-colors">
+                                <Download className="w-4 h-4" />
+                                Export
+                            </button>
+                        </div>
                     </div>
+                </div>
+            </header>
 
-                    {/* Recent Activity */}
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                                <Activity className="w-5 h-5" />
-                                Recent Activity
-                            </h2>
+            <main className="px-4 sm:px-6 py-4 sm:py-6 lg:py-8 mx-auto">
+                {activeTab === 'overview' ? (
+                    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+                        {/* Hero Metrics - Mobile First */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                            {/* Primary Metric: Pass Rate */}
+                            <Card className="sm:col-span-2 bg-gradient-to-br from-success/90 to-success rounded-xl sm:rounded-2xl p-6 sm:p-8 text-white shadow-lg border-0">
+                                <div className="flex items-start justify-between mb-4 sm:mb-6">
+                                    <div>
+                                        <p className="text-success-foreground/80 text-xs sm:text-sm font-medium mb-2">Overall Pass Rate</p>
+                                        <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-2">{passRate.toFixed(1)}%</h2>
+                                        <div className="flex items-center gap-2 text-success-foreground/80">
+                                            {passRateTrend.isPositive ? (
+                                                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                                            ) : (
+                                                <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5" />
+                                            )}
+                                            <span className="text-xs sm:text-sm font-medium">
+                                                {passRateTrend.isPositive ? '+' : '-'}{passRateTrend.value}% from last sprint
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                                        <CheckCircle2 className="w-6 h-6 sm:w-8 sm:h-8" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-white/20">
+                                    <div>
+                                        <p className="text-success-foreground/80 text-xs mb-1">Passed</p>
+                                        <p className="text-xl sm:text-2xl font-semibold">{passedTests}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-success-foreground/80 text-xs mb-1">Failed</p>
+                                        <p className="text-xl sm:text-2xl font-semibold">{failedTests}</p>
+                                    </div>
+                                </div>
+                            </Card>
+
+                            {/* Active Bugs */}
+                            <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <div className="flex items-start justify-between mb-3 sm:mb-4">
+                                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-error/10 rounded-xl flex items-center justify-center">
+                                        <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-error" />
+                                    </div>
+                                </div>
+                                <h3 className="text-3xl sm:text-4xl font-bold text-foreground mb-1">{openBugs}</h3>
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Active Bugs</p>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="success" size="sm" className="text-xs">
+                                        -{resolvedBugs} resolved
+                                    </Badge>
+                                </div>
+                            </Card>
+
+                            {/* Test Coverage */}
+                            <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <div className="flex items-start justify-between mb-3 sm:mb-4">
+                                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent/10 rounded-xl flex items-center justify-center">
+                                        <Target className="w-5 h-5 sm:w-6 sm:h-6 text-accent" />
+                                    </div>
+                                </div>
+                                <h3 className="text-3xl sm:text-4xl font-bold text-foreground mb-1">{executionRate}%</h3>
+                                <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Test Coverage</p>
+                                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                    <div
+                                        className="bg-accent h-2 rounded-full transition-all duration-600"
+                                        style={{ width: `${executionRate}%` }}
+                                    />
+                                </div>
+                            </Card>
                         </div>
 
-                        {activities && activities.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {activities.slice(0, 9).map((activity) => (
-                                    <div key={activity.id} className="flex items-start gap-3 p-4 border border-border rounded-xl hover:bg-muted/50 transition-colors">
-                                        <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center shrink-0 text-muted-foreground">
-                                            {getIcon(activity.type)}
+                        {/* Secondary Metrics - Compact Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+                            <Card className="rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 bg-primary rounded-full" />
+                                    <p className="text-xs text-muted-foreground font-medium">Total Tests</p>
+                                </div>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">{totalTests}</p>
+                            </Card>
+
+                            <Card className="rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 bg-info rounded-full" />
+                                    <p className="text-xs text-muted-foreground font-medium">MTTR</p>
+                                </div>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">-</p>
+                            </Card>
+
+                            <Card className="rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 bg-warning rounded-full" />
+                                    <p className="text-xs text-muted-foreground font-medium">Defect Density</p>
+                                </div>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">-</p>
+                            </Card>
+
+                            <Card className="rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 bg-error rounded-full" />
+                                    <p className="text-xs text-muted-foreground font-medium">Escape Rate</p>
+                                </div>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">-</p>
+                            </Card>
+
+                            <Card className="rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 bg-accent rounded-full" />
+                                    <p className="text-xs text-muted-foreground font-medium">Flakiness</p>
+                                </div>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">-</p>
+                            </Card>
+
+                            <Card className="rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 bg-success rounded-full" />
+                                    <p className="text-xs text-muted-foreground font-medium">Tests/Hour</p>
+                                </div>
+                                <p className="text-xl sm:text-2xl font-bold text-foreground">-</p>
+                            </Card>
+                        </div>
+
+                        {/* Main Content Grid */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                            {/* Test Execution Status */}
+                            <Card className="lg:col-span-2 rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <h3 className="text-base sm:text-lg font-semibold text-foreground mb-4 sm:mb-6">Test Execution Status</h3>
+                                <div className="space-y-3 sm:space-y-4">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Passed</span>
+                                            <span className="text-xs sm:text-sm font-semibold text-foreground">{passedTests} ({passRate.toFixed(1)}%)</span>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <p className="text-sm font-medium text-foreground truncate">{activity.user.name}</p>
-                                                <Badge
-                                                    variant={activity.action === 'created' ? 'success' : activity.action === 'deleted' ? 'danger' : 'default'}
-                                                    size="sm"
+                                        <div className="w-full bg-muted rounded-full h-2.5 sm:h-3 overflow-hidden">
+                                            <div
+                                                className="bg-gradient-to-r from-success to-success/80 h-full rounded-full transition-all duration-600"
+                                                style={{ width: `${passRate}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Failed</span>
+                                            <span className="text-xs sm:text-sm font-semibold text-foreground">{failedTests} ({((failedTests / totalTests) * 100).toFixed(1)}%)</span>
+                                        </div>
+                                        <div className="w-full bg-muted rounded-full h-2.5 sm:h-3 overflow-hidden">
+                                            <div
+                                                className="bg-gradient-to-r from-error to-error/80 h-full rounded-full transition-all duration-600"
+                                                style={{ width: `${(failedTests / totalTests) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Blocked</span>
+                                            <span className="text-xs sm:text-sm font-semibold text-foreground">{blockedTests} ({((blockedTests / totalTests) * 100).toFixed(1)}%)</span>
+                                        </div>
+                                        <div className="w-full bg-muted rounded-full h-2.5 sm:h-3 overflow-hidden">
+                                            <div
+                                                className="bg-gradient-to-r from-warning to-warning/80 h-full rounded-full transition-all duration-600"
+                                                style={{ width: `${(blockedTests / totalTests) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Pending</span>
+                                            <span className="text-xs sm:text-sm font-semibold text-foreground">{pendingTests} ({((pendingTests / totalTests) * 100).toFixed(1)}%)</span>
+                                        </div>
+                                        <div className="w-full bg-muted rounded-full h-2.5 sm:h-3 overflow-hidden">
+                                            <div
+                                                className="bg-gradient-to-r from-muted-foreground/50 to-muted-foreground/30 h-full rounded-full transition-all duration-600"
+                                                style={{ width: `${(pendingTests / totalTests) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+
+                            {/* Test Automation */}
+                            <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <h3 className="text-base sm:text-lg font-semibold text-foreground mb-4 sm:mb-6">Test Automation</h3>
+                                <div className="flex items-center justify-center py-4">
+                                    <div className="relative">
+                                        <svg className="w-32 h-32 sm:w-40 sm:h-40 transform -rotate-90">
+                                            <circle cx="80" cy="80" r="60" stroke="hsl(var(--muted))" strokeWidth="12" fill="none" />
+                                            <circle
+                                                cx="80"
+                                                cy="80"
+                                                r="60"
+                                                stroke="hsl(var(--primary))"
+                                                strokeWidth="12"
+                                                fill="none"
+                                                strokeDasharray="377"
+                                                strokeDashoffset="56"
+                                                strokeLinecap="round"
+                                                className="transition-all duration-600"
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center flex-col">
+                                            <span className="text-3xl sm:text-4xl font-bold text-foreground">-</span>
+                                            <span className="text-xs sm:text-sm text-muted-foreground">Automated</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-4 sm:mt-6 space-y-2">
+                                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                                        <span className="text-muted-foreground">Automated</span>
+                                        <span className="font-semibold text-foreground">-</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                                        <span className="text-muted-foreground">Manual</span>
+                                        <span className="font-semibold text-foreground">-</span>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Bug Priority & Test Types */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                            {/* Bug Priority Distribution */}
+                            <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <h3 className="text-base sm:text-lg font-semibold text-foreground mb-4 sm:mb-6">Bug Priority Distribution</h3>
+                                <div className="space-y-3 sm:space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-20 sm:w-24 text-xs sm:text-sm font-medium text-foreground">Critical</div>
+                                        <div className="flex-1">
+                                            <div className="w-full bg-muted rounded-full h-7 sm:h-8 overflow-hidden">
+                                                <div
+                                                    className="bg-gradient-to-r from-error to-error/80 h-full rounded-full flex items-center justify-end pr-2 sm:pr-3 transition-all duration-600"
+                                                    style={{ width: totalBugs ? `${(criticalBugs / totalBugs) * 100}%` : '0%' }}
                                                 >
-                                                    {activity.action}
-                                                </Badge>
-                                            </div>
-                                            <p className="text-xs text-muted-foreground truncate mb-1">{activity.title}</p>
-                                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                <Clock className="w-3 h-3" />
-                                                {new Date(activity.created_at).toLocaleTimeString()}
+                                                    <span className="text-xs font-semibold text-white">{criticalBugs}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12">
-                                <div className="w-16 h-16 bg-muted rounded-xl flex items-center justify-center mx-auto mb-4">
-                                    <Activity className="w-8 h-8 text-muted-foreground" />
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-20 sm:w-24 text-xs sm:text-sm font-medium text-foreground">High</div>
+                                        <div className="flex-1">
+                                            <div className="w-full bg-muted rounded-full h-7 sm:h-8 overflow-hidden">
+                                                <div
+                                                    className="bg-gradient-to-r from-warning to-warning/80 h-full rounded-full flex items-center justify-end pr-2 sm:pr-3 transition-all duration-600"
+                                                    style={{ width: totalBugs ? `${(highBugs / totalBugs) * 100}%` : '0%' }}
+                                                >
+                                                    <span className="text-xs font-semibold text-white">{highBugs}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-20 sm:w-24 text-xs sm:text-sm font-medium text-foreground">Medium</div>
+                                        <div className="flex-1">
+                                            <div className="w-full bg-muted rounded-full h-7 sm:h-8 overflow-hidden">
+                                                <div
+                                                    className="bg-gradient-to-r from-info to-info/80 h-full rounded-full flex items-center justify-end pr-2 sm:pr-3 transition-all duration-600"
+                                                    style={{ width: totalBugs ? `${(mediumBugs / totalBugs) * 100}%` : '0%' }}
+                                                >
+                                                    <span className="text-xs font-semibold text-white">{mediumBugs}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-20 sm:w-24 text-xs sm:text-sm font-medium text-foreground">Low</div>
+                                        <div className="flex-1">
+                                            <div className="w-full bg-muted rounded-full h-7 sm:h-8 overflow-hidden">
+                                                <div
+                                                    className="bg-gradient-to-r from-success to-success/80 h-full rounded-full flex items-center justify-end pr-2 sm:pr-3 transition-all duration-600"
+                                                    style={{ width: totalBugs ? `${(lowBugs / totalBugs) * 100}%` : '0%' }}
+                                                >
+                                                    <span className="text-xs font-semibold text-white">{lowBugs}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p className="text-sm text-muted-foreground">No recent activity</p>
+                            </Card>
+
+                            {/* Test Types */}
+                            <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <h3 className="text-base sm:text-lg font-semibold text-foreground mb-4 sm:mb-6">Test Types Breakdown</h3>
+                                <div className="space-y-2 sm:space-y-3">
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-primary/5 rounded-lg sm:rounded-xl border border-primary/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-primary rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Functional</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-accent/5 rounded-lg sm:rounded-xl border border-accent/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-accent rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Integration</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-success/5 rounded-lg sm:rounded-xl border border-success/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-success rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Regression</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-warning/5 rounded-lg sm:rounded-xl border border-warning/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-warning rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Performance</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Environment & API Testing */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                            {/* Environment Breakdown */}
+                            <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <h3 className="text-base sm:text-lg font-semibold text-foreground mb-4 sm:mb-6">Environment Breakdown</h3>
+                                <div className="space-y-2 sm:space-y-3">
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-primary/5 rounded-lg sm:rounded-xl border border-primary/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-primary rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Chrome</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-accent/5 rounded-lg sm:rounded-xl border border-accent/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-accent rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Firefox</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-success/5 rounded-lg sm:rounded-xl border border-success/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-success rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Safari</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 sm:p-4 bg-warning/5 rounded-lg sm:rounded-xl border border-warning/10">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-warning rounded-full" />
+                                            <span className="text-xs sm:text-sm font-medium text-foreground">Mobile</span>
+                                        </div>
+                                        <span className="text-xs sm:text-sm font-semibold text-foreground">Coming Soon</span>
+                                    </div>
+                                </div>
+                            </Card>
+
+                            {/* API Testing */}
+                            <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                                    <h3 className="text-base sm:text-lg font-semibold text-foreground">API Testing</h3>
+                                    <Badge variant="default" size="sm" className="text-xs">Coming Soon</Badge>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                                    <div className="bg-primary/5 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-primary/10">
+                                        <p className="text-xs text-muted-foreground mb-1">Endpoints</p>
+                                        <p className="text-2xl sm:text-3xl font-bold text-foreground">-</p>
+                                    </div>
+                                    <div className="bg-success/5 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-success/10">
+                                        <p className="text-xs text-muted-foreground mb-1">Success Rate</p>
+                                        <p className="text-2xl sm:text-3xl font-bold text-foreground">-</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-2 sm:space-y-3">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-xs text-muted-foreground">GET Requests</span>
+                                            <span className="text-xs font-semibold text-foreground">-</span>
+                                        </div>
+                                        <div className="w-full bg-muted rounded-full h-1.5 sm:h-2">
+                                            <div className="bg-success h-full rounded-full" style={{ width: '0%' }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-xs text-muted-foreground">POST Requests</span>
+                                            <span className="text-xs font-semibold text-foreground">-</span>
+                                        </div>
+                                        <div className="w-full bg-muted rounded-full h-1.5 sm:h-2">
+                                            <div className="bg-primary h-full rounded-full" style={{ width: '0%' }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+                        {/* Historical Trends & Performance */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                            <HistoricalTrends suiteId={suiteId} />
+                            <PerformanceBenchmark suiteId={suiteId} />
+                        </div>
+
+                        {/* Test Run Analysis */}
+                        <TestRunAnalysis suiteId={suiteId} />
+
+                        {/* Workflow Optimizer - Metrics Only */}
+                        <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+                                <div>
+                                    <h3 className="text-base sm:text-lg lg:text-xl font-semibold text-foreground mb-1">Workflow Optimizer</h3>
+                                    <p className="text-xs sm:text-sm text-muted-foreground">AI-powered insights and metrics</p>
+                                </div>
+                                <Badge variant="default" size="sm">Coming Soon</Badge>
                             </div>
-                        )}
-                    </Card>
-                </div>
-            ) : (
-                <div>
-                    {/* Detailed Metrics Content */}
-                    {activeTab === 'test-cases' && <TestCaseMetrics suiteId={suiteId} />}
-                    {activeTab === 'bugs' && <BugTrackingMetrics suiteId={suiteId} />}
-                    {activeTab === 'sprints' && <SprintMetrics suiteId={suiteId} />}
-                    {activeTab === 'documents' && <DocumentMetrics suiteId={suiteId} />}
-                    {activeTab === 'recordings' && <RecordingsMetrics suiteId={suiteId} />}
-                    {activeTab === 'reports' && <ReportsMetrics suiteId={suiteId} />}
-                    {activeTab === 'test-data' && <TestDataMetrics suiteId={suiteId} />}
-                    {activeTab === 'suggestions' && <SuggestionsMetrics suiteId={suiteId} />}
-                    {activeTab === 'team' && <TeamProductivity suiteId={suiteId} />}
-                </div>
-            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                                <div className="bg-muted/50 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-border">
+                                    <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-2">Time Saved</p>
+                                    <p className="text-2xl sm:text-3xl font-bold text-foreground">-</p>
+                                </div>
+                                <div className="bg-muted/50 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-border">
+                                    <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-2">Optimizations</p>
+                                    <p className="text-2xl sm:text-3xl font-bold text-foreground">-</p>
+                                </div>
+                                <div className="bg-muted/50 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-border">
+                                    <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-2">Efficiency Gain</p>
+                                    <p className="text-2xl sm:text-3xl font-bold text-foreground">-</p>
+                                </div>
+                            </div>
+                        </Card>
+
+                        {/* Recent Activity */}
+                        <Card className="rounded-xl sm:rounded-2xl p-4 sm:p-6 border shadow-sm">
+                            <div className="flex items-center justify-between mb-4 sm:mb-6">
+                                <h3 className="text-base sm:text-lg font-semibold text-foreground flex items-center gap-2">
+                                    <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    Recent Test Runs
+                                </h3>
+                            </div>
+
+                            {activities && activities.length > 0 ? (
+                                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                                    <div className="inline-block min-w-full align-middle">
+                                        <table className="min-w-full">
+                                            <thead>
+                                                <tr className="border-b border-border">
+                                                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 text-xs font-semibold text-muted-foreground uppercase">Type</th>
+                                                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 text-xs font-semibold text-muted-foreground uppercase">Title</th>
+                                                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 text-xs font-semibold text-muted-foreground uppercase hidden sm:table-cell">User</th>
+                                                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                                                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 text-xs font-semibold text-muted-foreground uppercase hidden lg:table-cell">Time</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-border">
+                                                {activities.slice(0, 5).map((activity) => (
+                                                    <tr key={activity.id} className="hover:bg-muted/50 transition-colors">
+                                                        <td className="py-2 sm:py-3 px-3 sm:px-4 text-muted-foreground">
+                                                            {getIcon(activity.type)}
+                                                        </td>
+                                                        <td className="py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium text-foreground">
+                                                            <div className="truncate max-w-[150px] sm:max-w-none">{activity.title}</div>
+                                                        </td>
+                                                        <td className="py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">
+                                                            {activity.user.name}
+                                                        </td>
+                                                        <td className="py-2 sm:py-3 px-3 sm:px-4">
+                                                            <Badge
+                                                                variant={activity.action === 'created' ? 'success' : activity.action === 'deleted' ? 'danger' : 'default'}
+                                                                size="sm"
+                                                                className="text-xs"
+                                                            >
+                                                                {activity.action}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm text-muted-foreground hidden lg:table-cell whitespace-nowrap">
+                                                            {new Date(activity.created_at).toLocaleTimeString()}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 sm:py-12">
+                                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                                        <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-muted-foreground">No recent activity</p>
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+                ) : (
+                    <div>
+                        {/* Detailed Metrics Content */}
+                        {activeTab === 'test-cases' && <TestCaseMetrics suiteId={suiteId} />}
+                        {activeTab === 'bugs' && <BugTrackingMetrics suiteId={suiteId} />}
+                        {activeTab === 'sprints' && <SprintMetrics suiteId={suiteId} />}
+                        {activeTab === 'documents' && <DocumentMetrics suiteId={suiteId} />}
+                        {activeTab === 'recordings' && <RecordingsMetrics suiteId={suiteId} />}
+                        {activeTab === 'reports' && <ReportsMetrics suiteId={suiteId} />}
+                        {activeTab === 'test-data' && <TestDataMetrics suiteId={suiteId} />}
+                        {activeTab === 'suggestions' && <SuggestionsMetrics suiteId={suiteId} />}
+                        {activeTab === 'team' && <TeamProductivity suiteId={suiteId} />}
+                    </div>
+                )}
+            </main>
         </div>
     );
 }
