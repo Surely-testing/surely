@@ -1,6 +1,6 @@
 // ============================================
 // FILE: lib/hooks/useSprints.ts
-// Complete working sprints hooks - REPLACE YOUR ENTIRE FILE WITH THIS
+// Debug version to identify the 400 error
 // ============================================
 
 import { createClient } from "../supabase/client";
@@ -40,7 +40,6 @@ export function useSprints(suiteId: string, filters?: SprintFilters) {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Ensure test_case_ids is always an array
       return (data || []).map(sprint => ({
         ...sprint,
         test_case_ids: Array.isArray(sprint.test_case_ids) ? sprint.test_case_ids : []
@@ -71,71 +70,116 @@ export function useSprint(sprintId: string) {
   });
 }
 
-// Create sprint
+// Create sprint - FIXED: No duplicate toasts
 export function useCreateSprint(suiteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: SprintFormData) => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      
+      // Get authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.error('Auth error:', authError);
+        throw new Error('Authentication failed');
+      }
+      if (!user) {
+        throw new Error('Not authenticated - please log in');
+      }
 
+      // Prepare the payload
+      const payload: any = {
+        suite_id: suiteId,
+        name: data.name,
+        status: data.status || 'planning',
+        test_case_ids: data.test_case_ids || [],
+      };
+
+      // Only add optional fields if they have values
+      if (data.description) payload.description = data.description;
+      if (data.start_date) payload.start_date = data.start_date;
+      if (data.end_date) payload.end_date = data.end_date;
+      payload.created_by = user.id;
+
+      console.log('🔍 Creating sprint with payload:', JSON.stringify(payload, null, 2));
+
+      // Attempt to insert
       const { data: sprint, error } = await supabase
         .from('sprints')
-        .insert({
-          suite_id: suiteId,
-          created_by: user.id,
-          name: data.name,
-          description: data.description,
-          start_date: data.start_date,
-          end_date: data.end_date,
-          status: data.status || 'planning',
-          test_case_ids: data.test_case_ids || [],
-        })
+        .insert(payload)
         .select()
         .single();
-      if (error) throw error;
+      
+      if (error) {
+        console.error('❌ Supabase error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        
+        if (error.message?.includes('column') && error.message?.includes('does not exist')) {
+          throw new Error(`Database schema mismatch: ${error.message}. Check your sprints table structure.`);
+        }
+        
+        throw error;
+      }
+      
+      console.log('✅ Sprint created successfully:', sprint);
       return sprint;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sprints', suiteId] });
-      toast.success('Sprint created successfully');
+      // Toast is handled in the component, not here
     },
     onError: (error: any) => {
+      console.error('🔴 Mutation error:', error);
       logger.log('Error creating sprint:', error);
-      toast.error('Failed to create sprint');
+      // Toast is handled in the component, not here
     },
   });
 }
 
-// Update sprint
+// Update sprint - FIXED: No duplicate toasts
 export function useUpdateSprint(suiteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<SprintFormData> }) => {
       const supabase = createClient();
+      
+      // Clean the data - remove undefined values
+      const cleanData = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined)
+      );
+      
+      console.log('🔄 Updating sprint:', id, 'with data:', cleanData);
+      
       const { data: sprint, error } = await supabase
         .from('sprints')
-        .update(data)
+        .update(cleanData)
         .eq('id', id)
         .select()
         .single();
-      if (error) throw error;
+      
+      if (error) {
+        console.error('❌ Update error:', error);
+        throw error;
+      }
       return sprint;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sprints', suiteId] });
       queryClient.invalidateQueries({ queryKey: ['sprint', variables.id] });
-      toast.success('Sprint updated successfully');
+      // Toast is handled in the component, not here
     },
     onError: (error: any) => {
       logger.log('Error updating sprint:', error);
-      toast.error('Failed to update sprint');
+      // Toast is handled in the component, not here
     },
   });
 }
 
-// Delete sprint
+// Delete sprint - FIXED: No duplicate toasts
 export function useDeleteSprint(suiteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -146,11 +190,11 @@ export function useDeleteSprint(suiteId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sprints', suiteId] });
-      toast.success('Sprint deleted successfully');
+      // Toast is handled in the component, not here
     },
     onError: (error: any) => {
       logger.log('Error deleting sprint:', error);
-      toast.error('Failed to delete sprint');
+      // Toast is handled in the component, not here
     },
   });
 }

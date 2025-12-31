@@ -42,15 +42,15 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [isCreating, setIsCreating] = useState(false)
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
-  
+
   // Delete/Archive dialogs
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; doc: DocumentWithCreator | null }>({ 
-    open: false, 
-    doc: null 
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; doc: DocumentWithCreator | null }>({
+    open: false,
+    doc: null
   })
-  const [archiveDialog, setArchiveDialog] = useState<{ open: boolean; doc: DocumentWithCreator | null }>({ 
-    open: false, 
-    doc: null 
+  const [archiveDialog, setArchiveDialog] = useState<{ open: boolean; doc: DocumentWithCreator | null }>({
+    open: false,
+    doc: null
   })
 
   // Use custom hook for filters, sorting, pagination
@@ -130,10 +130,10 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
           content: doc.content ? JSON.parse(doc.content) : { type: 'doc', content: [] },
           created_at: doc.created_at || new Date().toISOString(),
           updated_at: doc.updated_at || new Date().toISOString(),
-          creator: profileMap.get(doc.created_by) || { 
-            id: doc.created_by, 
-            name: 'Unknown', 
-            avatar_url: null 
+          creator: profileMap.get(doc.created_by) || {
+            id: doc.created_by,
+            name: 'Unknown',
+            avatar_url: null
           }
         }))
 
@@ -233,7 +233,7 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
     if (!deleteDialog.doc) return
     try {
       const doc = deleteDialog.doc
-      
+
       // Move to trash table
       const { error: trashError } = await supabase
         .from('trash')
@@ -252,17 +252,17 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
           deleted_by: currentUserId,
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
         })
-      
+
       if (trashError) throw trashError
-      
+
       // Then delete from documents table
       const { error: deleteError } = await supabase
         .from('documents')
         .delete()
         .eq('id', doc.id)
-      
+
       if (deleteError) throw deleteError
-      
+
       setDocuments(prev => prev.filter(d => d.id !== doc.id))
       toast.success('Document moved to trash')
     } catch (error: any) {
@@ -277,7 +277,7 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
     if (!archiveDialog.doc) return
     try {
       const doc = archiveDialog.doc
-      
+
       // Move to archived_items table
       const { error: archiveError } = await supabase
         .from('archived_items')
@@ -295,17 +295,17 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
           },
           archived_by: currentUserId
         })
-      
+
       if (archiveError) throw archiveError
-      
+
       // Then delete from documents table
       const { error: deleteError } = await supabase
         .from('documents')
         .delete()
         .eq('id', doc.id)
-      
+
       if (deleteError) throw deleteError
-      
+
       setDocuments(prev => prev.filter(d => d.id !== doc.id))
       toast.success('Document archived successfully')
     } catch (error: any) {
@@ -327,19 +327,50 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
   }
 
   const handleBulkAction = async (
-    actionId: string, 
-    selectedIds: string[], 
-    actionConfig: BulkAction, 
+    actionId: string,
+    selectedIds: string[],
+    actionConfig: BulkAction,
     selectedOption?: ActionOption | null
   ) => {
     try {
       switch (actionId) {
         case 'delete':
-          await Promise.all(selectedIds.map(id => 
-            supabase.from('documents').delete().eq('id', id)
-          ))
+          // Move documents to trash instead of permanent deletion
+          const docsToDelete = documents.filter(d => selectedIds.includes(d.id))
+
+          for (const doc of docsToDelete) {
+            // Insert into trash table
+            const { error: trashError } = await supabase
+              .from('trash')
+              .insert({
+                suite_id: doc.suite_id,
+                asset_type: 'documents',
+                asset_id: doc.id,
+                asset_data: {
+                  title: doc.title,
+                  content: doc.content,
+                  file_type: doc.file_type,
+                  created_by: doc.created_by,
+                  created_at: doc.created_at,
+                  updated_at: doc.updated_at
+                },
+                deleted_by: currentUserId,
+                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+              })
+
+            if (trashError) throw trashError
+
+            // Then delete from documents table
+            const { error: deleteError } = await supabase
+              .from('documents')
+              .delete()
+              .eq('id', doc.id)
+
+            if (deleteError) throw deleteError
+          }
+
           setDocuments(prev => prev.filter(d => !selectedIds.includes(d.id)))
-          toast.success(`${selectedIds.length} document(s) deleted`)
+          toast.success(`${selectedIds.length} document(s) moved to trash`)
           break
 
         case 'change-type':
@@ -368,9 +399,39 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
           break
 
         case 'archive':
-          await Promise.all(selectedIds.map(id =>
-            supabase.from('documents').update({ archived: true }).eq('id', id)
-          ))
+          // Move documents to archived_items table
+          const docsToArchive = documents.filter(d => selectedIds.includes(d.id))
+
+          for (const doc of docsToArchive) {
+            // Insert into archived_items table
+            const { error: archiveError } = await supabase
+              .from('archived_items')
+              .insert({
+                suite_id: doc.suite_id,
+                asset_type: 'documents',
+                asset_id: doc.id,
+                asset_data: {
+                  title: doc.title,
+                  content: doc.content,
+                  file_type: doc.file_type,
+                  created_by: doc.created_by,
+                  created_at: doc.created_at,
+                  updated_at: doc.updated_at
+                },
+                archived_by: currentUserId
+              })
+
+            if (archiveError) throw archiveError
+
+            // Then delete from documents table
+            const { error: deleteError } = await supabase
+              .from('documents')
+              .delete()
+              .eq('id', doc.id)
+
+            if (deleteError) throw deleteError
+          }
+
           setDocuments(prev => prev.filter(d => !selectedIds.includes(d.id)))
           toast.success(`${selectedIds.length} document(s) archived`)
           break

@@ -171,7 +171,7 @@ const Tooltip: React.FC<TooltipProps> = ({ children, text, disabled = false }) =
         >
             {children}
             {isVisible && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1.5 text-xs text-gray-800 bg-foreground rounded-lg whitespace-nowrap z-50 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1.5 text-xs text-gray-800 bg-foreground rounded-lg whitespace-nowrap z-50 animate-in fade-in text-white slide-in-from-bottom-1 duration-150">
                     {text}
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-foreground" />
                 </div>
@@ -1048,18 +1048,21 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
                 confirmColor={confirmDialog.config?.destructive ? "error" : "warning"}
             />
 
-            <div className="pointer-events-auto mx-4">
+            <div className="pointer-events-auto mx-2 sm:mx-4">
                 <div className="bg-card border border-border rounded-xl shadow-xl px-4 py-3 animate-in slide-in-from-bottom-4 duration-300">
                     <div className="flex items-center justify-between gap-4">
                         {/* Selection Count */}
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-foreground whitespace-nowrap">
-                                {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected
+                                <span className="hidden sm:inline">{selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected</span>
+                                <span className="inline sm:hidden">({selectedItems.length})</span>
                             </span>
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2">
+                        <div className={cn(
+                            "flex items-center gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style]:none [scrollbar-width]:none"
+                        )}>
                             {config.groups.map((group, groupIndex) => (
                                 <React.Fragment key={group.name || groupIndex}>
                                     <div className="flex items-center gap-2">

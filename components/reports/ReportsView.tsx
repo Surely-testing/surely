@@ -1,31 +1,30 @@
 // ============================================
-// components/reports/ReportsView.tsx
+// components/reports/ReportsView.tsx - Refactored
 // Main container with tabs: Reports | Schedules
-// Mobile-first responsive with controls bar below tabs
-// Matches BugsView design pattern
 // ============================================
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Plus, Calendar, FileText, RefreshCw, Grid, List, Search, Filter, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Calendar, FileText, RefreshCw, AlertTriangle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { ReportTable } from '@/components/reports/ReportsTable';
-import { ScheduleTable } from '@/components/reports/ScheduleTable';
+import { ReportsControlBar } from '@/components/reports/views/ReportsControlBar';
+import { ReportsTabContent } from '@/components/reports/views/ReportsTabContent';
+import { SchedulesTabContent } from '@/components/reports/views/SchedulesTabContent';
 import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog';
 import { ScheduleReportDialog } from '@/components/reports/ScheduleReportDialog';
 import { ReportDetailsDialog } from '@/components/reports/ReportDetailsDialog';
-import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
-import { Pagination } from '@/components/shared/Pagination';
+import { BulkActionsBar } from '@/components/shared/BulkActionBar';
 import { useReports } from '@/lib/hooks/useReports';
 import { useReportSchedules } from '@/lib/hooks/useReportSchedules';
 import { EmptyState } from '@/components/shared/EmptyState';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/Select';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ReportWithCreator, ReportScheduleWithReport } from '@/types/report.types';
 import { toast } from 'sonner';
 
@@ -39,6 +38,14 @@ type SortField = 'created_at' | 'name' | 'type' | 'status';
 type SortOrder = 'asc' | 'desc';
 type GroupBy = 'none' | 'type' | 'status' | 'date';
 
+interface DeleteDialogState {
+  isOpen: boolean;
+  type: 'report' | 'schedule' | 'bulk-report' | 'bulk-schedule' | null;
+  itemId?: string;
+  itemName?: string;
+  bulkIds?: string[];
+}
+
 export function ReportsView({ suiteId }: ReportsViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('reports');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -46,6 +53,11 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReportWithCreator | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ReportScheduleWithReport | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({
+    isOpen: false,
+    type: null,
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Search, Filter, Sort, Group - Reports
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,132 +138,70 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     setEditingSchedule(null);
   };
 
-  // Filter and sort logic for Reports
-  const getFilteredAndSortedReports = () => {
-    let filtered = [...reports];
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(report =>
-        report.name?.toLowerCase().includes(query) ||
-        report.type?.toLowerCase().includes(query)
-      );
-    }
-
-    if (filterStatus.length > 0) {
-      filtered = filtered.filter(report => filterStatus.includes(report.status));
-    }
-
-    if (filterType.length > 0) {
-      filtered = filtered.filter(report => filterType.includes(report.type));
-    }
-
-    filtered.sort((a, b) => {
-      let aVal: any = a[sortField];
-      let bVal: any = b[sortField];
-
-      if (sortField === 'created_at') {
-        aVal = aVal ? new Date(aVal).getTime() : 0;
-        bVal = bVal ? new Date(bVal).getTime() : 0;
-      }
-
-      if (aVal === null || aVal === undefined) return sortOrder === 'asc' ? 1 : -1;
-      if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
-
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-
-      return sortOrder === 'asc' ? (aVal < bVal ? -1 : 1) : (aVal > bVal ? -1 : 1);
+  // Delete handlers
+  const openDeleteDialog = (type: DeleteDialogState['type'], itemId?: string, itemName?: string, bulkIds?: string[]) => {
+    setDeleteDialog({
+      isOpen: true,
+      type,
+      itemId,
+      itemName,
+      bulkIds,
     });
-
-    return filtered;
   };
 
-  const filteredReports = useMemo(() => getFilteredAndSortedReports(), [
-    reports, searchQuery, filterStatus, filterType, sortField, sortOrder
-  ]);
-
-  // Filter logic for Schedules
-  const getFilteredSchedules = () => {
-    let filtered = [...schedules];
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(schedule =>
-        schedule.name?.toLowerCase().includes(query) ||
-        schedule.description?.toLowerCase().includes(query)
-      );
-    }
-
-    if (filterScheduleStatus.length > 0) {
-      filtered = filtered.filter(schedule => {
-        const status = schedule.is_active ? 'active' : 'inactive';
-        return filterScheduleStatus.includes(status);
-      });
-    }
-
-    if (filterFrequency.length > 0) {
-      filtered = filtered.filter(schedule => filterFrequency.includes(schedule.frequency));
-    }
-
-    return filtered;
-  };
-
-  const filteredSchedules = useMemo(() => getFilteredSchedules(), [
-    schedules, searchQuery, filterScheduleStatus, filterFrequency
-  ]);
-
-  // Grouping logic
-  const getGroupedReports = () => {
-    if (groupBy === 'none') return { 'All Reports': filteredReports };
-
-    const grouped: Record<string, ReportWithCreator[]> = {};
-    filteredReports.forEach(report => {
-      let groupKey = 'Uncategorized';
-
-      switch (groupBy) {
-        case 'type':
-          groupKey = report.type ? report.type.replace('_', ' ').toUpperCase() : 'NO TYPE';
-          break;
-        case 'status':
-          groupKey = report.status ? report.status.toUpperCase() : 'NO STATUS';
-          break;
-        case 'date':
-          groupKey = report.created_at
-            ? new Date(report.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
-            : 'NO DATE';
-          break;
-      }
-
-      if (!grouped[groupKey]) grouped[groupKey] = [];
-      grouped[groupKey].push(report);
+  const closeDeleteDialog = () => {
+    setDeleteDialog({
+      isOpen: false,
+      type: null,
     });
-
-    return grouped;
   };
 
-  const groupedReports = getGroupedReports();
-
-  const paginatedReports = useMemo(() => {
-    if (groupBy === 'none') {
-      return filteredReports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      if (deleteDialog.type === 'report' && deleteDialog.itemId) {
+        await deleteReport(deleteDialog.itemId);
+        toast.success('Report deleted successfully');
+      } else if (deleteDialog.type === 'schedule' && deleteDialog.itemId) {
+        await deleteSchedule(deleteDialog.itemId);
+        toast.success('Schedule deleted successfully');
+      } else if (deleteDialog.type === 'bulk-report' && deleteDialog.bulkIds) {
+        await Promise.all(deleteDialog.bulkIds.map(id => deleteReport(id)));
+        toast.success(`${deleteDialog.bulkIds.length} report(s) deleted`);
+        setSelectedReportIds([]);
+      } else if (deleteDialog.type === 'bulk-schedule' && deleteDialog.bulkIds) {
+        await Promise.all(deleteDialog.bulkIds.map(id => deleteSchedule(id)));
+        toast.success(`${deleteDialog.bulkIds.length} schedule(s) deleted`);
+        setSelectedScheduleIds([]);
+      }
+      closeDeleteDialog();
+    } catch (error: any) {
+      toast.error('Delete failed', { description: error?.message });
+    } finally {
+      setIsDeleting(false);
     }
-    return filteredReports;
-  }, [filteredReports, currentPage, itemsPerPage, groupBy]);
+  };
+
+  const handleDeleteReport = (id: string, name?: string) => {
+    openDeleteDialog('report', id, name);
+  };
+
+  const handleDeleteSchedule = (id: string, name?: string) => {
+    openDeleteDialog('schedule', id, name);
+  };
 
   const handleSelectAll = () => {
     if (activeTab === 'reports') {
       setSelectedReportIds(
-        selectedReportIds.length === paginatedReports.length && paginatedReports.length > 0
+        selectedReportIds.length === reports.length && reports.length > 0
           ? []
-          : paginatedReports.map(r => r.id)
+          : reports.map(r => r.id)
       );
     } else {
       setSelectedScheduleIds(
-        selectedScheduleIds.length === filteredSchedules.length && filteredSchedules.length > 0
+        selectedScheduleIds.length === schedules.length && schedules.length > 0
           ? []
-          : filteredSchedules.map(s => s.id)
+          : schedules.map(s => s.id)
       );
     }
   };
@@ -260,15 +210,14 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     try {
       switch (actionId) {
         case 'delete':
-          await Promise.all(selectedIds.map(id => deleteReport(id)));
-          toast.success(`${selectedIds.length} report(s) deleted`);
+          openDeleteDialog('bulk-report', undefined, undefined, selectedIds);
           break;
         case 'regenerate':
           await Promise.all(selectedIds.map(id => regenerateReport(id)));
           toast.success(`${selectedIds.length} report(s) queued for regeneration`);
+          setSelectedReportIds([]);
           break;
       }
-      setSelectedReportIds([]);
     } catch (error: any) {
       toast.error('Bulk action failed', { description: error?.message });
     }
@@ -278,19 +227,19 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     try {
       switch (actionId) {
         case 'delete':
-          await Promise.all(selectedIds.map(id => deleteSchedule(id)));
-          toast.success(`${selectedIds.length} schedule(s) deleted`);
+          openDeleteDialog('bulk-schedule', undefined, undefined, selectedIds);
           break;
         case 'enable':
           await Promise.all(selectedIds.map(id => toggleSchedule(id, true)));
           toast.success(`${selectedIds.length} schedule(s) enabled`);
+          setSelectedScheduleIds([]);
           break;
         case 'disable':
           await Promise.all(selectedIds.map(id => toggleSchedule(id, false)));
           toast.success(`${selectedIds.length} schedule(s) disabled`);
+          setSelectedScheduleIds([]);
           break;
       }
-      setSelectedScheduleIds([]);
     } catch (error: any) {
       toast.error('Bulk action failed', { description: error?.message });
     }
@@ -302,7 +251,46 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
 
   const isLoading = activeTab === 'reports' ? reportsLoading : schedulesLoading;
 
-  // Empty state check BEFORE main return
+  // Get dialog content based on type
+  const getDeleteDialogContent = () => {
+    const count = deleteDialog.bulkIds?.length || 0;
+    
+    switch (deleteDialog.type) {
+      case 'report':
+        return {
+          title: 'Delete Report?',
+          description: deleteDialog.itemName
+            ? `Are you sure you want to delete "${deleteDialog.itemName}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this report? This action cannot be undone.',
+        };
+      case 'schedule':
+        return {
+          title: 'Delete Schedule?',
+          description: deleteDialog.itemName
+            ? `Are you sure you want to delete "${deleteDialog.itemName}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this schedule? This action cannot be undone.',
+        };
+      case 'bulk-report':
+        return {
+          title: `Delete ${count} Report${count > 1 ? 's' : ''}?`,
+          description: `Are you sure you want to delete ${count} report${count > 1 ? 's' : ''}? This action cannot be undone.`,
+        };
+      case 'bulk-schedule':
+        return {
+          title: `Delete ${count} Schedule${count > 1 ? 's' : ''}?`,
+          description: `Are you sure you want to delete ${count} schedule${count > 1 ? 's' : ''}? This action cannot be undone.`,
+        };
+      default:
+        return {
+          title: 'Delete Item?',
+          description: 'Are you sure you want to delete this item? This action cannot be undone.',
+        };
+    }
+  };
+
+  const dialogContent = getDeleteDialogContent();
+
+  // Empty state check
   if (reports.length === 0 && schedules.length === 0 && !isLoading) {
     return (
       <>
@@ -451,7 +439,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
           </div>
 
           {/* Tabs Navigation */}
-          <div className=" rounded-lg mb-6">
+          <div className="rounded-lg mb-6">
             <div>
               <nav className="flex overflow-x-auto">
                 {tabs.map((tab) => {
@@ -481,494 +469,99 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
               <div className="space-y-6">
                 {/* Main Content Card */}
                 <div>
-                  {/* Unified Controls Bar */}
-                  <div className="px-3 py-2 border-b border-border bg-card">
-                    <div className="flex flex-col gap-3 lg:gap-0">
-                      {/* Mobile Layout (< lg screens) */}
-                      <div className="lg:hidden space-y-3">
-                        {/* Row 1: Search (Full Width) */}
-                        <div className="relative w-full">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                          <input
-                            type="text"
-                            placeholder={activeTab === 'reports' ? "Search reports..." : "Search schedules..."}
-                            value={searchQuery}
-                            onChange={(e) => {
-                              setSearchQuery(e.target.value);
-                              setCurrentPage(1);
-                            }}
-                            disabled={isLoading}
-                            className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-                          />
-                        </div>
+                  {/* Control Bar */}
+                  <ReportsControlBar
+                    activeTab={activeTab}
+                    search={searchQuery}
+                    onSearchChange={(value) => {
+                      setSearchQuery(value);
+                      setCurrentPage(1);
+                    }}
+                    filterStatus={filterStatus}
+                    onFilterStatusChange={setFilterStatus}
+                    filterType={filterType}
+                    onFilterTypeChange={setFilterType}
+                    filterScheduleStatus={filterScheduleStatus}
+                    onFilterScheduleStatusChange={setFilterScheduleStatus}
+                    filterFrequency={filterFrequency}
+                    onFilterFrequencyChange={setFilterFrequency}
+                    showFilters={showFilters}
+                    onToggleFilters={() => setShowFilters(!showFilters)}
+                    activeFiltersCount={activeFiltersCount}
+                    onClearFilters={() => {
+                      if (activeTab === 'reports') {
+                        setFilterStatus([]);
+                        setFilterType([]);
+                      } else {
+                        setFilterScheduleStatus([]);
+                        setFilterFrequency([]);
+                      }
+                    }}
+                    sortField={sortField}
+                    sortOrder={sortOrder}
+                    onSortChange={(field, order) => {
+                      setSortField(field);
+                      setSortOrder(order);
+                    }}
+                    groupBy={groupBy}
+                    onGroupByChange={setGroupBy}
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    selectedIds={activeTab === 'reports' ? selectedReportIds : selectedScheduleIds}
+                    paginatedItems={activeTab === 'reports' ? reports : schedules}
+                    onSelectAll={handleSelectAll}
+                    isLoading={isLoading}
+                  />
 
-                        {/* Row 2: Filter, Sort, Group */}
-                        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                          {/* Filter Button */}
-                          <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            disabled={isLoading}
-                            className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
-                          >
-                            <Filter className="w-4 h-4" />
-                            <span>Filter</span>
-                            {activeFiltersCount > 0 && (
-                              <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                                {activeFiltersCount}
-                              </span>
-                            )}
-                          </button>
-
-                          {/* Sort and Group - Only for Reports */}
-                          {activeTab === 'reports' && (
-                            <>
-                              {/* Sort Dropdown */}
-                              <Select
-                                value={`${sortField}-${sortOrder}`}
-                                onValueChange={(value) => {
-                                  const [field, order] = value.split('-');
-                                  setSortField(field as SortField);
-                                  setSortOrder(order as SortOrder);
-                                }}
-                                disabled={isLoading}
-                              >
-                                <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
-                                  <SelectValue placeholder="Sort by..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="created_at-desc">Newest First</SelectItem>
-                                  <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                                  <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-                                  <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-                                  <SelectItem value="type-asc">Type (A-Z)</SelectItem>
-                                  <SelectItem value="status-asc">Status (A-Z)</SelectItem>
-                                </SelectContent>
-                              </Select>
-
-                              {/* Group By Dropdown */}
-                              <Select
-                                value={groupBy}
-                                onValueChange={(value) => setGroupBy(value as GroupBy)}
-                                disabled={isLoading}
-                              >
-                                <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
-                                  <SelectValue placeholder="Group by..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">No Grouping</SelectItem>
-                                  <SelectItem value="type">Group by Type</SelectItem>
-                                  <SelectItem value="status">Group by Status</SelectItem>
-                                  <SelectItem value="date">Group by Date</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Row 3: Select All (Left) | View Toggle (Right) */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={
-                                activeTab === 'reports'
-                                  ? selectedReportIds.length === paginatedReports.length && paginatedReports.length > 0
-                                  : selectedScheduleIds.length === filteredSchedules.length && filteredSchedules.length > 0
-                              }
-                              onChange={handleSelectAll}
-                              disabled={isLoading}
-                              className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                            />
-                            <span className="text-sm font-medium text-muted-foreground">
-                              Select All
-                            </span>
-                          </div>
-
-                          {/* View Toggle */}
-                          <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                            <button
-                              onClick={() => setViewMode('grid')}
-                              disabled={isLoading}
-                              className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                                ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                }`}
-                              title="Grid View"
-                            >
-                              <Grid className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setViewMode('table')}
-                              disabled={isLoading}
-                              className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                                ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                }`}
-                              title="Table View"
-                            >
-                              <List className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Desktop Layout (lg+ screens) */}
-                      <div className="hidden lg:flex lg:flex-col lg:gap-0">
-                        <div className="flex items-center justify-between gap-4">
-                          {/* Left Side: Select All */}
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={
-                                activeTab === 'reports'
-                                  ? selectedReportIds.length === paginatedReports.length && paginatedReports.length > 0
-                                  : selectedScheduleIds.length === filteredSchedules.length && filteredSchedules.length > 0
-                              }
-                              onChange={handleSelectAll}
-                              disabled={isLoading}
-                              className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                            />
-                            <span className="text-sm font-medium text-muted-foreground">
-                              Select All
-                            </span>
-                          </div>
-
-                          {/* Right Side: Search, Filter, Sort, Group, View Toggle */}
-                          <div className="flex items-center gap-3 flex-1 justify-end">
-                            {/* Search */}
-                            <div className="relative flex-1 max-w-xs">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                              <input
-                                type="text"
-                                placeholder={activeTab === 'reports' ? "Search reports..." : "Search schedules..."}
-                                value={searchQuery}
-                                onChange={(e) => {
-                                  setSearchQuery(e.target.value);
-                                  setCurrentPage(1);
-                                }}
-                                disabled={isLoading}
-                                className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-                              />
-                            </div>
-
-                            {/* Filter Button */}
-                            <button
-                              onClick={() => setShowFilters(!showFilters)}
-                              disabled={isLoading}
-                              className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
-                            >
-                              <Filter className="w-4 h-4" />
-                              Filter
-                              {activeFiltersCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
-                                  {activeFiltersCount}
-                                </span>
-                              )}
-                            </button>
-
-                            {/* Sort and Group - Only for Reports */}
-                            {activeTab === 'reports' && (
-                              <>
-                                {/* Sort Dropdown */}
-                                <Select
-                                  value={`${sortField}-${sortOrder}`}
-                                  onValueChange={(value) => {
-                                    const [field, order] = value.split('-');
-                                    setSortField(field as SortField);
-                                    setSortOrder(order as SortOrder);
-                                  }}
-                                  disabled={isLoading}
-                                >
-                                  <SelectTrigger className="w-[200px]">
-                                    <SelectValue placeholder="Sort by..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="created_at-desc">Newest First</SelectItem>
-                                    <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                                    <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-                                    <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-                                    <SelectItem value="type-asc">Type (A-Z)</SelectItem>
-                                    <SelectItem value="status-asc">Status (A-Z)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-
-                                {/* Group By Dropdown */}
-                                <Select
-                                  value={groupBy}
-                                  onValueChange={(value) => setGroupBy(value as GroupBy)}
-                                  disabled={isLoading}
-                                >
-                                  <SelectTrigger className="w-[200px]">
-                                    <SelectValue placeholder="Group by..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">No Grouping</SelectItem>
-                                    <SelectItem value="type">Group by Type</SelectItem>
-                                    <SelectItem value="status">Group by Status</SelectItem>
-                                    <SelectItem value="date">Group by Date</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </>
-                            )}
-
-                            {/* View Toggle */}
-                            <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
-                              <button
-                                onClick={() => setViewMode('grid')}
-                                disabled={isLoading}
-                                className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'grid'
-                                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                  }`}
-                                title="Grid View"
-                              >
-                                <Grid className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => setViewMode('table')}
-                                disabled={isLoading}
-                                className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${viewMode === 'table'
-                                  ? 'bg-primary text-primary-foreground shadow-theme-sm'
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                                  }`}
-                                title="Table View"
-                              >
-                                <List className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Filters Panel */}
-                    {showFilters && (
-                      <div className="mt-4 pt-4 border-t border-border">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-sm font-semibold text-foreground">Filters</h3>
-                          {activeFiltersCount > 0 && (
-                            <button
-                              onClick={() => {
-                                if (activeTab === 'reports') {
-                                  setFilterStatus([]);
-                                  setFilterType([]);
-                                } else {
-                                  setFilterScheduleStatus([]);
-                                  setFilterFrequency([]);
-                                }
-                              }}
-                              className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
-                            >
-                              Clear All
-                            </button>
-                          )}
-                        </div>
-
-                        {activeTab === 'reports' ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {/* Status Filter */}
-                            <div>
-                              <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                                Status
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                {['completed', 'pending', 'failed'].map(status => (
-                                  <button
-                                    key={status}
-                                    onClick={() => setFilterStatus(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status])}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterStatus.includes(status)
-                                      ? 'bg-primary text-primary-foreground border-primary'
-                                      : 'bg-background text-foreground border-border hover:border-primary'
-                                      }`}
-                                  >
-                                    {status}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Type Filter */}
-                            <div>
-                              <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                                Type
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                {['test_execution', 'bug_summary', 'coverage', 'performance'].map(type => (
-                                  <button
-                                    key={type}
-                                    onClick={() => setFilterType(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type])}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterType.includes(type)
-                                      ? 'bg-primary text-primary-foreground border-primary'
-                                      : 'bg-background text-foreground border-border hover:border-primary'
-                                      }`}
-                                  >
-                                    {type.replace('_', ' ')}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {/* Status Filter for Schedules */}
-                            <div>
-                              <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                                Status
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                {['active', 'inactive'].map(status => (
-                                  <button
-                                    key={status}
-                                    onClick={() => setFilterScheduleStatus(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status])}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterScheduleStatus.includes(status)
-                                      ? 'bg-primary text-primary-foreground border-primary'
-                                      : 'bg-background text-foreground border-border hover:border-primary'
-                                      }`}
-                                  >
-                                    {status}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Frequency Filter */}
-                            <div>
-                              <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                                Frequency
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                {['daily', 'weekly', 'monthly', 'custom'].map(frequency => (
-                                  <button
-                                    key={frequency}
-                                    onClick={() => setFilterFrequency(prev => prev.includes(frequency) ? prev.filter(f => f !== frequency) : [...prev, frequency])}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${filterFrequency.includes(frequency)
-                                      ? 'bg-primary text-primary-foreground border-primary'
-                                      : 'bg-background text-foreground border-border hover:border-primary'
-                                      }`}
-                                  >
-                                    {frequency}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content Area */}
-                  <div className="pt-6">
-                    {/* No Results After Filtering */}
-                    {activeTab === 'reports' && filteredReports.length === 0 && reports.length > 0 && !isLoading && (
-                      <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                        <Filter className="h-12 w-12 text-muted-foreground mb-3" />
-                        <h3 className="text-lg font-medium text-foreground mb-1">No reports found</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Try adjusting your filters or search query
-                        </p>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setSearchQuery('');
-                            setFilterStatus([]);
-                            setFilterType([]);
-                          }}
-                        >
-                          Clear Filters
-                        </Button>
-                      </div>
-                    )}
-
-                    {activeTab === 'schedules' && filteredSchedules.length === 0 && schedules.length > 0 && !isLoading && (
-                      <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                        <Filter className="h-12 w-12 text-muted-foreground mb-3" />
-                        <h3 className="text-lg font-medium text-foreground mb-1">No schedules found</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Try adjusting your filters or search query
-                        </p>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setSearchQuery('');
-                            setFilterScheduleStatus([]);
-                            setFilterFrequency([]);
-                          }}
-                        >
-                          Clear Filters
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Content */}
-                    {filteredReports.length > 0 && activeTab === 'reports' && (
-                      groupBy === 'none' ? (
-                        <ReportTable
-                          reports={paginatedReports}
-                          onView={setSelectedReport}
-                          onRegenerate={regenerateReport}
-                          onDelete={deleteReport}
-                          generatingId={generating}
-                          viewMode={viewMode}
-                          selectedReports={selectedReportIds}
-                          onSelectionChange={setSelectedReportIds}
-                        />
-                      ) : (
-                        <div className="space-y-6">
-                          {Object.entries(groupedReports).map(([groupName, groupReports]) => (
-                            <div key={groupName}>
-                              <div className="flex items-center gap-2 mb-3">
-                                <h3 className="text-sm font-semibold text-foreground uppercase">{groupName}</h3>
-                                <span className="text-xs text-muted-foreground">({groupReports.length})</span>
-                              </div>
-                              <ReportTable
-                                reports={groupReports}
-                                onView={setSelectedReport}
-                                onRegenerate={regenerateReport}
-                                onDelete={deleteReport}
-                                generatingId={generating}
-                                viewMode={viewMode}
-                                selectedReports={selectedReportIds}
-                                onSelectionChange={setSelectedReportIds}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    )}
-
-                    {filteredSchedules.length > 0 && activeTab === 'schedules' && (
-                      <ScheduleTable
-                        schedules={filteredSchedules}
-                        onToggle={toggleSchedule}
-                        onDelete={deleteSchedule}
-                        onRunNow={runScheduleNow}
-                        onEdit={handleEditSchedule}
-                        viewMode={viewMode}
-                        selectedSchedules={selectedScheduleIds}
-                        onSelectionChange={setSelectedScheduleIds}
-                      />
-                    )}
-
-                    {/* Pagination */}
-                    {groupBy === 'none' && filteredReports.length > itemsPerPage && activeTab === 'reports' && (
-                      <div className="mt-6">
-                        <Pagination
-                          currentPage={currentPage}
-                          totalItems={filteredReports.length}
-                          itemsPerPage={itemsPerPage}
-                          onPageChange={(page) => {
-                            setCurrentPage(page);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          onItemsPerPageChange={(items) => {
-                            setItemsPerPage(items);
-                            setCurrentPage(1);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
+                  {/* Tab Content */}
+                  {activeTab === 'reports' ? (
+                    <ReportsTabContent
+                      reports={reports}
+                      searchQuery={searchQuery}
+                      filterStatus={filterStatus}
+                      filterType={filterType}
+                      sortField={sortField}
+                      sortOrder={sortOrder}
+                      groupBy={groupBy}
+                      viewMode={viewMode}
+                      selectedReportIds={selectedReportIds}
+                      onSelectionChange={setSelectedReportIds}
+                      currentPage={currentPage}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={setCurrentPage}
+                      onItemsPerPageChange={setItemsPerPage}
+                      onView={setSelectedReport}
+                      onRegenerate={regenerateReport}
+                      onDelete={handleDeleteReport}
+                      generatingId={generating}
+                      isLoading={reportsLoading}
+                      onClearFilters={() => {
+                        setSearchQuery('');
+                        setFilterStatus([]);
+                        setFilterType([]);
+                      }}
+                    />
+                  ) : (
+                    <SchedulesTabContent
+                      schedules={schedules}
+                      searchQuery={searchQuery}
+                      filterScheduleStatus={filterScheduleStatus}
+                      filterFrequency={filterFrequency}
+                      viewMode={viewMode}
+                      selectedScheduleIds={selectedScheduleIds}
+                      onSelectionChange={setSelectedScheduleIds}
+                      onToggle={toggleSchedule}
+                      onDelete={handleDeleteSchedule}
+                      onRunNow={runScheduleNow}
+                      onEdit={handleEditSchedule}
+                      isLoading={schedulesLoading}
+                      onClearFilters={() => {
+                        setSearchQuery('');
+                        setFilterScheduleStatus([]);
+                        setFilterFrequency([]);
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -1001,6 +594,55 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
           }}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialog.isOpen} onOpenChange={closeDeleteDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10">
+                <AlertTriangle className="w-6 h-6 text-destructive" />
+              </div>
+              <DialogTitle className="text-left">
+                {dialogContent.title}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-left">
+              {dialogContent.description}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeDeleteDialog}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="error"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="gap-2"
+            >
+              {isDeleting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  Delete {deleteDialog.bulkIds && deleteDialog.bulkIds.length > 1 ? `(${deleteDialog.bulkIds.length})` : ''}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Actions Bar */}
       <BulkActionsBar
