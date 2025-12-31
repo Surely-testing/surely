@@ -161,10 +161,10 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
     const pendingTests = totalTests - passedTests - failedTests - blockedTests;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-muted/30 to-muted/10">
+        <div className="min-h-screen w-full bg-gradient-to-br from-muted/30 to-muted/10">
             {/* Header - Mobile First */}
-            <header className="bg-card/95 border-b border-border sticky top-0 z-10 backdrop-blur-sm">
-                <div className="px-4 sm:px-6 py-3 sm:py-4">
+            <header className="bg-card/95 border-b border-border sticky top-0 z-10 backdrop-blur-md">
+                <div className="sm:px-2 py-3 sm:py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                             <h1 className="text-xl sm:text-2xl font-semibold text-foreground truncate">
@@ -219,7 +219,7 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                 </div>
             </header>
 
-            <main className="px-4 sm:px-6 py-4 sm:py-6 lg:py-8 mx-auto">
+            <main className="sm:px-6 py-4 sm:py-6 lg:py-8 mx-auto">
                 {activeTab === 'overview' ? (
                     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
                         {/* Hero Metrics - Mobile First */}
