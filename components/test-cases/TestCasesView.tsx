@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/Dropdown'
 import type { TestCase } from '@/types/test-case.types'
 import type { TestCaseRow } from './TestCaseTable'
-import type { ActionOption } from '@/components/shared/BulkActionBar'
+import type { ActionOption } from '@/components/shared/bulk-action/BulkActionBar'
 import type {
   ViewMode,
   SortField,

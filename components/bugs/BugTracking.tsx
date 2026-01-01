@@ -20,7 +20,7 @@ import { BugGrid } from './BugGrid';
 import { BugTable } from './BugTable';
 import { BugDetailsDrawer } from './BugDetailsDrawer';
 import { MiniBugView } from './MiniBugView';
-import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
+import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/bulk-action/BulkActionBar';
 import { Pagination } from '@/components/shared/Pagination';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { logger } from '@/lib/utils/logger';

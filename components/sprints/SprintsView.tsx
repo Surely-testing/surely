@@ -9,7 +9,7 @@ import React, { useState, useMemo } from 'react';
 import { SprintsToolbar } from './views/SprintsToolbar';
 import { SprintsContent } from './views/SprintsContent';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
+import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/bulk-action/BulkActionBar';
 import SprintForm from './SprintForm';
 import { Plus, RefreshCw, ChevronLeft } from 'lucide-react';
 import { useSuiteContext } from '@/providers/SuiteContextProvider';
