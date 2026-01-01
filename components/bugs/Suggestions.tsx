@@ -10,7 +10,7 @@ import { SuggestionGrid } from '../suggestions/SuggestionGrid';
 import { SuggestionTable } from '../suggestions/SuggestionTable';
 import { SuggestionForm } from '../suggestions/SuggestionForm';
 import { SuggestionDetailsDrawer } from '../suggestions/SuggestionDetailsDrawer';
-import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/BulkActionBar';
+import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/bulk-action/BulkActionBar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select,

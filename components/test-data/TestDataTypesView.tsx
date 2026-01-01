@@ -8,7 +8,7 @@ import { useTestDataTypes, useDeleteTestDataTypes } from '@/lib/hooks/useTestDat
 import TestDataTypeCard from './TestDataTypeCard'
 import TestDataTypeListItem from './TestDataTypeListItem'
 import Pagination from '@/components/shared/Pagination'
-import EnhancedBulkActionsBar from '@/components/shared/BulkActionBar'
+import EnhancedBulkActionsBar from '@/components/shared/bulk-action/BulkActionBar'
 import { Input } from '@/components/ui/Input'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/shared/EmptyState';

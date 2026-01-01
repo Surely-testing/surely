@@ -17,7 +17,7 @@ import {
 import { Search, Grid3x3, List, Play, Clock, Calendar, Filter, RefreshCw, ChevronLeft } from 'lucide-react';
 import { getRecordings, deleteRecording } from '@/lib/actions/recordings';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { BulkActionsBar, type ActionGroup } from '@/components/shared/BulkActionBar';
+import { BulkActionsBar, type ActionGroup } from '@/components/shared/bulk-action/BulkActionBar';
 import { Pagination } from '@/components/shared/Pagination';
 import { toast } from 'sonner';
 import {

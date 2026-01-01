@@ -13,7 +13,7 @@ import { SchedulesTabContent } from '@/components/reports/views/SchedulesTabCont
 import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog';
 import { ScheduleReportDialog } from '@/components/reports/ScheduleReportDialog';
 import { ReportDetailsDialog } from '@/components/reports/ReportDetailsDialog';
-import { BulkActionsBar } from '@/components/shared/BulkActionBar';
+import { BulkActionsBar } from '@/components/shared/bulk-action/BulkActionBar';
 import { useReports } from '@/lib/hooks/useReports';
 import { useReportSchedules } from '@/lib/hooks/useReportSchedules';
 import { EmptyState } from '@/components/shared/EmptyState';

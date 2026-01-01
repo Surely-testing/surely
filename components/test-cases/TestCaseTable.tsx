@@ -38,7 +38,7 @@ import {
   TableDescriptionText,
 } from '../ui/Table'
 import { Badge } from '@/components/ui/Badge'
-import { BulkActionsBar, type BulkAction, type ActionOption } from '../shared/BulkActionBar'
+import { BulkActionsBar, type BulkAction, type ActionOption } from '../shared/bulk-action/BulkActionBar'
 import { Pagination } from '../shared/Pagination'
 import { DetailsDrawer } from './DetailsDrawer'
 import { relationshipsApi } from '@/lib/api/relationships'

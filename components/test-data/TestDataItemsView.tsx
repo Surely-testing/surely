@@ -9,7 +9,7 @@ import { useTestDataItems, useCreateTestDataItems, useDeleteTestDataItems, useEx
 import { testDataGenerators } from '@/lib/utils/test-data-generators'
 import TestDataItemRow from './TestDataItemRow'
 import Pagination from '@/components/shared/Pagination'
-import EnhancedBulkActionsBar from '@/components/shared/BulkActionBar'
+import EnhancedBulkActionsBar from '@/components/shared/bulk-action/BulkActionBar'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/Textarea'
 import { Button } from '@/components/ui/Button'

@@ -8,7 +8,7 @@ import React, { useState, useMemo } from 'react';
 import { TestRunsTable } from './TestRunsTable';
 import { TestRunsGrid } from './TestRunsGrid';
 import { Pagination } from '@/components/shared/Pagination';
-import { BulkActionsBar } from '@/components/shared/BulkActionBar';
+import { BulkActionsBar } from '@/components/shared/bulk-action/BulkActionBar';
 import TestRunForm from './TestRunsForm';
 import { Plus, RefreshCw, Search, Filter, X, Play, Grid3x3, List } from 'lucide-react';
 import { useSuiteContext } from '@/providers/SuiteContextProvider';
