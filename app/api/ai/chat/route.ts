@@ -1,10 +1,11 @@
 // ============================================
-// FILE: app/api/ai/chat/route.ts
+// UPDATE: /app/api/ai/chat/route.ts
+// Remove emoji logs and minimize logging
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import { aiService } from '@/lib/ai/ai-service'
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/utils/logger'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
@@ -18,7 +19,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Authenticate user
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -29,13 +29,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.log('📨 AI Chat Request (conversation only):', {
-      message: message.substring(0, 100),
-      hasContext: !!context,
-      page: context?.currentPage
-    })
-
-    // Build context-aware system prompt
     let systemPrompt = `You are Surely AI, an expert QA assistant for the SURELY platform.
 
 Current Context:
@@ -43,7 +36,6 @@ Current Context:
 - Suite: ${context?.suiteName || 'Unknown Suite'}
 - User ID: ${user.id}`
 
-    // Add page data context if available
     if (context?.pageData) {
       const { bugs, bugStats, testCases, testCaseStats, latestRunStats } = context.pageData
 
@@ -68,7 +60,6 @@ Current Context:
 
     systemPrompt += `\n\nProvide helpful, accurate responses. Be concise but thorough.`
 
-    // Call AI service for normal conversation
     const result = await aiService.chatWithContext(message, {
       currentPage: context?.currentPage || '/dashboard',
       suiteName: context?.suiteName || 'Unknown Suite',
@@ -78,7 +69,7 @@ Current Context:
     }, systemPrompt)
 
     if (!result.success) {
-      logger.log('❌ AI Service Error:', result.error)
+      logger.log('AI Service Error:', result.error)
       return NextResponse.json(
         { 
           success: false, 
@@ -88,8 +79,6 @@ Current Context:
         { status: 500 }
       )
     }
-
-    logger.log('✅ AI chat response generated')
 
     return NextResponse.json({
       success: true,
@@ -102,7 +91,7 @@ Current Context:
     })
 
   } catch (error: any) {
-    logger.log('❌ API Route Error:', error)
+    logger.log('API Route Error:', error)
     return NextResponse.json(
       { 
         success: false, 
