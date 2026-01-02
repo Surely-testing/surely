@@ -35,7 +35,7 @@ export const AI_MODELS = {
 export type ModelName = keyof typeof AI_MODELS
 
 export class AIService {
-  private currentModel: ModelName = 'openai/gpt-oss-20b:free'
+  private currentModel: ModelName = 'moonshotai/kimi-k2:free'
   private apiKey: string
   private baseURL = 'https://openrouter.ai/api/v1/chat/completions'
   private lastCallTime = 0
@@ -146,41 +146,191 @@ export class AIService {
     }
   }
 
+  // ============================================
+  // COMPLETE chatWithContext METHOD
+  // Copy this entire method and replace your current one in /lib/ai/ai-service.ts
+  // ============================================
+
   async chatWithContext(
     message: string,
     context: ChatContext,
-    customSystemPrompt?: string // <-- ADD THIS PARAMETER
+    customSystemPrompt?: string
   ): Promise<AIResponse> {
-    try {
-      // Use custom system prompt if provided, otherwise use default
-      const systemPrompt = customSystemPrompt || this.buildContextualSystemPrompt(context)
+    // Models to try in order (fallback chain)
+    const modelsToTry: ModelName[] = [
+      this.currentModel,
+      'moonshotai/kimi-k2:free',
+      'openai/gpt-oss-20b:free'
+    ]
 
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...(context.conversationHistory || []).map((msg: any) => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        { role: 'user', content: message }
-      ]
+    const uniqueModels = Array.from(new Set(modelsToTry))
+    let lastError: string = ''
 
-      const response = await this.callAI(message, { systemInstruction: systemPrompt })
+    for (let i = 0; i < uniqueModels.length; i++) {
+      const modelToUse = uniqueModels[i]
 
-      if (!response.success) {
-        return response
+      try {
+        logger.log(`Attempting model ${i + 1}/${uniqueModels.length}: ${modelToUse}`)
+
+        const systemPrompt = customSystemPrompt || this.buildContextualSystemPrompt(context)
+
+        const conversationMessages = (context.conversationHistory || [])
+          .slice(-10)
+          .map((msg: any) => ({
+            role: msg.role,
+            content: msg.content
+          }))
+
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          ...conversationMessages,
+          { role: 'user', content: message }
+        ]
+
+        if (!this.apiKey) {
+          return {
+            success: false,
+            error: 'API key not configured',
+            userMessage: 'AI service is not properly configured. Please contact support.'
+          }
+        }
+
+        await this.rateLimit()
+
+        const modelConfig = AI_MODELS[modelToUse]
+
+        const requestBody = {
+          model: modelConfig.name,
+          messages,
+          temperature: 0.7,
+          max_tokens: 2048
+        }
+
+        const response = await fetch(this.baseURL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+            'X-Title': 'SURELY QA Platform'
+          },
+          body: JSON.stringify(requestBody)
+        })
+
+        // Handle rate limit - try next model
+        if (response.status === 429) {
+          logger.log(`Model ${modelToUse} rate-limited, trying next model`)
+
+          const errorText = await response.text()
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = { message: errorText }
+          }
+
+          lastError = errorData.error?.message || 'Rate limited'
+
+          if (i < uniqueModels.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            continue
+          }
+
+          return {
+            success: false,
+            error: 'All models are rate-limited',
+            userMessage: 'AI service is temporarily busy. Please try again in a moment.'
+          }
+        }
+
+        // Handle other errors
+        if (!response.ok) {
+          const errorText = await response.text()
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = { message: errorText }
+          }
+
+          const errorMessage = errorData.error?.message || errorData.message || `API request failed with status ${response.status}`
+
+          return {
+            success: false,
+            error: errorMessage,
+            userMessage: 'Failed to generate response. Please try again.'
+          }
+        }
+
+        const responseText = await response.text()
+
+        let data
+        try {
+          data = JSON.parse(responseText)
+        } catch (e: any) {
+          logger.log('Failed to parse response:', e.message)
+          return {
+            success: false,
+            error: 'Failed to parse AI response',
+            userMessage: 'Received invalid response from AI service.'
+          }
+        }
+
+        const text = data.choices?.[0]?.message?.content || ''
+
+        if (!text) {
+          return {
+            success: false,
+            error: 'Empty response from AI service',
+            userMessage: 'AI service returned no content.'
+          }
+        }
+
+        logger.log(`Success with model: ${modelToUse}`)
+
+        const usage = data.usage || {}
+        const inputTokens = usage.prompt_tokens || 0
+        const outputTokens = usage.completion_tokens || 0
+        const totalTokens = usage.total_tokens || 0
+
+        const inputCost = (inputTokens / 1000000) * modelConfig.inputCostPer1M
+        const outputCost = (outputTokens / 1000000) * modelConfig.outputCostPer1M
+        const totalCost = inputCost + outputCost
+
+        return {
+          success: true,
+          data: {
+            content: text,
+            model: modelToUse,
+            tokensUsed: totalTokens,
+            inputTokens,
+            outputTokens,
+            cost: totalCost,
+            costBreakdown: { input_cost: inputCost, output_cost: outputCost }
+          }
+        }
+
+      } catch (error: any) {
+        logger.log(`Error with model ${modelToUse}:`, error.message)
+        lastError = error.message
+
+        if (i < uniqueModels.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          continue
+        }
+
+        return {
+          success: false,
+          error: lastError || 'All models failed',
+          userMessage: 'Failed to generate response. Please try again.'
+        }
       }
+    }
 
-      return {
-        success: true,
-        data: response.data
-      }
-    } catch (error: any) {
-      logger.log('❌ Chat with context error:', error)
-      return {
-        success: false,
-        error: error.message,
-        userMessage: 'Failed to generate response. Please try again.'
-      }
+    return {
+      success: false,
+      error: lastError || 'Unknown error occurred',
+      userMessage: 'Failed to generate response. Please try again.'
     }
   }
 
