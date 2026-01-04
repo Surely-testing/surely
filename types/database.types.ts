@@ -545,6 +545,105 @@ export type Database = {
           },
         ]
       }
+      bug_recordings: {
+        Row: {
+          bug_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          recording_id: string
+        }
+        Insert: {
+          bug_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          recording_id: string
+        }
+        Update: {
+          bug_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          recording_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_recordings_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_recordings_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_recordings_recording_id_fkey"
+            columns: ["recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_recordings_recording_id_fkey"
+            columns: ["recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings_with_details"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bug_test_cases: {
+        Row: {
+          bug_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          test_case_id: string
+        }
+        Insert: {
+          bug_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          test_case_id: string
+        }
+        Update: {
+          bug_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          test_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_test_cases_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_test_cases_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_test_cases_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bugs: {
         Row: {
           actual_behavior: string | null
@@ -2718,19 +2817,23 @@ export type Database = {
     }
     Functions: {
       can_access_asset: {
-        Args: { asset_id: string; asset_type: string; user_id: string }
+        Args: {
+          asset_id: string
+          asset_type: string
+          requesting_user_id: string
+        }
         Returns: boolean
       }
       can_admin_test_suite: {
-        Args: { suite_id: string; user_id: string }
+        Args: { requesting_user_id: string; suite_id: string }
         Returns: boolean
       }
       can_read_test_suite: {
-        Args: { suite_id: string; user_id: string }
+        Args: { requesting_user_id: string; suite_id: string }
         Returns: boolean
       }
       can_write_test_suite: {
-        Args: { suite_id: string; user_id: string }
+        Args: { requesting_user_id: string; suite_id: string }
         Returns: boolean
       }
       cleanup_old_ai_logs: {
@@ -2812,16 +2915,20 @@ export type Database = {
         }
         Returns: Json
       }
+      is_document_owner: {
+        Args: { doc_id: string; requesting_user_id: string }
+        Returns: boolean
+      }
       is_org_admin: {
-        Args: { org_id: string; user_id: string }
+        Args: { org_id: string; requesting_user_id: string }
         Returns: boolean
       }
       is_org_manager: {
-        Args: { org_id: string; user_id: string }
+        Args: { org_id: string; requesting_user_id: string }
         Returns: boolean
       }
       is_org_member: {
-        Args: { org_id: string; user_id: string }
+        Args: { org_id: string; requesting_user_id: string }
         Returns: boolean
       }
     }

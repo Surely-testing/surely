@@ -1,8 +1,10 @@
-// BugsView.tsx
+// ============================================
+// BugsView.tsx - Updated with Traceability Routing
+// ============================================
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation'; // ADD THIS IMPORT
+import { useSearchParams, useRouter } from 'next/navigation';
 import { RefreshCw, Network, Upload, Plus, ChevronLeft } from 'lucide-react';
 import { BugTracking } from './BugTracking';
 import { Suggestions } from './Suggestions';
@@ -19,24 +21,25 @@ interface BugsViewProps {
 type TabType = 'tracking' | 'suggestions';
 
 export function BugsView({ suiteId }: BugsViewProps) {
-  const searchParams = useSearchParams(); // ADD THIS
+  const searchParams = useSearchParams();
+  const router = useRouter();
   
   const [activeTab, setActiveTab] = useState<TabType>('tracking');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showBugForm, setShowBugForm] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [bugsCount, setBugsCount] = useState(0);
   const [showSuggestionForm, setShowSuggestionForm] = useState(false);
 
-  // ADD THIS: Check URL parameters on mount
+  // Check URL parameters on mount
   useEffect(() => {
     const showForm = searchParams.get('show_form');
     const fromRecording = searchParams.get('from_recording');
     
     if (showForm === 'true' && fromRecording) {
       setShowBugForm(true);
-      // Optional: Remove the parameters from URL after reading
       window.history.replaceState({}, '', '/dashboard/bugs');
     }
   }, [searchParams]);
@@ -76,11 +79,11 @@ export function BugsView({ suiteId }: BugsViewProps) {
   };
 
   const handleTraceability = () => {
-    logger.log('Show traceability view');
+    router.push('/dashboard/traceability?from=bugs');
   };
 
   const handleImport = () => {
-    logger.log('Open import dialog');
+    router.push('/dashboard/bugs/import');
   };
 
   const handleNewBug = () => {
@@ -95,10 +98,8 @@ export function BugsView({ suiteId }: BugsViewProps) {
     setShowBugForm(false);
     handleRefresh();
     
-    // ADD: Clear the from_recording parameter and reload if coming from recording
     const fromRecording = searchParams.get('from_recording');
     if (fromRecording) {
-      // Navigate back to the recording page
       toast.success('Bug reported successfully! Returning to recording...', {
         duration: 2000
       });
@@ -110,6 +111,11 @@ export function BugsView({ suiteId }: BugsViewProps) {
 
   const handleFormCancel = () => {
     setShowBugForm(false);
+  };
+
+  const handleImportSuccess = () => {
+    setShowImportDialog(false);
+    handleRefresh();
   };
 
   const handleToggleDrawer = () => {
@@ -151,7 +157,8 @@ export function BugsView({ suiteId }: BugsViewProps) {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Header with Action Buttons - Matching TestCasesView */}
+
+      {/* Header with Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
@@ -162,7 +169,7 @@ export function BugsView({ suiteId }: BugsViewProps) {
           </span>
         </div>
 
-        {/* Action Buttons Container - Matching TestCasesView */}
+        {/* Action Buttons Container */}
         <div className="relative overflow-hidden">
           <div className="flex items-center justify-end gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
             {/* Sliding Drawer - Only show for Bug Tracking tab */}

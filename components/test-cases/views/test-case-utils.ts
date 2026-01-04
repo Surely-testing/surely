@@ -32,14 +32,16 @@ export const convertToTestCaseRows = (testCases: TestCase[]): TestCaseRow[] => {
 export const filterTestCases = (
   testCases: TestCase[],
   searchQuery: string,
-  priorityFilter: string,
-  statusFilter: string
+  priorityFilter: string
 ): TestCase[] => {
   return testCases.filter(tc => {
-    const matchesSearch = tc.title.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = !searchQuery || 
+      tc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tc.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    
     const matchesPriority = priorityFilter === 'all' || tc.priority === priorityFilter
-    const matchesStatus = statusFilter === 'all' || tc.status === statusFilter
-    return matchesSearch && matchesPriority && matchesStatus
+    
+    return matchesSearch && matchesPriority
   })
 }
 

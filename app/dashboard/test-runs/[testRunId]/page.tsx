@@ -1,27 +1,36 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/page.tsx
-// Fixed to use asset_relationships
+// COMPLETE FIX - Proper status handling and display
 // ============================================
 'use client'
 
 import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { 
-  ArrowLeft, Play, Pause, CheckCircle, XCircle, 
-  Clock, Calendar, User, Settings, FileText, 
-  Edit, Trash2, AlertCircle 
+import {
+  ArrowLeft, Play, Pause, CheckCircle, XCircle,
+  Clock, Calendar, User, Settings, FileText,
+  Edit, Trash2, AlertCircle, Shield, Flag
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { relationshipsApi } from '@/lib/api/relationships'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
 import { logger } from '@/lib/utils/logger';
 
-export default function TestRunDetailsPage({ 
-  params 
-}: { 
-  params: Promise<{ testRunId: string }> 
+
+export default function TestRunDetailsPage({
+  params
+}: {
+  params: Promise<{ testRunId: string }>
 }) {
   const { testRunId } = use(params)
   const router = useRouter()
@@ -32,6 +41,8 @@ export default function TestRunDetailsPage({
   const [isLoading, setIsLoading] = useState(true)
   const [isExecuting, setIsExecuting] = useState(false)
 
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
   useEffect(() => {
     fetchTestRunDetails()
   }, [testRunId])
@@ -39,7 +50,7 @@ export default function TestRunDetailsPage({
   const fetchTestRunDetails = async () => {
     try {
       setIsLoading(true)
-      
+
       // Fetch test run
       const { data: runData, error: runError } = await supabase
         .from('test_runs')
@@ -53,10 +64,10 @@ export default function TestRunDetailsPage({
       // Fetch linked test cases from relationships
       const linkedAssets = await relationshipsApi.getLinkedAssets('test_run' as any, testRunId)
       const testCaseAssets = linkedAssets.filter(asset => asset.asset_type === 'test_case')
-      
+
       if (testCaseAssets.length > 0) {
         const testCaseIds = testCaseAssets.map(asset => asset.asset_id)
-        
+
         // Fetch full test case details
         const { data: casesData, error: casesError } = await supabase
           .from('test_cases')
@@ -91,33 +102,33 @@ export default function TestRunDetailsPage({
         const resultsToCreate = testCases.map(tc => ({
           test_run_id: testRunId,
           test_case_id: tc.id,
-          status: 'not_executed',
+          status: 'pending', // FIXED: Changed from 'not_executed'
           executed_at: null,
-          duration: null,
+          duration_seconds: null, // FIXED: Changed from 'duration'
           notes: null
         }))
 
         await supabase
           .from('test_run_results')
-          .upsert(resultsToCreate, { 
+          .upsert(resultsToCreate, {
             onConflict: 'test_run_id,test_case_id',
-            ignoreDuplicates: true 
+            ignoreDuplicates: true
           })
       }
 
       const { error } = await supabase
         .from('test_runs')
-        .update({ 
+        .update({
           status: 'in-progress',
           executed_at: new Date().toISOString()
         })
         .eq('id', testRunId)
 
       if (error) throw error
-      
+
       toast.success('Starting test execution...')
       router.push(`/dashboard/test-runs/${testRunId}/execute`)
-      
+
     } catch (error) {
       logger.log('Error starting test run:', error)
       toast.error('Failed to start test run')
@@ -126,21 +137,31 @@ export default function TestRunDetailsPage({
   }
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this test run?')) return
-
     try {
+      // Delete relationships using the correct method
+      await relationshipsApi.deleteAllForAsset('test_run' as any, testRunId)
+
+      // Delete test run results
+      await supabase
+        .from('test_run_results')
+        .delete()
+        .eq('test_run_id', testRunId)
+
+      // Delete test run
       const { error } = await supabase
         .from('test_runs')
         .delete()
         .eq('id', testRunId)
 
       if (error) throw error
-      
+
       toast.success('Test run deleted')
       router.push('/dashboard/test-runs')
     } catch (error) {
       logger.log('Error deleting test run:', error)
       toast.error('Failed to delete test run')
+    } finally {
+      setShowDeleteDialog(false)
     }
   }
 
@@ -157,8 +178,10 @@ export default function TestRunDetailsPage({
         return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
       case 'skipped':
         return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-      default:
+      case 'pending': // FIXED: Added pending status
         return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+      default:
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
     }
   }
 
@@ -178,16 +201,20 @@ export default function TestRunDetailsPage({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'passed':
-        return <CheckCircle className="h-5 w-5 text-green-600" />
+        return <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
       case 'failed':
-        return <XCircle className="h-5 w-5 text-red-600" />
+        return <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
       case 'in_progress':
       case 'in-progress':
-        return <Play className="h-5 w-5 text-blue-600" />
+        return <Play className="h-5 w-5 text-blue-600 dark:text-blue-400" />
       case 'blocked':
-        return <AlertCircle className="h-5 w-5 text-orange-600" />
+        return <Shield className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+      case 'skipped':
+        return <Flag className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+      case 'pending': // FIXED: Added pending status
+        return <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
       default:
-        return <Clock className="h-5 w-5 text-yellow-600" />
+        return <Clock className="h-5 w-5 text-gray-600 dark:text-gray-400" />
     }
   }
 
@@ -217,9 +244,12 @@ export default function TestRunDetailsPage({
     )
   }
 
-  // Calculate stats from results
+  // FIXED: Calculate stats from results with proper status handling
   const passedCount = testRunResults.filter(r => r.status === 'passed').length
   const failedCount = testRunResults.filter(r => r.status === 'failed').length
+  const blockedCount = testRunResults.filter(r => r.status === 'blocked').length
+  const skippedCount = testRunResults.filter(r => r.status === 'skipped').length
+  const pendingCount = testRunResults.filter(r => r.status === 'pending').length
   const totalCount = testCases.length
   const passRate = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0
 
@@ -269,12 +299,39 @@ export default function TestRunDetailsPage({
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>
-            <button
-              onClick={handleDelete}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-red-600 bg-card border border-border rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <>
+              <button
+                onClick={() => setShowDeleteDialog(true)}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-red-600 bg-card border border-border rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+
+              <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Test Run</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to delete "{testRun.name}"? This will also delete all test results and relationships. 
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <button
+                      onClick={() => setShowDeleteDialog(false)}
+                      className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
           </div>
         </div>
       </div>
@@ -285,7 +342,7 @@ export default function TestRunDetailsPage({
           {/* Progress Summary */}
           <div className="bg-card rounded-xl border border-border p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Progress Summary</h2>
-            
+
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">{passedCount}</div>
@@ -297,7 +354,7 @@ export default function TestRunDetailsPage({
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-yellow-600">
-                  {totalCount - passedCount - failedCount}
+                  {pendingCount}
                 </div>
                 <div className="text-sm text-muted-foreground">Pending</div>
               </div>
@@ -322,7 +379,7 @@ export default function TestRunDetailsPage({
             <h2 className="text-lg font-semibold text-foreground mb-4">
               Test Cases ({testCases.length})
             </h2>
-            
+
             {testCases.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>No test cases linked to this test run</p>
@@ -330,9 +387,10 @@ export default function TestRunDetailsPage({
             ) : (
               <div className="space-y-3">
                 {testCases.map((testCase: any) => {
+                  // FIXED: Proper status handling with 'pending' as default
                   const result = testRunResults.find(r => r.test_case_id === testCase.id)
-                  const status = result?.status || 'not_executed'
-                  
+                  const status = result?.status || 'pending'
+
                   return (
                     <div
                       key={testCase.id}
@@ -361,7 +419,7 @@ export default function TestRunDetailsPage({
                         "text-xs px-2 py-1 rounded-full capitalize flex-shrink-0",
                         getStatusColor(status)
                       )}>
-                        {status.replace('_', ' ')}
+                        {status === 'pending' ? 'Not Executed' : status.replace('_', ' ')}
                       </span>
                     </div>
                   )
@@ -384,7 +442,7 @@ export default function TestRunDetailsPage({
           {/* Details Card */}
           <div className="bg-card rounded-xl border border-border p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Details</h2>
-            
+
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />

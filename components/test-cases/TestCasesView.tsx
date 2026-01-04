@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { logger } from '@/lib/utils/logger'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
+import { useBulkActions } from '@/hooks/useBulkActions'
 import { TestCaseForm } from './TestCaseForm'
 import { TestCaseTable } from './TestCaseTable'
 import { TestCaseGrid } from './TestCaseGrid'
@@ -21,7 +22,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/Dropdown'
 import type { TestCase } from '@/types/test-case.types'
-import type { TestCaseRow } from './TestCaseTable'
 import type { ActionOption } from '@/components/shared/bulk-action/BulkActionBar'
 import type {
   ViewMode,
@@ -44,26 +44,39 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const router = useRouter()
   const { supabase, user } = useSupabase()
   const { setIsOpen, sendMessage } = useAI()
+  
+  // Use bulk actions hook
+  const { execute: executeBulkAction, isExecuting } = useBulkActions('test_cases', suiteId)
 
   // State
   const [testCases, setTestCases] = useState<TestCase[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('active')
   const [isLoading, setIsLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('table')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Load from localStorage or default to 'grid'
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('testCasesViewMode')
+      return (saved as ViewMode) || 'grid'
+    }
+    return 'grid'
+  })
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
 
-  // Dialog states
-  const [deleteDialog, setDeleteDialog] = useState<DialogState>({ open: false, testCaseId: null })
-  const [archiveDialog, setArchiveDialog] = useState<DialogState>({ open: false, testCaseId: null })
-  const [bulkDeleteDialog, setBulkDeleteDialog] = useState<BulkDialogState>({ open: false, count: 0 })
-  const [bulkArchiveDialog, setBulkArchiveDialog] = useState<BulkDialogState>({ open: false, count: 0 })
+  // Dialog states - ONLY for single-item operations
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; itemIds: string[] }>({ 
+    open: false, 
+    itemIds: [] 
+  })
+  const [archiveDialog, setArchiveDialog] = useState<{ open: boolean; itemIds: string[] }>({ 
+    open: false, 
+    itemIds: [] 
+  })
 
   const fetchTestCases = async () => {
     setIsLoading(true)
@@ -84,10 +97,93 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     }
   }
 
-  useEffect(() => {
-    fetchTestCases()
+  // Sync all test case statuses from latest test run results
+  const syncAllTestCaseStatuses = async () => {
+    try {
+      const { data: currentTestCases, error: tcError } = await supabase
+        .from('test_cases')
+        .select('id')
+        .eq('suite_id', suiteId)
+      
+      if (tcError) throw tcError
+      if (!currentTestCases || currentTestCases.length === 0) return
 
-    const channel = supabase
+      const testCaseIds = currentTestCases.map(tc => tc.id)
+
+      const { data: allResults, error } = await supabase
+        .from('test_run_results')
+        .select('test_case_id, status, created_at')
+        .in('test_case_id', testCaseIds)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      if (!allResults || allResults.length === 0) return
+
+      const latestByTestCase = new Map<string, string>()
+      allResults.forEach((result: any) => {
+        if (!latestByTestCase.has(result.test_case_id)) {
+          latestByTestCase.set(result.test_case_id, result.status)
+        }
+      })
+
+      if (latestByTestCase.size > 0) {
+        const updates = Array.from(latestByTestCase.entries()).map(([testCaseId, lastResult]) => 
+          supabase
+            .from('test_cases')
+            .update({ last_result: lastResult })
+            .eq('id', testCaseId)
+        )
+
+        await Promise.all(updates)
+        await fetchTestCases()
+        logger.log(`Synced last_result for ${latestByTestCase.size} test cases`)
+      }
+    } catch (error: any) {
+      logger.log('Error syncing test case statuses:', error)
+    }
+  }
+
+  // Sync individual test case status
+  const syncTestCaseStatus = async (testCaseId: string) => {
+    try {
+      const { data: latestRun, error: fetchError } = await supabase
+        .from('test_run_results')
+        .select('status')
+        .eq('test_case_id', testCaseId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError
+
+      if (latestRun) {
+        const { error: updateError } = await supabase
+          .from('test_cases')
+          .update({ last_result: latestRun.status })
+          .eq('id', testCaseId)
+
+        if (updateError) throw updateError
+
+        setTestCases(prev => prev.map(tc => 
+          tc.id === testCaseId 
+            ? { ...tc, last_result: latestRun.status }
+            : tc
+        ))
+      }
+    } catch (error: any) {
+      logger.log('Error syncing test case status:', error)
+    }
+  }
+
+  useEffect(() => {
+    const initialize = async () => {
+      await fetchTestCases()
+      await syncAllTestCaseStatuses()
+    }
+    
+    initialize()
+
+    const testCasesChannel = supabase
       .channel(`test_cases:${suiteId}`)
       .on('postgres_changes', {
         event: '*',
@@ -106,10 +202,70 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    const testRunResultsChannel = supabase
+      .channel(`test_run_results:suite:${suiteId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'test_run_results'
+      }, async (payload) => {
+        const result = payload.new as any
+        
+        const { data: testCase } = await supabase
+          .from('test_cases')
+          .select('id, suite_id')
+          .eq('id', result.test_case_id)
+          .eq('suite_id', suiteId)
+          .single()
+        
+        if (testCase) {
+          setTestCases(prev => prev.map(tc => 
+            tc.id === result.test_case_id 
+              ? { ...tc, last_result: result.status }
+              : tc
+          ))
+          
+          await supabase
+            .from('test_cases')
+            .update({ last_result: result.status })
+            .eq('id', result.test_case_id)
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'test_run_results'
+      }, async (payload) => {
+        const result = payload.new as any
+        
+        const { data: testCase } = await supabase
+          .from('test_cases')
+          .select('id, suite_id')
+          .eq('id', result.test_case_id)
+          .eq('suite_id', suiteId)
+          .single()
+        
+        if (testCase) {
+          setTestCases(prev => prev.map(tc => 
+            tc.id === result.test_case_id 
+              ? { ...tc, last_result: result.status }
+              : tc
+          ))
+          
+          await supabase
+            .from('test_cases')
+            .update({ last_result: result.status })
+            .eq('id', result.test_case_id)
+        }
+      })
+      .subscribe()
+
+    return () => { 
+      supabase.removeChannel(testCasesChannel)
+      supabase.removeChannel(testRunResultsChannel)
+    }
   }, [suiteId, supabase])
 
-  // Show form if creating/editing
   if (isCreateModalOpen) {
     return (
       <div className="space-y-4 md:space-y-6">
@@ -125,100 +281,12 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     )
   }
 
-  // Computed values
-  const filtered = filterTestCases(testCases, searchQuery, priorityFilter, statusFilter)
+  const filtered = filterTestCases(testCases, searchQuery, priorityFilter)
   const sorted = sortTestCases(filtered, sortField, sortOrder)
   const grouped = groupTestCases(sorted, groupBy)
-  const activeFiltersCount = (priorityFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+  const activeFiltersCount = (priorityFilter !== 'all' ? 1 : 0)
 
   // Handlers
-  const moveToTrash = async (testCaseId: string) => {
-    if (!user) {
-      toast.error('You must be logged in')
-      return
-    }
-
-    try {
-      const { data: testCase, error: fetchError } = await supabase
-        .from('test_cases')
-        .select('*')
-        .eq('id', testCaseId)
-        .single()
-
-      if (fetchError) throw fetchError
-
-      // Set expiration to 30 days from now
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 30)
-
-      const { error: trashError } = await supabase
-        .from('trash')
-        .insert({
-          suite_id: suiteId,
-          asset_type: 'testCases',
-          asset_id: testCaseId,
-          asset_data: testCase,
-          deleted_by: user.id,
-          expires_at: expiresAt.toISOString()
-        })
-
-      if (trashError) throw trashError
-
-      const { error: deleteError } = await supabase
-        .from('test_cases')
-        .delete()
-        .eq('id', testCaseId)
-
-      if (deleteError) throw deleteError
-
-      toast.success('Test case moved to trash')
-    } catch (error: any) {
-      logger.log('Move to trash failed:', error)
-      toast.error('Failed to delete test case', { description: error.message })
-    }
-  }
-
-  const moveToArchive = async (testCaseId: string) => {
-    if (!user) {
-      toast.error('You must be logged in')
-      return
-    }
-
-    try {
-      const { data: testCase, error: fetchError } = await supabase
-        .from('test_cases')
-        .select('*')
-        .eq('id', testCaseId)
-        .single()
-
-      if (fetchError) throw fetchError
-
-      const { error: archiveError } = await supabase
-        .from('archived_items')
-        .insert({
-          suite_id: suiteId,
-          asset_type: 'testCases',
-          asset_id: testCaseId,
-          asset_data: testCase,
-          archived_by: user.id
-        })
-
-      if (archiveError) throw archiveError
-
-      const { error: deleteError } = await supabase
-        .from('test_cases')
-        .delete()
-        .eq('id', testCaseId)
-
-      if (deleteError) throw deleteError
-
-      toast.success('Test case archived')
-    } catch (error: any) {
-      logger.log('Archive failed:', error)
-      toast.error('Failed to archive test case', { description: error.message })
-    }
-  }
-
   const handleBulkAction = async (
     actionId: string,
     testCaseIds: string[],
@@ -226,141 +294,41 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     option?: ActionOption | null
   ) => {
     try {
-      switch (actionId) {
-        case 'delete':
-          setBulkDeleteDialog({ open: true, count: testCaseIds.length })
-          return
-
-        case 'archive':
-          setBulkArchiveDialog({ open: true, count: testCaseIds.length })
-          return
-
-        case 'change_priority':
-          if (!option?.value) return
-          const { error: priorityError } = await supabase
-            .from('test_cases')
-            .update({ priority: option.value })
-            .in('id', testCaseIds)
-
-          if (priorityError) throw priorityError
-          toast.success(`Updated priority for ${testCaseIds.length} test case${testCaseIds.length > 1 ? 's' : ''}`)
-          break
-
-        case 'change_status':
-          if (!option?.value) return
-          const { error: statusError } = await supabase
-            .from('test_cases')
-            .update({ status: option.value })
-            .in('id', testCaseIds)
-
-          if (statusError) throw statusError
-          toast.success(`Updated status for ${testCaseIds.length} test case${testCaseIds.length > 1 ? 's' : ''}`)
-          break
-
-        default:
-          toast.info('Action not yet implemented')
+      // NOTE: BulkActionsBar already handles confirmation dialogs,
+      // so we just execute the action directly here
+      const actionMap: Record<string, { action: string; options?: any }> = {
+        'delete': { action: 'delete' },
+        'pass': { action: 'pass' },
+        'fail': { action: 'fail' },
+        'block': { action: 'block' },
+        'run': { action: 'run' },
+        'reset': { action: 'reset' },
+        'archive': { action: 'archive' },
+        'activate': { action: 'activate' },
+        'assign': {
+          action: 'assign',
+          options: option?.data || { priority: option?.value }
+        },
       }
 
-      await fetchTestCases()
-      setSelectedIds([])
+      const mapping = actionMap[actionId]
+      if (!mapping) {
+        toast.info('Action not yet implemented')
+        return
+      }
+
+      await executeBulkAction(
+        mapping.action,
+        testCaseIds,
+        mapping.options,
+        () => {
+          fetchTestCases()
+          setSelectedIds([])
+        }
+      )
     } catch (error: any) {
       logger.log('Bulk action failed:', error)
       toast.error('Action failed', { description: error.message })
-    }
-  }
-
-  const confirmBulkDelete = async () => {
-    if (!user) {
-      toast.error('You must be logged in')
-      return
-    }
-
-    try {
-      const { data: testCasesData, error: fetchError } = await supabase
-        .from('test_cases')
-        .select('*')
-        .in('id', selectedIds)
-
-      if (fetchError) throw fetchError
-
-      // Set expiration to 30 days from now
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 30)
-
-      const trashItems = testCasesData.map(tc => ({
-        suite_id: suiteId,
-        asset_type: 'testCases' as const,
-        asset_id: tc.id,
-        asset_data: tc,
-        deleted_by: user.id,
-        expires_at: expiresAt.toISOString()
-      }))
-
-      const { error: trashError } = await supabase
-        .from('trash')
-        .insert(trashItems)
-
-      if (trashError) throw trashError
-
-      const { error: deleteError } = await supabase
-        .from('test_cases')
-        .delete()
-        .in('id', selectedIds)
-
-      if (deleteError) throw deleteError
-
-      toast.success(`Moved ${selectedIds.length} test case${selectedIds.length > 1 ? 's' : ''} to trash`)
-      setSelectedIds([])
-      setBulkDeleteDialog({ open: false, count: 0 })
-      await fetchTestCases()
-    } catch (error: any) {
-      logger.log('Bulk delete failed:', error)
-      toast.error('Failed to delete test cases', { description: error.message })
-    }
-  }
-
-  const confirmBulkArchive = async () => {
-    if (!user) {
-      toast.error('You must be logged in')
-      return
-    }
-
-    try {
-      const { data: testCasesData, error: fetchError } = await supabase
-        .from('test_cases')
-        .select('*')
-        .in('id', selectedIds)
-
-      if (fetchError) throw fetchError
-
-      const archiveItems = testCasesData.map(tc => ({
-        suite_id: suiteId,
-        asset_type: 'testCases' as const,
-        asset_id: tc.id,
-        asset_data: tc,
-        archived_by: user.id
-      }))
-
-      const { error: archiveError } = await supabase
-        .from('archived_items')
-        .insert(archiveItems)
-
-      if (archiveError) throw archiveError
-
-      const { error: deleteError } = await supabase
-        .from('test_cases')
-        .delete()
-        .in('id', selectedIds)
-
-      if (deleteError) throw deleteError
-
-      toast.success(`Archived ${selectedIds.length} test case${selectedIds.length > 1 ? 's' : ''}`)
-      setSelectedIds([])
-      setBulkArchiveDialog({ open: false, count: 0 })
-      await fetchTestCases()
-    } catch (error: any) {
-      logger.log('Bulk archive failed:', error)
-      toast.error('Failed to archive test cases', { description: error.message })
     }
   }
 
@@ -368,24 +336,44 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     router.push(`/dashboard/test-cases/${testCaseId}/edit`)
   }
 
+  // Single-item delete - shows dialog
   const handleDelete = async (testCaseId: string) => {
-    setDeleteDialog({ open: true, testCaseId })
+    setDeleteDialog({ open: true, itemIds: [testCaseId] })
   }
 
+  // Confirm single-item delete
   const confirmDelete = async () => {
-    if (!deleteDialog.testCaseId) return
-    await moveToTrash(deleteDialog.testCaseId)
-    setDeleteDialog({ open: false, testCaseId: null })
+    if (deleteDialog.itemIds.length === 0) return
+    
+    await executeBulkAction(
+      'delete',
+      deleteDialog.itemIds,
+      undefined,
+      () => {
+        setDeleteDialog({ open: false, itemIds: [] })
+        fetchTestCases()
+      }
+    )
   }
 
+  // Single-item archive - shows dialog
   const handleArchive = async (testCaseId: string) => {
-    setArchiveDialog({ open: true, testCaseId })
+    setArchiveDialog({ open: true, itemIds: [testCaseId] })
   }
 
+  // Confirm single-item archive
   const confirmArchive = async () => {
-    if (!archiveDialog.testCaseId) return
-    await moveToArchive(archiveDialog.testCaseId)
-    setArchiveDialog({ open: false, testCaseId: null })
+    if (archiveDialog.itemIds.length === 0) return
+    
+    await executeBulkAction(
+      'archive',
+      archiveDialog.itemIds,
+      undefined,
+      () => {
+        setArchiveDialog({ open: false, itemIds: [] })
+        fetchTestCases()
+      }
+    )
   }
 
   const handleDuplicate = async (testCaseId: string) => {
@@ -409,6 +397,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
       if (insertError) throw insertError
       toast.success('Test case duplicated')
+      fetchTestCases()
     } catch (error: any) {
       logger.log('Duplicate failed:', error)
       toast.error('Failed to duplicate test case', { description: error.message })
@@ -431,9 +420,16 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     setSelectedIds(newSelectedIds)
   }
 
+  // Handler to persist view mode changes
+  const handleViewModeChange = (newViewMode: ViewMode) => {
+    setViewMode(newViewMode)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('testCasesViewMode', newViewMode)
+    }
+  }
+
   const clearFilters = () => {
     setPriorityFilter('all')
-    setStatusFilter('all')
     setSortField('created_at')
     setSortOrder('desc')
   }
@@ -445,6 +441,12 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         `I need to generate test cases for suite ID: ${suiteId}. Please help me create comprehensive test cases. Ask me about the feature or functionality I want to test, and then generate appropriate test cases with titles, descriptions, steps, expected results, and priorities.`
       )
     }, 100)
+  }
+
+  // Manual refresh with sync
+  const handleRefresh = async () => {
+    await fetchTestCases()
+    await syncAllTestCaseStatuses()
   }
 
   // Loading state
@@ -535,7 +537,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             </span>
           </div>
 
-          {/* Action Buttons Container */}
           <div className="flex items-center justify-end gap-2">
             {canWrite && (
               <DropdownMenu>
@@ -586,11 +587,11 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
             <button
               type="button"
-              onClick={fetchTestCases}
-              disabled={isLoading}
+              onClick={handleRefresh}
+              disabled={isLoading || isExecuting}
               className="inline-flex items-center justify-center p-2 lg:px-4 lg:py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isLoading || isExecuting ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
@@ -611,14 +612,12 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           groupBy={groupBy}
           onGroupByChange={setGroupBy}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
           selectAllChecked={selectedIds.length === sorted.length && sorted.length > 0}
           onSelectAllChange={handleSelectAll}
-          isLoading={isLoading}
+          isLoading={isLoading || isExecuting}
           priorityFilter={priorityFilter}
           onPriorityFilterChange={setPriorityFilter}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
           onClearFilters={clearFilters}
         />
 
@@ -627,6 +626,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           <p className="text-sm text-muted-foreground">
             {sorted.length} of {testCases.length} test cases
             {selectedIds.length > 0 && ` • ${selectedIds.length} selected`}
+            {isExecuting && ' • Processing...'}
           </p>
         </div>
 
@@ -721,20 +721,32 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         )}
       </div>
 
-      {/* Dialogs */}
+      {/* Dialogs - ONLY for single-item operations from row actions */}
       <TestCaseDialogs
-        deleteDialog={deleteDialog}
-        onDeleteDialogChange={setDeleteDialog}
+        deleteDialog={{ 
+          open: deleteDialog.open, 
+          testCaseId: deleteDialog.itemIds[0] || null 
+        }}
+        onDeleteDialogChange={(state) => setDeleteDialog({ 
+          open: state.open, 
+          itemIds: state.testCaseId ? [state.testCaseId] : [] 
+        })}
         onConfirmDelete={confirmDelete}
-        archiveDialog={archiveDialog}
-        onArchiveDialogChange={setArchiveDialog}
+        archiveDialog={{ 
+          open: archiveDialog.open, 
+          testCaseId: archiveDialog.itemIds[0] || null 
+        }}
+        onArchiveDialogChange={(state) => setArchiveDialog({ 
+          open: state.open, 
+          itemIds: state.testCaseId ? [state.testCaseId] : [] 
+        })}
         onConfirmArchive={confirmArchive}
-        bulkDeleteDialog={bulkDeleteDialog}
-        onBulkDeleteDialogChange={setBulkDeleteDialog}
-        onConfirmBulkDelete={confirmBulkDelete}
-        bulkArchiveDialog={bulkArchiveDialog}
-        onBulkArchiveDialogChange={setBulkArchiveDialog}
-        onConfirmBulkArchive={confirmBulkArchive}
+        bulkDeleteDialog={{ open: false, count: 0 }}
+        onBulkDeleteDialogChange={() => {}}
+        onConfirmBulkDelete={() => {}}
+        bulkArchiveDialog={{ open: false, count: 0 }}
+        onBulkArchiveDialogChange={() => {}}
+        onConfirmBulkArchive={() => {}}
       />
     </>
   )

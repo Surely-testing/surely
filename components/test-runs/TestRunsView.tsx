@@ -1,70 +1,129 @@
 // ============================================
 // FILE: components/test-runs/TestRunsView.tsx
-// Updated to work with simplified TestRunForm
+// Matches test cases view pattern exactly
 // ============================================
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { Plus, RefreshCw, Search, Filter, Play, Grid3x3, List } from 'lucide-react';
+import { useSupabase } from '@/providers/SupabaseProvider';
+import { useSuiteContext } from '@/providers/SuiteContextProvider';
+import { toast } from 'sonner';
+import { useBulkActions } from '@/hooks/useBulkActions';
+import { logger } from '@/lib/utils/logger';
+import { cn } from '@/lib/utils/cn';
+
 import { TestRunsTable } from './TestRunsTable';
 import { TestRunsGrid } from './TestRunsGrid';
 import { Pagination } from '@/components/shared/Pagination';
 import { BulkActionsBar } from '@/components/shared/bulk-action/BulkActionBar';
 import TestRunForm from './TestRunsForm';
-import { Plus, RefreshCw, Search, Filter, X, Play, Grid3x3, List } from 'lucide-react';
-import { useSuiteContext } from '@/providers/SuiteContextProvider';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils/cn';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/Select';
+import type { ActionOption } from '@/components/shared/bulk-action/BulkActionBar';
 
 interface TestRunsViewProps {
   suiteId: string;
-  testRuns: any[];
-  onRefresh?: () => void;
 }
 
-export default function TestRunsView({ 
-  suiteId, 
-  testRuns,
-  onRefresh 
-}: TestRunsViewProps) {
+type SortField = 'name' | 'created_at' | 'executed_at';
+type SortOrder = 'asc' | 'desc';
+
+export default function TestRunsView({ suiteId }: TestRunsViewProps) {
+  const router = useRouter();
+  const { supabase } = useSupabase();
+  const { execute: executeBulkAction, isExecuting } = useBulkActions('test_runs', suiteId);
+  
+  // State
+  const [testRuns, setTestRuns] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingRun, setEditingRun] = useState<any | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'executed_at'>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [loadingActions, setLoadingActions] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   
   const context = useSuiteContext();
   const canAdmin = context?.canAdmin ?? true;
 
-  // Filter and sort test runs
-  const filteredAndSortedRuns = useMemo(() => {
-    let filtered = [...testRuns];
+  // Fetch test runs - matches test cases pattern
+  const fetchTestRuns = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('test_runs')
+        .select('*')
+        .eq('suite_id', suiteId)
+        .order('created_at', { ascending: false });
 
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(run =>
-        run.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        run.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        run.environment?.toLowerCase().includes(searchTerm.toLowerCase())
+      if (error) throw error;
+      setTestRuns(data || []);
+    } catch (err: any) {
+      logger.log('Error fetching test runs:', err);
+      toast.error('Failed to load test runs', { description: err.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Real-time subscriptions - matches test cases pattern
+  useEffect(() => {
+    fetchTestRuns();
+
+    const channel = supabase
+      .channel(`test_runs:${suiteId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'test_runs',
+        filter: `suite_id=eq.${suiteId}`
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setTestRuns(prev => [payload.new as any, ...prev]);
+          toast.success('Test run created');
+        } else if (payload.eventType === 'UPDATE') {
+          setTestRuns(prev => prev.map(tr => tr.id === payload.new.id ? payload.new as any : tr));
+        } else if (payload.eventType === 'DELETE') {
+          setTestRuns(prev => prev.filter(tr => tr.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [suiteId, supabase]);
+
+  // Computed values
+  const filtered = useMemo(() => {
+    let result = [...testRuns];
+    if (searchQuery) {
+      result = result.filter(run =>
+        run.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        run.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        run.environment?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-
-    // Apply status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(run => run.status === statusFilter);
+      result = result.filter(run => run.status === statusFilter);
     }
+    return result;
+  }, [testRuns, searchQuery, statusFilter]);
 
-    // Apply sorting
-    filtered.sort((a, b) => {
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
       let comparison = 0;
-      
-      switch (sortBy) {
+      switch (sortField) {
         case 'name':
           comparison = (a.name || '').localeCompare(b.name || '');
           break;
@@ -80,355 +139,489 @@ export default function TestRunsView({
           comparison = createdA - createdB;
           break;
       }
-
       return sortOrder === 'asc' ? comparison : -comparison;
     });
+  }, [filtered, sortField, sortOrder]);
 
-    return filtered;
-  }, [testRuns, searchTerm, statusFilter, sortBy, sortOrder]);
-
-  // Paginated runs
-  const paginatedRuns = useMemo(() => {
+  const paginated = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return filteredAndSortedRuns.slice(startIndex, endIndex);
-  }, [filteredAndSortedRuns, currentPage, itemsPerPage]);
+    return sorted.slice(startIndex, endIndex);
+  }, [sorted, currentPage, itemsPerPage]);
 
-  const handleSuccess = () => {
-    setShowForm(false);
-    setEditingRun(null);
-    toast.success(editingRun ? 'Test run updated successfully' : 'Test run created successfully');
-    if (onRefresh) {
-      onRefresh();
-    }
-  };
+  const activeFiltersCount = (statusFilter !== 'all' ? 1 : 0);
 
-  const handleCreateRun = () => {
-    setEditingRun(null);
-    setShowForm(true);
-  };
-
-  const handleEditRun = (run: any) => {
-    setEditingRun(run);
-    setShowForm(true);
-  };
-
-  const handleRefresh = async () => {
-    if (!onRefresh) return;
-    
-    setIsRefreshing(true);
-    try {
-      await onRefresh();
-      toast.success('Test runs refreshed');
-    } catch (error) {
-      toast.error('Failed to refresh test runs');
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
+  // Handlers
   const handleBulkAction = async (
     actionId: string,
-    selectedIds: string[],
+    testRunIds: string[],
     actionConfig: any,
-    selectedOption?: any
+    option?: ActionOption | null
   ) => {
-    setLoadingActions(prev => [...prev, actionId]);
-    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      switch (actionId) {
-        case 'execute':
-          toast.success(`Started ${selectedIds.length} test run(s)`);
-          break;
-        case 'complete':
-          toast.success(`Completed ${selectedIds.length} test run(s)`);
-          break;
-        case 'abort':
-          toast.success(`Aborted ${selectedIds.length} test run(s)`);
-          break;
-        case 'archive':
-          toast.success(`Archived ${selectedIds.length} test run(s)`);
-          break;
-        case 'delete':
-          toast.success(`Deleted ${selectedIds.length} test run(s)`);
-          break;
-        default:
-          toast.success(`${actionConfig.label} completed for ${selectedIds.length} test run(s)`);
-      }
-      
-      if (onRefresh) {
-        await onRefresh();
-      }
-      setSelectedRuns([]);
-    } catch (error) {
-      toast.error('Action failed');
-    } finally {
-      setLoadingActions(prev => prev.filter(id => id !== actionId));
+      await executeBulkAction(
+        actionId,
+        testRunIds,
+        actionConfig,
+        () => {
+          fetchTestRuns();
+          setSelectedRuns([]);
+        }
+      );
+    } catch (error: any) {
+      logger.log('Bulk action failed:', error);
+      toast.error('Action failed', { description: error.message });
     }
   };
 
   const clearFilters = () => {
-    setSearchTerm('');
     setStatusFilter('all');
-    setSortBy('created_at');
+    setSortField('created_at');
     setSortOrder('desc');
-    setCurrentPage(1);
   };
 
-  const hasActiveFilters = searchTerm || statusFilter !== 'all' || sortBy !== 'created_at' || sortOrder !== 'desc';
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    setSelectedRuns([]);
+  const handleSelectAll = () => {
+    if (selectedRuns.length === paginated.length && paginated.length > 0) {
+      setSelectedRuns([]);
+    } else {
+      setSelectedRuns(paginated.map(run => run.id));
+    }
   };
 
-  const handleItemsPerPageChange = (items: number) => {
-    setItemsPerPage(items);
-    setCurrentPage(1);
-    setSelectedRuns([]);
-  };
-
-  // If showing form, render it instead of the main view
+  // Render form if creating/editing
   if (showForm) {
     return (
-      <TestRunForm
-        suiteId={suiteId}
-        initialData={editingRun}
-        onSuccess={handleSuccess}
-        onCancel={() => {
-          setShowForm(false);
-          setEditingRun(null);
-        }}
-      />
+      <div className="space-y-4 md:space-y-6">
+        <TestRunForm
+          suiteId={suiteId}
+          initialData={editingRun}
+          onSuccess={() => {
+            setShowForm(false);
+            setEditingRun(null);
+            fetchTestRuns();
+          }}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingRun(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-4 md:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
+            <div className="h-10 w-10 bg-muted animate-pulse rounded-lg" />
+          </div>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (testRuns.length === 0) {
+    return (
+      <>
+        <div className="flex items-center gap-3 mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            Test Runs
+          </h1>
+          <span className="text-sm text-muted-foreground">(0)</span>
+        </div>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Play className="h-12 w-12 text-muted-foreground mb-3" />
+          <h3 className="text-lg font-medium text-foreground mb-1">No test runs yet</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Create your first test run to get started
+          </p>
+          {canAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-all"
+            >
+              <Plus className="h-4 w-4" />
+              Create Test Run
+            </button>
+          )}
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Test Runs
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Execute and track your test case executions
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {onRefresh && (
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-              <span className="ml-2">Refresh</span>
-            </button>
-          )}
-          {canAdmin && (
-            <button
-              onClick={handleCreateRun}
-              className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Test Run
-            </button>
-          )}
-        </div>
-      </div>
+    <>
+      <div className="space-y-4 md:space-y-6">
+        {/* Header with Action Buttons */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Test Runs
+            </h1>
+            <span className="text-sm text-muted-foreground">
+              ({testRuns.length})
+            </span>
+          </div>
 
-      {/* Search, Filters and View Toggle */}
-      <div className="bg-card rounded-lg border border-border p-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search test runs by name, description, or environment..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+          <div className="flex items-center justify-end gap-2">
+            {canAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRun(null);
+                  setShowForm(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">New Test Run</span>
+                <span className="sm:hidden">New</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={fetchTestRuns}
+              disabled={isLoading || isExecuting}
+              className="inline-flex items-center justify-center p-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={cn('h-4 w-4', (isLoading || isExecuting) && 'animate-spin')} />
+            </button>
+          </div>
+        </div>
+
+        {/* Control Bar */}
+        <div className="bg-card border-b border-border">
+          <div className="px-3 py-2">
+            <div className="flex flex-col gap-3 lg:gap-0">
+              {/* Mobile Layout */}
+              <div className="lg:hidden space-y-3">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search test runs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    disabled={isExecuting}
+                    className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(!showFilters)}
+                    disabled={isExecuting}
+                    className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+                  >
+                    <Filter className="w-4 h-4" />
+                    <span>Filter</span>
+                    {activeFiltersCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <Select
+                    value={`${sortField}-${sortOrder}`}
+                    onValueChange={(value) => {
+                      const [field, order] = value.split('-');
+                      setSortField(field as SortField);
+                      setSortOrder(order as SortOrder);
+                    }}
+                    disabled={isExecuting}
+                  >
+                    <SelectTrigger className="w-auto min-w-[140px] whitespace-nowrap flex-shrink-0">
+                      <SelectValue placeholder="Sort by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="created_at-desc">Newest First</SelectItem>
+                      <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                      <SelectItem value="executed_at-desc">Recently Executed</SelectItem>
+                      <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                      <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedRuns.length === paginated.length && paginated.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={isExecuting}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
+                    </span>
+                  </div>
+
+                  <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('grid')}
+                      disabled={isExecuting}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        viewMode === 'grid'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                      title="Grid View"
+                    >
+                      <Grid3x3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('table')}
+                      disabled={isExecuting}
+                      className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        viewMode === 'table'
+                          ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                      title="Table View"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Desktop Layout */}
+              <div className="hidden lg:flex lg:flex-col lg:gap-0">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedRuns.length === paginated.length && paginated.length > 0}
+                      onChange={handleSelectAll}
+                      disabled={isExecuting}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Select All
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-1 justify-end">
+                    <div className="relative flex-1 max-w-xs">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search test runs..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        disabled={isExecuting}
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowFilters(!showFilters)}
+                      disabled={isExecuting}
+                      className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 disabled:opacity-50"
+                    >
+                      <Filter className="w-4 h-4" />
+                      Filter
+                      {activeFiltersCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                          {activeFiltersCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <Select
+                      value={`${sortField}-${sortOrder}`}
+                      onValueChange={(value) => {
+                        const [field, order] = value.split('-');
+                        setSortField(field as SortField);
+                        setSortOrder(order as SortOrder);
+                      }}
+                      disabled={isExecuting}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Sort by..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="created_at-desc">Newest First</SelectItem>
+                        <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                        <SelectItem value="executed_at-desc">Recently Executed</SelectItem>
+                        <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                        <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('grid')}
+                        disabled={isExecuting}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                          viewMode === 'grid'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                        title="Grid View"
+                      >
+                        <Grid3x3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('table')}
+                        disabled={isExecuting}
+                        className={`p-2 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                          viewMode === 'table'
+                            ? 'bg-primary text-primary-foreground shadow-theme-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                        title="Table View"
+                      >
+                        <List className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="in-progress">In Progress</option>
-              <option value="passed">Passed</option>
-              <option value="failed">Failed</option>
-              <option value="blocked">Blocked</option>
-              <option value="skipped">Skipped</option>
-            </select>
+            {/* Filters Panel */}
+            {showFilters && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+                  {activeFiltersCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="px-3 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">Status</label>
+                  <div className="flex flex-wrap gap-2">
+                    {(['pending', 'in-progress', 'passed', 'failed', 'blocked', 'skipped'] as const).map(status => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
+                        className={cn(
+                          'px-3 py-1 text-xs font-medium rounded-full border transition-colors',
+                          statusFilter === status
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-foreground border-border hover:border-primary'
+                        )}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* Sort */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground flex-shrink-0">Sort by:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="created_at">Created Date</option>
-              <option value="executed_at">Execution Date</option>
-              <option value="name">Name</option>
-            </select>
-            <button
-              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="px-3 py-2 border border-border rounded-lg bg-background text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary"
-              title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-            >
-              {sortOrder === 'asc' ? '↑' : '↓'}
-            </button>
-          </div>
-
-          {/* View Toggle */}
-          <div className="flex items-center gap-1 border border-border rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('table')}
-              className={cn(
-                "p-2 rounded transition-colors",
-                viewMode === 'table' 
-                  ? "bg-primary text-primary-foreground" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              )}
-              title="Table view"
-            >
-              <List className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={cn(
-                "p-2 rounded transition-colors",
-                viewMode === 'grid' 
-                  ? "bg-primary text-primary-foreground" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              )}
-              title="Grid view"
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Clear Filters */}
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200"
-            >
-              <X className="h-4 w-4 mr-2" />
-              Clear
-            </button>
-          )}
         </div>
-      </div>
 
-      {/* Results Info */}
-      {hasActiveFilters && (
-        <div className="text-sm text-muted-foreground">
-          Showing {filteredAndSortedRuns.length} of {testRuns.length} test runs
-        </div>
-      )}
-
-      {/* Test Runs Content */}
-      {filteredAndSortedRuns.length === 0 ? (
-        <div className="bg-card rounded-lg border border-border p-12 text-center">
-          <Play className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            {hasActiveFilters 
-              ? 'No test runs match your search or filters'
-              : 'No test runs yet'
-            }
-          </h3>
-          <p className="text-muted-foreground mb-6">
-            {hasActiveFilters 
-              ? 'Try adjusting your filters to see more results'
-              : 'Create your first test run to start executing test cases.'
-            }
+        {/* Stats Bar */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {sorted.length} of {testRuns.length} test runs
+            {selectedRuns.length > 0 && ` • ${selectedRuns.length} selected`}
+            {isExecuting && ' • Processing...'}
           </p>
-          {hasActiveFilters ? (
+        </div>
+
+        {/* Content Area */}
+        {sorted.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <Filter className="h-12 w-12 text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium text-foreground mb-1">
+              No test runs found
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Try adjusting your filters or search query
+            </p>
             <button
+              type="button"
               onClick={clearFilters}
-              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-all duration-200"
+              className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200"
             >
               Clear Filters
             </button>
-          ) : canAdmin && (
-            <button
-              onClick={handleCreateRun}
-              className="btn-primary inline-flex items-center justify-center px-4 py-2 text-sm font-semibold"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Test Run
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Test Runs Table or Grid */}
-          {viewMode === 'table' ? (
-            <TestRunsTable 
-              testRuns={paginatedRuns}
-              suiteId={suiteId}
-              selectedRuns={selectedRuns}
-              onSelectionChange={setSelectedRuns}
-              onEdit={handleEditRun}
-            />
-          ) : (
-            <TestRunsGrid
-              testRuns={paginatedRuns}
-              suiteId={suiteId}
-              selectedRuns={selectedRuns}
-              onSelectionChange={setSelectedRuns}
-              onEdit={handleEditRun}
-            />
-          )}
-          
-          {/* Pagination */}
-          {filteredAndSortedRuns.length > itemsPerPage && (
-            <Pagination
-              currentPage={currentPage}
-              totalItems={filteredAndSortedRuns.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={handlePageChange}
-              onItemsPerPageChange={handleItemsPerPageChange}
-            />
-          )}
-        </>
-      )}
+          </div>
+        ) : (
+          <>
+            {viewMode === 'table' ? (
+              <TestRunsTable 
+                testRuns={paginated}
+                suiteId={suiteId}
+                selectedRuns={selectedRuns}
+                onSelectionChange={setSelectedRuns}
+                onEdit={(run) => {
+                  setEditingRun(run);
+                  setShowForm(true);
+                }}
+              />
+            ) : (
+              <TestRunsGrid
+                testRuns={paginated}
+                suiteId={suiteId}
+                selectedRuns={selectedRuns}
+                onSelectionChange={setSelectedRuns}
+                onEdit={(run) => {
+                  setEditingRun(run);
+                  setShowForm(true);
+                }}
+              />
+            )}
+            
+            {sorted.length > itemsPerPage && (
+              <Pagination
+                currentPage={currentPage}
+                totalItems={sorted.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={(page) => {
+                  setCurrentPage(page);
+                  setSelectedRuns([]);
+                }}
+                onItemsPerPageChange={(items) => {
+                  setItemsPerPage(items);
+                  setCurrentPage(1);
+                  setSelectedRuns([]);
+                }}
+              />
+            )}
+          </>
+        )}
+      </div>
 
-      {/* Bulk Actions Bar */}
       {selectedRuns.length > 0 && (
         <BulkActionsBar
           selectedItems={selectedRuns}
           onClearSelection={() => setSelectedRuns([])}
           assetType="testRuns"
           onAction={handleBulkAction}
-          loadingActions={loadingActions}
         />
       )}
-    </div>
+    </>
   );
 }

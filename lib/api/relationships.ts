@@ -1,6 +1,5 @@
 // ============================================
-// lib/api/relationships.ts
-// Fixed - Using proper type casting for custom tables
+// FILE: lib/api/relationships.ts
 // ============================================
 
 import { createClient } from '@/lib/supabase/client';
@@ -79,7 +78,7 @@ export const relationshipsApi = {
     return data as AssetRelationship;
   },
 
-  // Delete a relationship
+  // Delete a single relationship
   async delete(relationshipId: string) {
     const supabase = createClient();
     const { error } = await (supabase
@@ -88,6 +87,36 @@ export const relationshipsApi = {
       .eq('id', relationshipId) as any);
 
     if (error) throw error;
+  },
+
+  // Delete all relationships for an asset (NEW METHOD)
+  async deleteAllForAsset(assetType: AssetType, assetId: string) {
+    const supabase = createClient();
+    
+    try {
+      // Delete where asset is source
+      const { error: sourceError } = await supabase
+        .from('asset_relationships' as any)
+        .delete()
+        .eq('source_type', assetType)
+        .eq('source_id', assetId);
+
+      if (sourceError) throw sourceError;
+
+      // Delete where asset is target
+      const { error: targetError } = await supabase
+        .from('asset_relationships' as any)
+        .delete()
+        .eq('target_type', assetType)
+        .eq('target_id', assetId);
+
+      if (targetError) throw targetError;
+
+      logger.log(`Deleted all relationships for ${assetType}:${assetId}`);
+    } catch (error) {
+      logger.log('Error deleting relationships:', error);
+      throw error;
+    }
   },
 
   // Get relationship count for an asset
