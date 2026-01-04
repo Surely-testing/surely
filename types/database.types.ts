@@ -1143,6 +1143,53 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          dodo_payment_id: string
+          id: string
+          payment_method: string | null
+          status: string
+          subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          dodo_payment_id: string
+          id?: string
+          payment_method?: string | null
+          status: string
+          subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          dodo_payment_id?: string
+          id?: string
+          payment_method?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           account_type: string
@@ -1513,6 +1560,8 @@ export type Database = {
       subscription_tiers: {
         Row: {
           created_at: string | null
+          dodo_product_id_monthly: string | null
+          dodo_product_id_yearly: string | null
           features: Json | null
           id: string
           limits: Json | null
@@ -1522,6 +1571,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          dodo_product_id_monthly?: string | null
+          dodo_product_id_yearly?: string | null
           features?: Json | null
           id?: string
           limits?: Json | null
@@ -1531,6 +1582,8 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          dodo_product_id_monthly?: string | null
+          dodo_product_id_yearly?: string | null
           features?: Json | null
           id?: string
           limits?: Json | null
@@ -1542,41 +1595,59 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          billing_cycle: string | null
           cancel_at_period_end: boolean | null
           created_at: string | null
           current_period_end: string | null
           current_period_start: string | null
+          dodo_customer_id: string | null
+          dodo_payment_method_id: string | null
+          dodo_subscription_id: string | null
           id: string
           status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           tier_id: string | null
+          trial_end: string | null
+          trial_start: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          billing_cycle?: string | null
           cancel_at_period_end?: boolean | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          dodo_customer_id?: string | null
+          dodo_payment_method_id?: string | null
+          dodo_subscription_id?: string | null
           id?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tier_id?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          billing_cycle?: string | null
           cancel_at_period_end?: boolean | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          dodo_customer_id?: string | null
+          dodo_payment_method_id?: string | null
+          dodo_subscription_id?: string | null
           id?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tier_id?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
           updated_at?: string | null
           user_id?: string
         }
