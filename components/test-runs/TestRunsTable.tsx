@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/test-runs/TestRunsTable.tsx
-// Test Runs Table with Links to Details Page
+// Mobile responsive table with horizontal scroll
 // ============================================
 'use client';
 
@@ -12,13 +12,18 @@ import {
   TableCell, 
   TableGrid, 
   TableCheckbox,
-  TableSelectAll,
   TableHeaderText,
   TableDescriptionText 
 } from '@/components/ui/Table';
-import { Play, Edit2, CheckCircle, XCircle, Clock, Pause, MoreVertical, Eye } from 'lucide-react';
+import { Play, Edit2, CheckCircle, XCircle, Clock, Eye, MoreVertical } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils/cn';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/Dropdown';
 
 interface TestRunsTableProps {
   testRuns: any[];
@@ -43,19 +48,11 @@ export function TestRunsTable({
     }
   };
 
-  const toggleAll = () => {
-    if (selectedRuns.length === testRuns.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(testRuns.map(run => run.id));
-    }
-  };
-
   const getStatusBadge = (status: string) => {
     const configs = {
       pending: { 
         icon: Clock, 
-        className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' 
+        className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' 
       },
       'in-progress': { 
         icon: Play, 
@@ -70,12 +67,12 @@ export function TestRunsTable({
         className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' 
       },
       blocked: { 
-        icon: Pause, 
+        icon: XCircle, 
         className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' 
       },
       skipped: { 
-        icon: MoreVertical, 
-        className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' 
+        icon: Clock, 
+        className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' 
       },
     };
 
@@ -84,7 +81,7 @@ export function TestRunsTable({
 
     return (
       <span className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap',
         config.className
       )}>
         <Icon className="h-3 w-3" />
@@ -93,216 +90,185 @@ export function TestRunsTable({
     );
   };
 
-  const getProgressBar = (passed: number, failed: number, total: number) => {
-    if (total === 0) {
-      return (
-        <div className="text-xs text-muted-foreground">
-          No tests executed
-        </div>
-      );
-    }
-    
-    const passedPercent = (passed / total) * 100;
-    const failedPercent = (failed / total) * 100;
-    const pendingPercent = 100 - passedPercent - failedPercent;
-
-    return (
-      <div className="w-full">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-xs text-muted-foreground">
-            {passed + failed}/{total} executed
-          </span>
-        </div>
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden flex">
-          {passedPercent > 0 && (
-            <div 
-              className="bg-green-500 h-full transition-all" 
-              style={{ width: `${passedPercent}%` }}
-              title={`${passed} passed`}
-            />
-          )}
-          {failedPercent > 0 && (
-            <div 
-              className="bg-red-500 h-full transition-all" 
-              style={{ width: `${failedPercent}%` }}
-              title={`${failed} failed`}
-            />
-          )}
-          {pendingPercent > 0 && (
-            <div 
-              className="bg-gray-300 dark:bg-gray-700 h-full transition-all" 
-              style={{ width: `${pendingPercent}%` }}
-              title={`${total - passed - failed} pending`}
-            />
-          )}
-        </div>
-        <div className="flex items-center gap-3 mt-1.5">
-          {passed > 0 && (
-            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" />
-              {passed}
-            </span>
-          )}
-          {failed > 0 && (
-            <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-              <XCircle className="h-3 w-3" />
-              {failed}
-            </span>
-          )}
-          {(total - passed - failed) > 0 && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {total - passed - failed}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-4">
-      {/* Select All Header */}
-      <div className="flex items-center justify-between px-4">
-        <TableSelectAll
-          checked={testRuns.length > 0 && selectedRuns.length === testRuns.length}
-          onCheckedChange={toggleAll}
-        />
-        <span className="text-xs text-muted-foreground">
-          {testRuns.length} {testRuns.length === 1 ? 'test run' : 'test runs'}
-        </span>
-      </div>
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[800px] pl-2">
+        <Table>
+          {/* Table Header */}
+          <div className="hidden lg:grid lg:grid-cols-7 gap-4 px-14 py-2 bg-muted/50 rounded-lg border border-border text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+            <div className="col-span-2">Name</div>
+            <div>Type</div>
+            <div>Environment</div>
+            <div>Status</div>
+            <div>Executed</div>
+            <div className="text-right">Actions</div>
+          </div>
 
-      {/* Table */}
-      <Table>
-        {testRuns.map((run) => {
-          const isSelected = selectedRuns.includes(run.id);
+          {/* Table Rows */}
+          {testRuns.map((run) => {
+            const isSelected = selectedRuns.includes(run.id);
 
-          return (
-            <TableRow 
-              key={run.id}
-              selected={isSelected}
-              selectable
-            >
-              <TableCheckbox
-                checked={isSelected}
-                onCheckedChange={() => toggleSelection(run.id)}
-              />
+            return (
+              <TableRow 
+                key={run.id}
+                selected={isSelected}
+                selectable
+              >
+                <TableCheckbox
+                  checked={isSelected}
+                  onCheckedChange={() => toggleSelection(run.id)}
+                />
 
-              <TableGrid columns={5}>
-                {/* Test Run Name & Info - Now a Link */}
-                <TableCell className="col-span-2">
-                  <Link
-                    href={`/dashboard/test-runs/${run.id}`}
-                    className="text-left w-full group block"
-                  >
-                    <TableHeaderText className="group-hover:text-primary transition-colors">
-                      {run.name}
-                    </TableHeaderText>
-                    {run.description && (
-                      <TableDescriptionText className="mt-1 line-clamp-1">
-                        {run.description}
-                      </TableDescriptionText>
+                <TableGrid columns={7}>
+                  {/* Name - 2 columns */}
+                  <TableCell className="col-span-2">
+                    <Link
+                      href={`/dashboard/test-runs/${run.id}`}
+                      className="block group"
+                    >
+                      <TableHeaderText className="group-hover:text-primary transition-colors">
+                        {run.name}
+                      </TableHeaderText>
+                      {run.description && (
+                        <TableDescriptionText className="mt-1 line-clamp-1">
+                          {run.description}
+                        </TableDescriptionText>
+                      )}
+                    </Link>
+                  </TableCell>
+
+                  {/* Type */}
+                  <TableCell>
+                    {run.test_type ? (
+                      <span className="text-xs px-2 py-1 bg-secondary text-secondary-foreground rounded-full whitespace-nowrap">
+                        {run.test_type}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
-                    <div className="flex items-center gap-2 mt-2">
-                      {run.test_type && (
-                        <span className="text-xs px-2 py-0.5 bg-secondary text-secondary-foreground rounded-full">
-                          {run.test_type}
-                        </span>
-                      )}
-                      {run.environment && (
-                        <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
-                          {run.environment}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                </TableCell>
+                  </TableCell>
 
-                {/* Progress */}
-                <TableCell>
-                  {getProgressBar(
-                    run.passed_count || 0,
-                    run.failed_count || 0,
-                    run.total_count || 0
-                  )}
-                </TableCell>
+                  {/* Environment */}
+                  <TableCell>
+                    {run.environment ? (
+                      <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full whitespace-nowrap">
+                        {run.environment}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
 
-                {/* Status & Execution Info */}
-                <TableCell>
-                  <div className="space-y-2">
+                  {/* Status */}
+                  <TableCell>
                     {getStatusBadge(run.status)}
-                    <div className="text-xs text-muted-foreground">
+                  </TableCell>
+
+                  {/* Executed Date */}
+                  <TableCell>
+                    <div className="text-sm text-foreground whitespace-nowrap">
                       {run.executed_at ? (
-                        <span>
-                          Executed {formatDistanceToNow(new Date(run.executed_at), { addSuffix: true })}
-                        </span>
+                        formatDistanceToNow(new Date(run.executed_at), { addSuffix: true })
                       ) : run.scheduled_date ? (
-                        <span>
+                        <span className="text-xs text-muted-foreground">
                           Scheduled: {new Date(run.scheduled_date).toLocaleDateString()}
                         </span>
                       ) : (
-                        <span>Not executed</span>
+                        <span className="text-xs text-muted-foreground">Not executed</span>
                       )}
                     </div>
-                    {run.assigned_to && (
-                      <div className="text-xs text-muted-foreground">
-                        Assigned: {run.assigned_to}
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
+                  </TableCell>
 
-                {/* Actions */}
-                <TableCell>
-                  <div className="flex items-center justify-end gap-2">
-                    <Link
-                      href={`/dashboard/test-runs/${run.id}`}
-                      className="p-2 hover:bg-muted rounded-lg transition-colors group"
-                      title="View details"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Eye className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
-                    </Link>
-                    {run.status === 'pending' && (
+                  {/* Actions */}
+                  <TableCell>
+                    {/* Mobile: Dropdown menu */}
+                    <div className="flex items-center justify-end lg:hidden">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="p-2 hover:bg-muted rounded-lg transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/test-runs/${run.id}`}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </Link>
+                          </DropdownMenuItem>
+                          {run.status === 'pending' && (
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              // TODO: Start execution
+                            }}>
+                              <Play className="h-4 w-4 mr-2" />
+                              Start Execution
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(run);
+                          }}>
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Desktop: Individual buttons */}
+                    <div className="hidden lg:flex items-center justify-end gap-2">
+                      <Link
+                        href={`/dashboard/test-runs/${run.id}`}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors group"
+                        title="View details"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Eye className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                      </Link>
+                      {run.status === 'pending' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // TODO: Start execution
+                          }}
+                          className="p-2 hover:bg-muted rounded-lg transition-colors group"
+                          title="Start execution"
+                        >
+                          <Play className="h-4 w-4 text-muted-foreground group-hover:text-green-600" />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          // TODO: Start execution
+                          onEdit(run);
                         }}
                         className="p-2 hover:bg-muted rounded-lg transition-colors group"
-                        title="Start execution"
+                        title="Edit test run"
                       >
-                        <Play className="h-4 w-4 text-muted-foreground group-hover:text-green-600" />
+                        <Edit2 className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                       </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(run);
-                      }}
-                      className="p-2 hover:bg-muted rounded-lg transition-colors group"
-                      title="Edit test run"
-                    >
-                      <Edit2 className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // TODO: Open context menu
-                      }}
-                      className="p-2 hover:bg-muted rounded-lg transition-colors group"
-                      title="More actions"
-                    >
-                      <MoreVertical className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                    </button>
-                  </div>
-                </TableCell>
-              </TableGrid>
-            </TableRow>
-          );
-        })}
-      </Table>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // TODO: Open context menu
+                        }}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors group"
+                        title="More actions"
+                      >
+                        <MoreVertical className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableGrid>
+              </TableRow>
+            );
+          })}
+        </Table>
+      </div>
     </div>
   );
 }

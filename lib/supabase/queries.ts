@@ -508,7 +508,7 @@ export async function canUserAccessSuite(
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc('can_read_test_suite', {
     suite_id: suiteId,
-    user_id: userId,
+    requesting_user_id: userId, // ✅ FIXED: Changed from user_id to requesting_user_id
   });
 
   if (error) {
@@ -526,7 +526,7 @@ export async function canUserAdminSuite(
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc('can_admin_test_suite', {
     suite_id: suiteId,
-    user_id: userId,
+    requesting_user_id: userId, // ✅ FIXED: Changed from user_id to requesting_user_id
   });
 
   if (error) {
@@ -544,7 +544,7 @@ export async function isUserOrgAdmin(
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc('is_org_admin', {
     org_id: orgId,
-    user_id: userId,
+    requesting_user_id: userId, // ✅ FIXED: Changed from user_id to requesting_user_id
   });
 
   if (error) {

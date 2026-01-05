@@ -12,6 +12,7 @@ import { logger } from '@/lib/utils/logger';
 import { HistoricalTrends } from '../stats/HistoricalTrends';
 import { PerformanceBenchmark } from '../stats/PerformanceBenchmark';
 import { TestRunAnalysis } from '../stats/TestAnalysis';
+import { useTestExecutionStats } from '@/lib/hooks/useTestExecutionStats';
 import {
     LayoutDashboard,
     FileCheck,
@@ -20,31 +21,18 @@ import {
     FileText,
     TrendingUp,
     TrendingDown,
-    Calendar,
-    Plus,
     Target,
     BarChart3,
-    Zap,
-    ArrowRight,
     CheckCircle2,
     Activity,
     Video,
     Lightbulb,
     Database,
     Users,
-    Sparkles,
     RefreshCw,
     Circle,
-    Clock,
     AlertTriangle,
-    PlayCircle,
-    PauseCircle,
-    XCircle,
-    Filter,
-    SlidersHorizontal,
-    Search,
     Download,
-    ArrowUpRight,
     ChevronDown
 } from 'lucide-react';
 
@@ -79,13 +67,17 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
     const hasData = testCaseStats !== undefined || bugStats !== undefined || sprints !== undefined;
     const isConnected = !isLoading && hasData;
 
+    const { data: executionStats, isLoading: loadingExecution, refetch: refetchExecution } = useTestExecutionStats(suiteId);
+    const activeSprint = sprints?.find(s => s.status === 'active');
+
     const handleRefresh = async () => {
         setIsRefreshing(true);
         try {
             const refetchPromises = [
                 refetchTestCases?.(),
                 refetchBugs?.(),
-                refetchSprints?.()
+                refetchSprints?.(),
+                refetchExecution?.() // ADD THIS
             ].filter(Boolean);
 
             if (refetchPromises.length > 0) {
@@ -121,8 +113,6 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
     const mediumBugs = bugStats?.by_severity.medium || 0;
     const lowBugs = bugStats?.by_severity.low || 0;
     const resolutionRate = Math.round(bugStats?.resolution_rate || 0);
-    const executionRate = testCaseStats?.execution_rate || 0;
-    const passRate = testCaseStats?.pass_rate || 0;
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -155,10 +145,13 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
         );
     }
 
-    const passedTests = Math.round((passRate / 100) * totalTests);
-    const failedTests = Math.round(((100 - passRate) / 100) * totalTests * 0.6);
-    const blockedTests = Math.round(((100 - passRate) / 100) * totalTests * 0.3);
-    const pendingTests = totalTests - passedTests - failedTests - blockedTests;
+    const passedTests = executionStats?.passed || 0;
+    const failedTests = executionStats?.failed || 0;
+    const blockedTests = executionStats?.blocked || 0;
+    const pendingTests = executionStats?.pending || 0;
+    const skippedTests = executionStats?.skipped || 0;
+    const passRate = executionStats?.pass_rate || 0;
+    const executionRate = executionStats?.execution_rate || 0;
 
     return (
         <div className="min-h-screen w-full bg-gradient-to-br from-muted/30 to-muted/10">
@@ -171,9 +164,15 @@ export function SuiteOverview({ suiteId, suiteName = 'Test Suite' }: SuiteOvervi
                                 {suiteName} Dashboard
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
-                                <p className="text-xs text-muted-foreground">
-                                    Sprint 2025-Q4
-                                </p>
+                                {activeSprint ? (
+                                    <p className="text-xs text-muted-foreground">
+                                        {activeSprint.name}
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                        No active sprint
+                                    </p>
+                                )}
                                 <span className="text-xs text-muted-foreground">•</span>
                                 <div className="flex items-center gap-1">
                                     <Circle className={`w-1.5 h-1.5 ${isConnected ? 'fill-success text-success' : 'fill-error text-error'}`} />

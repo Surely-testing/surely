@@ -120,7 +120,7 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
 
   // Confirm dialog
   const [confirmDialog, setConfirmDialog] = useState<{

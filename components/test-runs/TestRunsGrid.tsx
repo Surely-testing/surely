@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/test-runs/TestRunsGrid.tsx
-// Test Runs Grid View Component
+// Test Runs Grid View Component - Without duplicate Select All
 // ============================================
 'use client';
 
@@ -32,16 +32,6 @@ export function TestRunsGrid({
       onSelectionChange([...selectedRuns, id]);
     }
   };
-
-  const toggleSelectAll = () => {
-    if (selectedRuns.length === testRuns.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(testRuns.map(run => run.id));
-    }
-  };
-
-  const allSelected = testRuns.length > 0 && selectedRuns.length === testRuns.length;
 
   const getStatusConfig = (status: string) => {
     const configs = {
@@ -81,27 +71,7 @@ export function TestRunsGrid({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Select All Header */}
-      <div className="flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            onChange={toggleSelectAll}
-            className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary"
-          />
-          <span className="text-sm font-medium text-foreground">
-            {selectedRuns.length > 0 ? `${selectedRuns.length} selected` : 'Select all'}
-          </span>
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {testRuns.length} {testRuns.length === 1 ? 'test run' : 'test runs'}
-        </span>
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {testRuns.map((run) => {
         const isSelected = selectedRuns.includes(run.id);
         const statusConfig = getStatusConfig(run.status);
@@ -262,7 +232,6 @@ export function TestRunsGrid({
           </div>
         );
       })}
-    </div>
     </div>
   );
 }

@@ -29,8 +29,6 @@ interface TestCaseControlBarProps {
   isLoading: boolean
   priorityFilter: string
   onPriorityFilterChange: (value: string) => void
-  statusFilter: string
-  onStatusFilterChange: (value: string) => void
   onClearFilters: () => void
 }
 
@@ -53,8 +51,6 @@ export function TestCaseControlBar(props: TestCaseControlBarProps) {
     isLoading,
     priorityFilter,
     onPriorityFilterChange,
-    statusFilter,
-    onStatusFilterChange,
     onClearFilters,
   } = props
 
@@ -323,28 +319,6 @@ export function TestCaseControlBar(props: TestCaseControlBarProps) {
                       }`}
                     >
                       {priority}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
-                  Status
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {(['active', 'archived'] as const).map(status => (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => onStatusFilterChange(statusFilter === status ? 'all' : status)}
-                      className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-                        statusFilter === status
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background text-foreground border-border hover:border-primary'
-                      }`}
-                    >
-                      {status}
                     </button>
                   ))}
                 </div>

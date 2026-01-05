@@ -1,6 +1,5 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/execute/page.tsx
-// Fixed to use asset_relationships and correct status values
 // ============================================
 'use client'
 
@@ -62,9 +61,9 @@ export default function TestRunExecutionPage({
         const resultsToCreate = (casesData || []).map(tc => ({
           test_run_id: testRunId,
           test_case_id: tc.id,
-          status: 'not_executed',
+          status: 'pending',
           executed_at: null,
-          duration: null,
+          duration_seconds: null,
           notes: null
         }))
 
@@ -98,23 +97,98 @@ export default function TestRunExecutionPage({
 
   const handleUpdateResult = async (testCaseId: string, result: any) => {
     try {
-      const { data: resultData } = await supabase
+      logger.log('Saving test result:', { testCaseId, result })
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        toast.error('User not authenticated')
+        return
+      }
+
+      // Update the main test_run_results record
+      const { error: updateError } = await supabase
         .from('test_run_results')
-        .select('id')
+        .update({
+          status: result.status,
+          notes: result.notes || null,
+          duration_seconds: result.duration_seconds || null,
+          executed_at: result.executed_at,
+          executed_by: user.id
+        })
         .eq('test_run_id', testRunId)
         .eq('test_case_id', testCaseId)
+
+      if (updateError) {
+        logger.log('Error updating test result:', updateError)
+        throw updateError
+      }
+
+      logger.log('Test result updated successfully')
+      
+      // Update the test case status accordingly
+      const { data: currentTestCase } = await supabase
+        .from('test_cases')
+        .select('execution_count, pass_count, fail_count')
+        .eq('id', testCaseId)
         .single()
 
-      if (resultData) {
-        await supabase
-          .from('test_run_results')
-          .update({
+      const updateData: any = {
+        status: result.status,
+        last_result: result.status,
+        last_executed_at: result.executed_at,
+        last_executed_by: user.id,
+        updated_at: new Date().toISOString(),
+        execution_count: (currentTestCase?.execution_count || 0) + 1
+      }
+
+      if (result.status === 'passed') {
+        updateData.pass_count = (currentTestCase?.pass_count || 0) + 1
+        updateData.last_pass_date = result.executed_at
+      }
+
+      if (result.status === 'failed') {
+        updateData.fail_count = (currentTestCase?.fail_count || 0) + 1
+        updateData.last_fail_date = result.executed_at
+      }
+
+      const { error: testCaseUpdateError } = await supabase
+        .from('test_cases')
+        .update(updateData)
+        .eq('id', testCaseId)
+
+      if (testCaseUpdateError) {
+        logger.log('Error updating test case status:', testCaseUpdateError)
+        // Don't throw - this is secondary update
+      } else {
+        logger.log('Test case status updated to:', result.status)
+      }
+
+      // Create/update execution history record
+      const durationMinutes = result.duration_seconds 
+        ? Math.round(result.duration_seconds / 60) 
+        : null;
+
+      try {
+        const { error: historyError } = await supabase
+          .from('test_execution_history')
+          .upsert({
+            test_run_id: testRunId,
+            test_case_id: testCaseId,
             status: result.status,
-            notes: result.notes,
-            duration: result.duration,
-            executed_at: result.executed_at
+            executed_at: result.executed_at,
+            duration_minutes: durationMinutes,
+            notes: result.notes || null,
+            executed_by: user.id
+          }, {
+            onConflict: 'test_case_id,test_run_id'
           })
-          .eq('id', resultData.id)
+
+        if (historyError) {
+          logger.log('History save error (non-critical):', historyError)
+        }
+      } catch (historyError) {
+        logger.log('Execution history error (non-critical):', historyError)
       }
 
       toast.success('Test result saved')
@@ -132,8 +206,22 @@ export default function TestRunExecutionPage({
         .select('status')
         .eq('test_run_id', testRunId)
 
+      // Determine final status based on results
       const hasFailed = results?.some(r => r.status === 'failed')
-      const finalStatus = hasFailed ? 'failed' : 'passed'
+      const hasBlocked = results?.some(r => r.status === 'blocked')
+      const hasPending = results?.some(r => r.status === 'pending')
+      const allPassed = results?.every(r => r.status === 'passed' || r.status === 'skipped')
+      
+      let finalStatus = 'passed'
+      if (hasFailed) {
+        finalStatus = 'failed'
+      } else if (hasBlocked) {
+        finalStatus = 'blocked'
+      } else if (hasPending) {
+        finalStatus = 'in-progress'
+      } else if (!allPassed) {
+        finalStatus = 'in-progress'
+      }
 
       await supabase
         .from('test_runs')

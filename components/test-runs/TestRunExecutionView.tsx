@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/test-runs/TestRunExecutionView.tsx
-// Professional Test Run Execution Interface
+// FIXED: Schema alignment and status updates
 // ============================================
 'use client';
 
@@ -8,9 +8,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle, XCircle, AlertCircle, Clock, 
   ChevronRight, ChevronDown, Play, Pause, Save,
-  FileText, Timer, ArrowLeft, Shield, Flag
+  FileText, Timer, ArrowLeft, Shield, Flag, RotateCcw, Info
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils/cn';
 
 interface TestRunExecutionViewProps {
@@ -20,6 +19,17 @@ interface TestRunExecutionViewProps {
   onBack: () => void;
   onUpdateResult: (testCaseId: string, result: any) => Promise<void>;
   onCompleteRun?: () => Promise<void>;
+}
+
+interface TestExecutionState {
+  status: string;
+  notes: string;
+  duration: number | null;
+  hasStarted: boolean;
+  isExecuting: boolean;
+  executionStartTime: number | null;
+  elapsedTime: number;
+  executionCount: number;
 }
 
 export default function TestRunExecutionView({
@@ -32,96 +42,177 @@ export default function TestRunExecutionView({
 }: TestRunExecutionViewProps) {
   const [currentTestIndex, setCurrentTestIndex] = useState(0);
   const [expandedSteps, setExpandedSteps] = useState<Record<number, boolean>>({});
-  const [executionData, setExecutionData] = useState<Record<string, any>>({});
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const [executionStates, setExecutionStates] = useState<Record<string, TestExecutionState>>({});
+
+  const currentTestCase = testCases[currentTestIndex];
+  const currentExecution = executionStates[currentTestCase?.id] || {
+    status: 'pending', // FIXED: Changed from 'not_executed' to 'pending'
+    notes: '',
+    duration: null,
+    hasStarted: false,
+    isExecuting: false,
+    executionStartTime: null,
+    elapsedTime: 0,
+    executionCount: 0
+  };
+
+  // Initialize execution states for all test cases
+  useEffect(() => {
+    const initialStates: Record<string, TestExecutionState> = {};
+    testCases.forEach(tc => {
+      initialStates[tc.id] = {
+        status: 'pending', // FIXED: Changed from 'not_executed' to 'pending'
+        notes: '',
+        duration: null,
+        hasStarted: false,
+        isExecuting: false,
+        executionStartTime: null,
+        elapsedTime: 0,
+        executionCount: 0
+      };
+    });
+    setExecutionStates(initialStates);
+  }, [testCases]);
 
   // Timer effect
   useEffect(() => {
+    if (!currentTestCase) return;
+    
     let interval: NodeJS.Timeout;
-    if (isExecuting && executionStartTime) {
+    const currentState = executionStates[currentTestCase.id];
+    
+    if (currentState?.isExecuting && currentState?.executionStartTime) {
       interval = setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - executionStartTime) / 1000));
+        setExecutionStates(prev => {
+          const state = prev[currentTestCase.id];
+          if (!state?.isExecuting || !state?.executionStartTime) return prev;
+          
+          return {
+            ...prev,
+            [currentTestCase.id]: {
+              ...state,
+              elapsedTime: Math.floor((Date.now() - state.executionStartTime) / 1000)
+            }
+          };
+        });
       }, 1000);
     }
-    return () => clearInterval(interval);
-  }, [isExecuting, executionStartTime]);
-
-  const currentTestCase = testCases[currentTestIndex];
-  const currentExecution = executionData[currentTestCase?.id] || {
-    status: 'not_executed',
-    notes: '',
-    duration: null,
-  };
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentTestCase?.id, executionStates[currentTestCase?.id]?.isExecuting]);
 
   // Calculate progress
   const progress = useMemo(() => {
     const total = testCases.length;
-    const executed = Object.values(executionData).filter(
-      (e: any) => e.status !== 'not_executed'
+    const executed = Object.values(executionStates).filter(
+      (e: TestExecutionState) => e.status !== 'pending' // FIXED: Changed from 'not_executed'
     ).length;
     const percentage = total > 0 ? Math.round((executed / total) * 100) : 0;
     
-    const passed = Object.values(executionData).filter((e: any) => e.status === 'passed').length;
-    const failed = Object.values(executionData).filter((e: any) => e.status === 'failed').length;
-    const blocked = Object.values(executionData).filter((e: any) => e.status === 'blocked').length;
-    const skipped = Object.values(executionData).filter((e: any) => e.status === 'skipped').length;
+    const passed = Object.values(executionStates).filter((e: TestExecutionState) => e.status === 'passed').length;
+    const failed = Object.values(executionStates).filter((e: TestExecutionState) => e.status === 'failed').length;
+    const blocked = Object.values(executionStates).filter((e: TestExecutionState) => e.status === 'blocked').length;
+    const skipped = Object.values(executionStates).filter((e: TestExecutionState) => e.status === 'skipped').length;
     
     return { executed, total, percentage, passed, failed, blocked, skipped };
-  }, [executionData, testCases.length]);
+  }, [executionStates, testCases.length]);
 
   const handleStartExecution = () => {
-    setIsExecuting(true);
-    setExecutionStartTime(Date.now());
-    setElapsedTime(0);
+    if (!currentTestCase) return;
+
+    setExecutionStates(prev => ({
+      ...prev,
+      [currentTestCase.id]: {
+        ...prev[currentTestCase.id],
+        hasStarted: true,
+        isExecuting: true,
+        executionStartTime: Date.now(),
+        elapsedTime: 0,
+        executionCount: prev[currentTestCase.id].executionCount + 1
+      }
+    }));
   };
 
   const handlePauseExecution = () => {
-    setIsExecuting(false);
-    if (executionStartTime && currentTestCase) {
-      const duration = Math.round((Date.now() - executionStartTime) / 1000 / 60);
-      setExecutionData({
-        ...executionData,
-        [currentTestCase.id]: {
-          ...currentExecution,
-          duration: duration || 1
-        }
-      });
-    }
-    setExecutionStartTime(null);
+    if (!currentTestCase) return;
+
+    const duration = currentExecution.executionStartTime
+      ? Math.round((Date.now() - currentExecution.executionStartTime) / 1000)
+      : currentExecution.duration;
+
+    setExecutionStates(prev => ({
+      ...prev,
+      [currentTestCase.id]: {
+        ...prev[currentTestCase.id],
+        isExecuting: false,
+        duration: duration || 1
+      }
+    }));
   };
 
   const handleUpdateStatus = (status: string) => {
-    if (!currentTestCase) return;
+    if (!currentTestCase || !currentExecution.hasStarted) {
+      return;
+    }
 
-    const duration = executionStartTime
-      ? Math.round((Date.now() - executionStartTime) / 1000 / 60)
+    const duration = currentExecution.executionStartTime
+      ? Math.round((Date.now() - currentExecution.executionStartTime) / 1000)
       : currentExecution.duration;
 
-    setExecutionData({
-      ...executionData,
+    setExecutionStates(prev => ({
+      ...prev,
       [currentTestCase.id]: {
-        ...currentExecution,
+        ...prev[currentTestCase.id],
         status,
-        duration: duration || 1,
-        executed_at: new Date().toISOString()
+        duration: duration || 1
       }
-    });
+    }));
+  };
+
+  const handleResetTest = () => {
+    if (!currentTestCase) return;
+
+    setExecutionStates(prev => ({
+      ...prev,
+      [currentTestCase.id]: {
+        ...prev[currentTestCase.id],
+        hasStarted: false,
+        isExecuting: false,
+        executionStartTime: null,
+        elapsedTime: 0
+      }
+    }));
+  };
+
+  const handleUpdateNotes = (notes: string) => {
+    if (!currentTestCase) return;
+
+    setExecutionStates(prev => ({
+      ...prev,
+      [currentTestCase.id]: {
+        ...prev[currentTestCase.id],
+        notes
+      }
+    }));
   };
 
   const handleSaveAndContinue = async () => {
-    if (!currentTestCase || currentExecution.status === 'not_executed') return;
+    if (!currentTestCase || currentExecution.status === 'pending' || !currentExecution.hasStarted) {
+      return;
+    }
 
-    const duration = executionStartTime
-      ? Math.round((Date.now() - executionStartTime) / 1000 / 60)
+    // FIXED: Calculate duration in seconds (schema expects duration_seconds)
+    const durationSeconds = currentExecution.executionStartTime
+      ? Math.round((Date.now() - currentExecution.executionStartTime) / 1000)
       : currentExecution.duration;
 
     const result = {
       status: currentExecution.status,
       executed_at: new Date().toISOString(),
-      duration: duration || 1,
-      notes: currentExecution.notes || '',
+      duration_seconds: durationSeconds || 1, 
+      notes: currentExecution.notes || ''
     };
 
     await onUpdateResult(currentTestCase.id, result);
@@ -129,8 +220,8 @@ export default function TestRunExecutionView({
     // Check if all tests are executed
     const allExecuted = testCases.every(tc => {
       if (tc.id === currentTestCase.id) return true;
-      const exec = executionData[tc.id];
-      return exec && exec.status !== 'not_executed';
+      const exec = executionStates[tc.id];
+      return exec && exec.status !== 'pending'; // FIXED: Changed from 'not_executed'
     });
 
     if (allExecuted) {
@@ -142,8 +233,8 @@ export default function TestRunExecutionView({
       // Move to next unexecuted test
       const nextIndex = testCases.findIndex((tc, idx) => {
         if (idx <= currentTestIndex) return false;
-        const exec = executionData[tc.id];
-        return !exec || exec.status === 'not_executed';
+        const exec = executionStates[tc.id];
+        return !exec || exec.status === 'pending'; // FIXED: Changed from 'not_executed'
       });
 
       if (nextIndex !== -1) {
@@ -152,20 +243,27 @@ export default function TestRunExecutionView({
         setCurrentTestIndex(currentTestIndex + 1);
       }
 
-      setIsExecuting(false);
-      setExecutionStartTime(null);
-      setElapsedTime(0);
+      if (nextIndex !== -1 || currentTestIndex < testCases.length - 1) {
+        const nextTestId = testCases[nextIndex !== -1 ? nextIndex : currentTestIndex + 1].id;
+        setExecutionStates(prev => ({
+          ...prev,
+          [nextTestId]: {
+            ...prev[nextTestId],
+            isExecuting: false,
+            executionStartTime: null,
+            elapsedTime: 0
+          }
+        }));
+      }
     }
   };
 
   const handleNavigate = async (index: number) => {
-    if (currentTestCase && currentExecution.status !== 'not_executed') {
+    if (currentTestCase && currentExecution.status !== 'pending' && currentExecution.hasStarted) {
       await handleSaveAndContinue();
     }
+    
     setCurrentTestIndex(index);
-    setIsExecuting(false);
-    setExecutionStartTime(null);
-    setElapsedTime(0);
   };
 
   const toggleStep = (index: number) => {
@@ -197,13 +295,13 @@ export default function TestRunExecutionView({
         className: 'bg-gray-50 text-gray-700 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400 dark:border-gray-800',
         iconColor: 'text-gray-600 dark:text-gray-400'
       },
-      not_executed: {
+      pending: { // FIXED: Changed from 'not_executed' to 'pending'
         icon: Clock,
         className: 'bg-muted text-muted-foreground border-border',
         iconColor: 'text-muted-foreground'
       },
     };
-    return configs[status as keyof typeof configs] || configs.not_executed;
+    return configs[status as keyof typeof configs] || configs.pending;
   };
 
   const formatTime = (seconds: number) => {
@@ -232,6 +330,7 @@ export default function TestRunExecutionView({
   const statusConfig = getStatusConfig(currentExecution.status);
   const StatusIcon = statusConfig.icon;
   const allExecuted = progress.executed === progress.total;
+  const canUpdateStatus = currentExecution.hasStarted;
 
   return (
     <div className="min-h-screen bg-background">
@@ -263,7 +362,6 @@ export default function TestRunExecutionView({
                   />
                 </div>
                 
-                {/* Stats */}
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   {progress.passed > 0 && (
                     <div className="flex items-center gap-1.5 text-xs">
@@ -296,8 +394,8 @@ export default function TestRunExecutionView({
 
           <div className="flex-1 overflow-y-auto">
             {testCases.map((tc, index) => {
-              const exec = executionData[tc.id];
-              const status = exec?.status || 'not_executed';
+              const exec = executionStates[tc.id] || { status: 'pending', executionCount: 0 };
+              const status = exec.status;
               const config = getStatusConfig(status);
               const TestIcon = config.icon;
               const isActive = index === currentTestIndex;
@@ -317,11 +415,18 @@ export default function TestRunExecutionView({
                       <p className="text-sm font-medium text-foreground truncate">
                         {tc.title}
                       </p>
-                      {tc.priority && (
-                        <span className="text-xs text-muted-foreground capitalize mt-0.5 inline-block">
-                          {tc.priority} priority
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {tc.priority && (
+                          <span className="text-xs text-muted-foreground capitalize">
+                            {tc.priority}
+                          </span>
+                        )}
+                        {exec.executionCount > 0 && (
+                          <span className="text-xs text-primary">
+                            (Run #{exec.executionCount})
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {isActive && (
                       <ChevronRight className="h-4 w-4 text-primary flex-shrink-0" />
@@ -347,7 +452,7 @@ export default function TestRunExecutionView({
                   statusConfig.className
                 )}>
                   <StatusIcon className="h-4 w-4" />
-                  {currentExecution.status.replace('_', ' ')}
+                  {currentExecution.status === 'pending' ? 'Not Executed' : currentExecution.status}
                 </span>
               </div>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -358,17 +463,21 @@ export default function TestRunExecutionView({
                 {currentTestCase.priority && (
                   <span className="capitalize">{currentTestCase.priority} Priority</span>
                 )}
+                {currentExecution.executionCount > 0 && (
+                  <span className="text-primary font-medium">
+                    Execution #{currentExecution.executionCount}
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Completion Banner */}
             {allExecuted && (
               <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
                 <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="font-medium text-green-900 dark:text-green-100">All tests executed!</p>
                   <p className="text-sm text-green-700 dark:text-green-300 mt-0.5">
-                    Click &quot;Complete Run&quot; to finish and return to test run details.
+                    Click "Complete Run" to finish and return to test run details.
                   </p>
                 </div>
               </div>
@@ -376,28 +485,65 @@ export default function TestRunExecutionView({
 
             {/* Execution Controls */}
             <div className="flex items-center gap-3 flex-wrap">
-              {!isExecuting ? (
-                <button
-                  onClick={handleStartExecution}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
-                >
-                  <Play className="h-4 w-4" />
-                  Start Execution
-                </button>
-              ) : (
-                <button
-                  onClick={handlePauseExecution}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
-                >
-                  <Pause className="h-4 w-4" />
-                  Pause
-                </button>
-              )}
+              <div className="relative group">
+                {!currentExecution.isExecuting ? (
+                  <>
+                    <button
+                      onClick={handleStartExecution}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                    >
+                      <Play className="h-4 w-4" />
+                      {currentExecution.hasStarted ? 'Resume Execution' : 'Start Execution'}
+                    </button>
+                    {!currentExecution.hasStarted && (
+                      <div className="absolute left-0 top-full mt-2 w-72 p-3 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        <div className="flex items-start gap-2">
+                          <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium mb-1">Start timer first</p>
+                            <p className="text-xs text-muted-foreground">
+                              Click "Start Execution" to enable status buttons and begin testing.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={handlePauseExecution}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                  >
+                    <Pause className="h-4 w-4" />
+                    Pause
+                  </button>
+                )}
+              </div>
 
-              {isExecuting && (
+              {currentExecution.isExecuting && (
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-muted rounded-lg text-foreground font-mono">
                   <Timer className="h-4 w-4" />
-                  <span className="font-medium">{formatTime(elapsedTime)}</span>
+                  <span className="font-medium">{formatTime(currentExecution.elapsedTime)}</span>
+                </div>
+              )}
+
+              {currentExecution.hasStarted && (
+                <div className="relative group">
+                  <button
+                    onClick={handleResetTest}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Reset & Re-run
+                  </button>
+                  <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="flex items-start gap-2">
+                      <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-muted-foreground">
+                        Reset this test to re-run it. Previous results will be kept in history.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -407,8 +553,10 @@ export default function TestRunExecutionView({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleUpdateStatus('passed')}
+                  disabled={!canUpdateStatus}
                   className={cn(
                     "inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-colors font-medium",
+                    !canUpdateStatus && "opacity-50 cursor-not-allowed",
                     currentExecution.status === 'passed'
                       ? 'bg-green-50 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
                       : 'border-border hover:bg-muted text-foreground'
@@ -419,8 +567,10 @@ export default function TestRunExecutionView({
                 </button>
                 <button
                   onClick={() => handleUpdateStatus('failed')}
+                  disabled={!canUpdateStatus}
                   className={cn(
                     "inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-colors font-medium",
+                    !canUpdateStatus && "opacity-50 cursor-not-allowed",
                     currentExecution.status === 'failed'
                       ? 'bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
                       : 'border-border hover:bg-muted text-foreground'
@@ -431,8 +581,10 @@ export default function TestRunExecutionView({
                 </button>
                 <button
                   onClick={() => handleUpdateStatus('blocked')}
+                  disabled={!canUpdateStatus}
                   className={cn(
                     "inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-colors font-medium",
+                    !canUpdateStatus && "opacity-50 cursor-not-allowed",
                     currentExecution.status === 'blocked'
                       ? 'bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800'
                       : 'border-border hover:bg-muted text-foreground'
@@ -443,8 +595,10 @@ export default function TestRunExecutionView({
                 </button>
                 <button
                   onClick={() => handleUpdateStatus('skipped')}
+                  disabled={!canUpdateStatus}
                   className={cn(
                     "inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-colors font-medium",
+                    !canUpdateStatus && "opacity-50 cursor-not-allowed",
                     currentExecution.status === 'skipped'
                       ? 'bg-gray-50 text-gray-700 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400 dark:border-gray-800'
                       : 'border-border hover:bg-muted text-foreground'
@@ -459,7 +613,6 @@ export default function TestRunExecutionView({
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Description */}
             {currentTestCase.description && (
               <div className="bg-card border border-border rounded-lg p-4">
                 <h3 className="font-semibold text-foreground mb-2">Description</h3>
@@ -469,7 +622,6 @@ export default function TestRunExecutionView({
               </div>
             )}
 
-            {/* Preconditions */}
             {currentTestCase.preconditions && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 dark:bg-blue-900/20 dark:border-blue-800">
                 <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
@@ -482,7 +634,6 @@ export default function TestRunExecutionView({
               </div>
             )}
 
-            {/* Test Steps */}
             {currentTestCase.steps && currentTestCase.steps.length > 0 && (
               <div>
                 <h3 className="font-semibold text-foreground mb-3">Test Steps</h3>
@@ -544,13 +695,7 @@ export default function TestRunExecutionView({
               </label>
               <textarea
                 value={currentExecution.notes}
-                onChange={(e) => setExecutionData({
-                  ...executionData,
-                  [currentTestCase.id]: {
-                    ...currentExecution,
-                    notes: e.target.value
-                  }
-                })}
+                onChange={(e) => handleUpdateNotes(e.target.value)}
                 placeholder="Add any observations, issues, or additional notes about the test execution..."
                 rows={4}
                 className="w-full px-4 py-3 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
@@ -572,7 +717,7 @@ export default function TestRunExecutionView({
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleSaveAndContinue}
-                  disabled={currentExecution.status === 'not_executed'}
+                  disabled={currentExecution.status === 'pending' || !currentExecution.hasStarted}
                   className={cn(
                     "inline-flex items-center gap-2 px-6 py-2.5 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed",
                     allExecuted

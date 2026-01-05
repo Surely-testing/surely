@@ -1,5 +1,5 @@
 // ============================================
-// FILE: app/dashboard/test-cases/import/page.tsx
+// FILE: app/dashboard/bugs/import/page.tsx
 // Simplified single-mode import with smart inference
 // ============================================
 'use client';
@@ -23,13 +23,21 @@ import { logger } from '@/lib/utils/logger';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
-interface ParsedTestCase {
+interface ParsedBug {
     title: string;
     description?: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
     priority: 'low' | 'medium' | 'high' | 'critical';
-    steps?: string[];
-    expected_result?: string;
-    preconditions?: string;
+    status: 'open' | 'in_progress' | 'resolved' | 'closed' | 'reopened';
+    steps_to_reproduce?: string[];
+    expected_behavior?: string;
+    actual_behavior?: string;
+    environment?: string;
+    browser?: string;
+    os?: string;
+    version?: string;
+    module?: string;
+    component?: string;
     tags?: string[];
     row?: number;
 }
@@ -40,7 +48,7 @@ interface ImportResult {
     errors: Array<{ row: number; error: string }>;
 }
 
-export default function TestCasesImportPage() {
+export default function BugsImportPage() {
     const router = useRouter();
     const { user } = useSupabase();
     const { suite } = useSuiteContext();
@@ -50,7 +58,7 @@ export default function TestCasesImportPage() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [importResult, setImportResult] = useState<ImportResult | null>(null);
-    const [previewData, setPreviewData] = useState<ParsedTestCase[]>([]);
+    const [previewData, setPreviewData] = useState<ParsedBug[]>([]);
     const [showPreview, setShowPreview] = useState(false);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,7 +80,7 @@ export default function TestCasesImportPage() {
         setImportResult(null);
     };
 
-    const parseData = async (data: any[]): Promise<ParsedTestCase[]> => {
+    const parseData = async (data: any[]): Promise<ParsedBug[]> => {
         const sampleRow = data[0];
         const columns = Object.keys(sampleRow);
 
@@ -81,7 +89,7 @@ export default function TestCasesImportPage() {
 
         // Call smart mapping API
         try {
-            const response = await fetch('/api/ai/column-mapping-testcases', {
+            const response = await fetch('/api/ai/column-mapping', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ columns, sampleRow })
@@ -100,26 +108,75 @@ export default function TestCasesImportPage() {
             const mapping = result.data.mapping;
             logger.log('🗺️ Column mapping:', mapping);
 
-            // Helper function to infer priority from content
-            const inferPriority = (text: string): 'low' | 'medium' | 'high' | 'critical' => {
+            // Helper functions for inference
+            const inferSeverity = (text: string): 'low' | 'medium' | 'high' | 'critical' => {
                 const lower = text.toLowerCase();
-                if (lower.match(/\b(critical|urgent|blocker|must|essential|mandatory)\b/)) {
+                if (lower.match(/\b(crash|broken|blocking|critical|server error|cannot|down|failure)\b/)) {
                     return 'critical';
                 }
-                if (lower.match(/\b(high|important|major|should)\b/)) {
+                if (lower.match(/\b(error|fail|incorrect|unresponsive|issue|problem|not working)\b/)) {
                     return 'high';
                 }
-                if (lower.match(/\b(low|minor|nice|optional|enhancement)\b/)) {
+                if (lower.match(/\b(slow|typo|cosmetic|minor|improvement)\b/)) {
                     return 'low';
                 }
                 return 'medium';
             };
 
+            const inferStatus = (text: string): 'open' | 'in_progress' | 'resolved' | 'closed' | 'reopened' => {
+                const lower = text.toLowerCase();
+                if (lower.match(/\b(fixed|resolved|done|completed)\b/)) return 'resolved';
+                if (lower.match(/\b(closed)\b/)) return 'closed';
+                if (lower.match(/\b(working|in progress|wip)\b/)) return 'in_progress';
+                if (lower.match(/\b(reopen)\b/)) return 'reopened';
+                return 'open';
+            };
+
+            const inferPriority = (severity: string, text: string): 'low' | 'medium' | 'high' | 'critical' => {
+                const lower = text.toLowerCase();
+                // Always match severity to priority if no explicit priority indicators
+                if (lower.match(/\b(urgent|asap|blocker|immediately)\b/)) return 'critical';
+                if (lower.match(/\b(important|soon)\b/)) return 'high';
+                if (lower.match(/\b(nice to have|low priority|when possible)\b/)) return 'low';
+                
+                // Default: match priority to severity
+                if (severity === 'critical') return 'critical';
+                if (severity === 'high') return 'high';
+                if (severity === 'low') return 'low';
+                return 'medium';
+            };
+
             // Parse all rows
-            const parsed: ParsedTestCase[] = data.map((row, index) => {
+            const parsed: ParsedBug[] = data.map((row, index) => {
                 const title = mapping.title ? String(row[mapping.title] || '').trim() : '';
                 const description = mapping.description ? String(row[mapping.description] || '').trim() : '';
                 const fullText = `${title} ${description}`;
+
+                // Get or infer severity
+                let severity: 'low' | 'medium' | 'high' | 'critical' = 'medium';
+                if (mapping.severity && row[mapping.severity]) {
+                    const val = String(row[mapping.severity]).toLowerCase().trim();
+                    if (['low', 'medium', 'high', 'critical'].includes(val)) {
+                        severity = val as any;
+                    } else {
+                        severity = inferSeverity(fullText);
+                    }
+                } else {
+                    severity = inferSeverity(fullText);
+                }
+
+                // Get or infer status
+                let status: 'open' | 'in_progress' | 'resolved' | 'closed' | 'reopened' = 'open';
+                if (mapping.status && row[mapping.status]) {
+                    const val = String(row[mapping.status]).toLowerCase().trim().replace(/\s+/g, '_');
+                    if (['open', 'in_progress', 'resolved', 'closed', 'reopened'].includes(val)) {
+                        status = val as any;
+                    } else {
+                        status = inferStatus(fullText);
+                    }
+                } else {
+                    status = inferStatus(fullText);
+                }
 
                 // Get or infer priority (prioritize user's data, then infer)
                 let priority: 'low' | 'medium' | 'high' | 'critical' = 'medium';
@@ -128,36 +185,54 @@ export default function TestCasesImportPage() {
                     if (['low', 'medium', 'high', 'critical'].includes(val)) {
                         priority = val as any;
                     } else {
-                        // User provided priority but invalid value, infer from content
-                        priority = inferPriority(fullText);
+                        priority = inferPriority(severity, fullText);
                     }
                 } else {
-                    // No priority column, auto-infer from content
-                    priority = inferPriority(fullText);
+                    // Auto-infer priority from severity and content
+                    priority = inferPriority(severity, fullText);
                 }
 
-                const testCase: ParsedTestCase = {
-                    title: title || 'Untitled Test Case',
+                const bug: ParsedBug = {
+                    title: title || 'Untitled Bug',
+                    severity,
                     priority,
+                    status,
                     row: index + 2
                 };
 
                 // Add optional fields (always use user's data if available)
-                if (description) testCase.description = description;
+                if (description) bug.description = description;
                 
-                if (mapping.expected_result && row[mapping.expected_result]) {
-                    testCase.expected_result = String(row[mapping.expected_result]).trim();
+                if (mapping.module && row[mapping.module]) {
+                    bug.module = String(row[mapping.module]).trim();
                 }
-                
-                if (mapping.preconditions && row[mapping.preconditions]) {
-                    testCase.preconditions = String(row[mapping.preconditions]).trim();
+                if (mapping.component && row[mapping.component]) {
+                    bug.component = String(row[mapping.component]).trim();
+                }
+                if (mapping.expected_behavior && row[mapping.expected_behavior]) {
+                    bug.expected_behavior = String(row[mapping.expected_behavior]).trim();
+                }
+                if (mapping.actual_behavior && row[mapping.actual_behavior]) {
+                    bug.actual_behavior = String(row[mapping.actual_behavior]).trim();
+                }
+                if (mapping.environment && row[mapping.environment]) {
+                    bug.environment = String(row[mapping.environment]).trim();
+                }
+                if (mapping.browser && row[mapping.browser]) {
+                    bug.browser = String(row[mapping.browser]).trim();
+                }
+                if (mapping.os && row[mapping.os]) {
+                    bug.os = String(row[mapping.os]).trim();
+                }
+                if (mapping.version && row[mapping.version]) {
+                    bug.version = String(row[mapping.version]).trim();
                 }
 
                 // Steps: Always use user's data if available
-                if (mapping.steps && row[mapping.steps]) {
-                    const stepsValue = String(row[mapping.steps]).trim();
+                if (mapping.steps_to_reproduce && row[mapping.steps_to_reproduce]) {
+                    const stepsValue = String(row[mapping.steps_to_reproduce]).trim();
                     if (stepsValue) {
-                        testCase.steps = stepsValue
+                        bug.steps_to_reproduce = stepsValue
                             .split(/\n|;|\|/)
                             .map((s: string) => s.trim())
                             .filter((s: string) => s.length > 0);
@@ -168,15 +243,15 @@ export default function TestCasesImportPage() {
                 if (mapping.tags && row[mapping.tags]) {
                     const tagsValue = String(row[mapping.tags]).trim();
                     if (tagsValue) {
-                        testCase.tags = tagsValue
+                        bug.tags = tagsValue
                             .split(',')
                             .map((t: string) => t.trim())
                             .filter((t: string) => t.length > 0);
                     }
                 }
 
-                return testCase;
-            }).filter(tc => tc.title && tc.title !== 'Untitled Test Case');
+                return bug;
+            }).filter(bug => bug.title && bug.title !== 'Untitled Bug');
 
             return parsed;
 
@@ -191,12 +266,14 @@ export default function TestCasesImportPage() {
                 const description = String(row[keys[1]] || '').trim();
 
                 return {
-                    title: title || 'Untitled Test Case',
+                    title: title || 'Untitled Bug',
                     description: description || undefined,
+                    severity: 'medium' as const,
                     priority: 'medium' as const,
+                    status: 'open' as const,
                     row: index + 2
                 };
-            }).filter(tc => tc.title && tc.title !== 'Untitled Test Case');
+            }).filter(bug => bug.title && bug.title !== 'Untitled Bug');
         }
     };
 
@@ -229,17 +306,17 @@ export default function TestCasesImportPage() {
                 return;
             }
 
-            const parsedTestCases = await parseData(data);
+            const parsedBugs = await parseData(data);
 
-            if (parsedTestCases.length === 0) {
-                toast.error('No valid test cases found in file');
+            if (parsedBugs.length === 0) {
+                toast.error('No valid bugs found in file');
                 setIsProcessing(false);
                 return;
             }
 
-            setPreviewData(parsedTestCases);
+            setPreviewData(parsedBugs);
             setShowPreview(true);
-            toast.success(`Found ${parsedTestCases.length} test case${parsedTestCases.length === 1 ? '' : 's'} ready to import`);
+            toast.success(`Found ${parsedBugs.length} bug${parsedBugs.length === 1 ? '' : 's'} ready to import`);
 
         } catch (error: any) {
             logger.log('Error processing file:', error);
@@ -249,7 +326,7 @@ export default function TestCasesImportPage() {
         }
     };
 
-    const importTestCases = async () => {
+    const importBugs = async () => {
         if (!user || previewData.length === 0) return;
 
         setIsProcessing(true);
@@ -261,24 +338,31 @@ export default function TestCasesImportPage() {
         };
 
         try {
-            for (const testCase of previewData) {
+            for (const bug of previewData) {
                 try {
-                    const testCaseData = {
+                    const bugData = {
                         suite_id: suite.id,
-                        title: testCase.title,
-                        description: testCase.description || null,
-                        priority: testCase.priority,
-                        steps: testCase.steps || [],
-                        expected_result: testCase.expected_result || null,
-                        preconditions: testCase.preconditions || null,
-                        tags: testCase.tags || [],
-                        status: 'active',
+                        title: bug.title,
+                        description: bug.description || null,
+                        severity: bug.severity,
+                        priority: bug.priority,
+                        status: bug.status,
+                        steps_to_reproduce: bug.steps_to_reproduce || [],
+                        expected_behavior: bug.expected_behavior || null,
+                        actual_behavior: bug.actual_behavior || null,
+                        environment: bug.environment || null,
+                        browser: bug.browser || null,
+                        os: bug.os || null,
+                        version: bug.version || null,
+                        module: bug.module || null,
+                        component: bug.component || null,
+                        tags: bug.tags || [],
                         created_by: user.id
                     };
 
                     const { error } = await supabase
-                        .from('test_cases')
-                        .insert([testCaseData]);
+                        .from('bugs')
+                        .insert([bugData]);
 
                     if (error) throw error;
                     result.success++;
@@ -286,22 +370,22 @@ export default function TestCasesImportPage() {
                 } catch (error: any) {
                     result.failed++;
                     result.errors.push({
-                        row: testCase.row || 0,
+                        row: bug.row || 0,
                         error: error.message
                     });
-                    logger.log(`Failed to import test case from row ${testCase.row}:`, error);
+                    logger.log(`Failed to import bug from row ${bug.row}:`, error);
                 }
             }
 
             setImportResult(result);
 
             if (result.success > 0) {
-                toast.success(`Successfully imported ${result.success} test case(s)`);
+                toast.success(`Successfully imported ${result.success} bug(s)`);
                 if (result.failed > 0) {
-                    toast.warning(`${result.failed} test case(s) failed to import`);
+                    toast.warning(`${result.failed} bug(s) failed to import`);
                 }
             } else {
-                toast.error('Failed to import test cases');
+                toast.error('Failed to import bugs');
             }
 
         } catch (error: any) {
@@ -317,20 +401,20 @@ export default function TestCasesImportPage() {
             {/* Header */}
             <div className="mb-8">
                 <Link
-                    href="/dashboard/test-cases"
+                    href="/dashboard/bugs"
                     className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
                 >
                     <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Test Cases
+                    Back to Bugs
                 </Link>
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-primary/10 rounded-lg">
                         <Upload className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground">Import Test Cases</h1>
+                        <h1 className="text-3xl font-bold text-foreground">Import Bugs</h1>
                         <p className="text-muted-foreground mt-1">
-                            Upload any CSV or Excel file. Columns will be intelligently mapped to test case fields.
+                            Upload any CSV or Excel file. Columns will be intelligently mapped to bug fields.
                         </p>
                     </div>
                 </div>
@@ -393,7 +477,7 @@ export default function TestCasesImportPage() {
                                 Smart Column Detection & Auto-Inference
                             </div>
                             <div className="text-xs text-muted-foreground">
-                                Columns are auto-mapped. Missing priority will be inferred from content. Your steps and data are always preserved.
+                                Columns are auto-mapped. Missing priority/severity will be inferred from content. Your steps and data are always preserved.
                             </div>
                         </div>
 
@@ -401,7 +485,7 @@ export default function TestCasesImportPage() {
                         <div className="flex justify-end gap-3 pt-4">
                             <button
                                 type="button"
-                                onClick={() => router.push('/dashboard/test-cases')}
+                                onClick={() => router.push('/dashboard/bugs')}
                                 className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
                             >
                                 Cancel
@@ -431,7 +515,7 @@ export default function TestCasesImportPage() {
                     <>
                         <div className="flex items-center justify-between">
                             <div className="text-sm font-semibold text-foreground">
-                                Preview {previewData.length} test cases
+                                Preview {previewData.length} bugs
                             </div>
                         </div>
                         <div className="border border-border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
@@ -439,26 +523,39 @@ export default function TestCasesImportPage() {
                                 <thead className="bg-muted border-b border-border sticky top-0">
                                     <tr>
                                         <th className="px-4 py-3 text-left font-medium text-foreground">Title</th>
+                                        <th className="px-4 py-3 text-left font-medium text-foreground">Severity</th>
                                         <th className="px-4 py-3 text-left font-medium text-foreground">Priority</th>
-                                        <th className="px-4 py-3 text-left font-medium text-foreground">Steps</th>
+                                        <th className="px-4 py-3 text-left font-medium text-foreground">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {previewData.map((tc, i) => (
+                                    {previewData.map((bug, i) => (
                                         <tr key={i} className="border-b border-border last:border-0">
-                                            <td className="px-4 py-3 text-foreground">{tc.title}</td>
+                                            <td className="px-4 py-3 text-foreground">{bug.title}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                                    tc.priority === 'critical' ? 'bg-error/20 text-error' :
-                                                    tc.priority === 'high' ? 'bg-warning/20 text-warning' :
-                                                    tc.priority === 'medium' ? 'bg-primary/20 text-primary' :
+                                                    bug.severity === 'critical' ? 'bg-error/20 text-error' :
+                                                    bug.severity === 'high' ? 'bg-warning/20 text-warning' :
+                                                    bug.severity === 'medium' ? 'bg-primary/20 text-primary' :
                                                     'bg-muted text-muted-foreground'
                                                 }`}>
-                                                    {tc.priority}
+                                                    {bug.severity}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground">
-                                                {tc.steps?.length || 0} steps
+                                            <td className="px-4 py-3">
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                                    bug.priority === 'critical' ? 'bg-error/20 text-error' :
+                                                    bug.priority === 'high' ? 'bg-warning/20 text-warning' :
+                                                    bug.priority === 'medium' ? 'bg-primary/20 text-primary' :
+                                                    'bg-muted text-muted-foreground'
+                                                }`}>
+                                                    {bug.priority}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className="px-2 py-1 rounded text-xs font-medium bg-muted text-foreground">
+                                                    {bug.status}
+                                                </span>
                                             </td>
                                         </tr>
                                     ))}
@@ -480,7 +577,7 @@ export default function TestCasesImportPage() {
 
                             <button
                                 type="button"
-                                onClick={importTestCases}
+                                onClick={importBugs}
                                 disabled={isProcessing}
                                 className="btn-primary px-6 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center whitespace-nowrap"
                             >
@@ -490,7 +587,7 @@ export default function TestCasesImportPage() {
                                         Importing...
                                     </>
                                 ) : (
-                                    `Import ${previewData.length} Test Cases`
+                                    `Import ${previewData.length} Bugs`
                                 )}
                             </button>
                         </div>
@@ -527,7 +624,7 @@ export default function TestCasesImportPage() {
                         <div className="flex gap-3 pt-4">
                             <button
                                 type="button"
-                                onClick={() => router.push('/dashboard/test-cases')}
+                                onClick={() => router.push('/dashboard/bugs')}
                                 className="flex-1 btn-primary px-4 py-2 text-sm font-semibold"
                             >
                                 Done

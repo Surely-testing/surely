@@ -1,5 +1,5 @@
 // ============================================
-// Test Run Form - Simplified with Asset Linker
+// Test Run Form - FIXED (Removed duplicate logic)
 // ============================================
 'use client';
 
@@ -34,8 +34,8 @@ export default function TestRunForm({
   const [testCases, setTestCases] = useState<TestCase[]>([]);
   const [sprintTestCases, setSprintTestCases] = useState<Map<string, TestCase[]>>(new Map());
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    defaultValues: initialData || {
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
+    defaultValues: {
       name: '',
       description: '',
       environment: 'staging',
@@ -47,6 +47,24 @@ export default function TestRunForm({
   });
 
   useEffect(() => {
+    if (initialData) {
+      setValue('name', initialData.name || '');
+      setValue('description', initialData.description || '');
+      setValue('environment', initialData.environment || 'staging');
+      setValue('test_type', initialData.test_type || 'manual');
+      setValue('assigned_to', initialData.assigned_to || '');
+      setValue('notes', initialData.notes || '');
+
+      // Format date for datetime-local input
+      if (initialData.scheduled_date) {
+        const date = new Date(initialData.scheduled_date);
+        const formatted = date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
+        setValue('scheduled_date', formatted);
+      }
+    }
+  }, [initialData, setValue]);
+
+  useEffect(() => {
     loadData();
   }, [suiteId]);
 
@@ -55,6 +73,8 @@ export default function TestRunForm({
       loadExistingRelationships();
     }
   }, [initialData]);
+
+  // REMOVED THE DUPLICATE useEffect THAT WAS CAUSING ISSUES
 
   const loadData = async () => {
     try {
@@ -95,19 +115,22 @@ export default function TestRunForm({
         }
       });
 
-      setSelectedSprints(sprintIds);
-      setSelectedTestCases(testCaseIds);
+      // Remove duplicates using Set
+      setSelectedSprints([...new Set(sprintIds)]);
+      setSelectedTestCases([...new Set(testCaseIds)]);
     } catch (error) {
       logger.log('Error loading relationships:', error);
     }
   };
 
   const handleSprintSelection = (sprintIds: string[]) => {
-    setSelectedSprints(sprintIds);
+    // Remove duplicates
+    const uniqueSprintIds = [...new Set(sprintIds)];
+    setSelectedSprints(uniqueSprintIds);
 
     // Auto-add all test cases from selected sprints
     const allSprintTestCaseIds = new Set<string>();
-    sprintIds.forEach(sprintId => {
+    uniqueSprintIds.forEach(sprintId => {
       const cases = sprintTestCases.get(sprintId) || [];
       cases.forEach(tc => allSprintTestCaseIds.add(tc.id));
     });
@@ -117,7 +140,7 @@ export default function TestRunForm({
       return !Array.from(allSprintTestCaseIds).includes(tcId);
     });
 
-    // Combine sprint test cases with orphaned selections
+    // Combine sprint test cases with orphaned selections (no duplicates due to Set)
     setSelectedTestCases([...Array.from(allSprintTestCaseIds), ...orphanedTestCaseIds]);
   };
 
@@ -128,8 +151,9 @@ export default function TestRunForm({
   const createRelationships = async (testRunId: string, userId: string) => {
     const relationshipsToCreate = [];
 
-    // Link sprints
-    for (const sprintId of selectedSprints) {
+    // Link sprints (remove duplicates)
+    const uniqueSprints = [...new Set(selectedSprints)];
+    for (const sprintId of uniqueSprints) {
       relationshipsToCreate.push({
         source_type: 'test_run' as any,
         source_id: testRunId,
@@ -141,8 +165,9 @@ export default function TestRunForm({
       });
     }
 
-    // Link test cases
-    for (const testCaseId of selectedTestCases) {
+    // Link test cases (remove duplicates)
+    const uniqueTestCases = [...new Set(selectedTestCases)];
+    for (const testCaseId of uniqueTestCases) {
       relationshipsToCreate.push({
         source_type: 'test_run' as any,
         source_id: testRunId,
@@ -450,7 +475,8 @@ function SprintSelector({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium">Sprints ({sprints.length})</label>
+        {/* FIXED: Show selectedSprints.length instead of sprints.length */}
+        <label className="text-sm font-medium">Sprints ({selectedSprints.length})</label>
         <button
           type="button"
           onClick={() => setShowSelector(!showSelector)}
@@ -568,15 +594,15 @@ function TestCaseSelector({
         </div>
       )}
 
-      {selectedTestCases.filter((id: string) => 
+      {selectedTestCases.filter((id: string) =>
         availableTestCases.some((tc: any) => tc.id === id)
       ).length > 0 && (
-        <div className="text-xs text-muted-foreground">
-          {selectedTestCases.filter((id: string) => 
-            availableTestCases.some((tc: any) => tc.id === id)
-          ).length} additional test case(s) selected
-        </div>
-      )}
+          <div className="text-xs text-muted-foreground">
+            {selectedTestCases.filter((id: string) =>
+              availableTestCases.some((tc: any) => tc.id === id)
+            ).length} additional test case(s) selected
+          </div>
+        )}
     </div>
   );
 }
