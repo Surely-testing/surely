@@ -1212,6 +1212,7 @@ export type Database = {
           role: string | null
           status: string | null
           terms_accepted: boolean | null
+          terms_accepted_at: string | null
           theme: string | null
           timezone: string | null
           updated_at: string | null
@@ -1238,6 +1239,7 @@ export type Database = {
           role?: string | null
           status?: string | null
           terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
           theme?: string | null
           timezone?: string | null
           updated_at?: string | null
@@ -1264,6 +1266,7 @@ export type Database = {
           role?: string | null
           status?: string | null
           terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
           theme?: string | null
           timezone?: string | null
           updated_at?: string | null
@@ -1603,7 +1606,9 @@ export type Database = {
           dodo_customer_id: string | null
           dodo_payment_method_id: string | null
           dodo_subscription_id: string | null
+          had_paid_plan: boolean | null
           id: string
+          previous_tier_id: string | null
           status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -1622,7 +1627,9 @@ export type Database = {
           dodo_customer_id?: string | null
           dodo_payment_method_id?: string | null
           dodo_subscription_id?: string | null
+          had_paid_plan?: boolean | null
           id?: string
+          previous_tier_id?: string | null
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -1641,7 +1648,9 @@ export type Database = {
           dodo_customer_id?: string | null
           dodo_payment_method_id?: string | null
           dodo_subscription_id?: string | null
+          had_paid_plan?: boolean | null
           id?: string
+          previous_tier_id?: string | null
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -1652,6 +1661,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "subscriptions_previous_tier_id_fkey"
+            columns: ["previous_tier_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_tiers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "subscriptions_tier_id_fkey"
             columns: ["tier_id"]
@@ -2729,6 +2745,17 @@ export type Database = {
           },
         ]
       }
+      downgraded_users: {
+        Row: {
+          days_since_downgrade: number | null
+          downgraded_at: string | null
+          email: string | null
+          name: string | null
+          previous_tier: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       recordings_with_details: {
         Row: {
           created_at: string | null
@@ -2885,8 +2912,41 @@ export type Database = {
           },
         ]
       }
+      trials_ending_soon: {
+        Row: {
+          days_remaining: number | null
+          email: string | null
+          has_payment_method: boolean | null
+          name: string | null
+          tier_name: string | null
+          trial_end: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      user_access_levels: {
+        Row: {
+          current_limits: Json | null
+          current_tier_name: string | null
+          had_paid_plan: boolean | null
+          has_premium_access: boolean | null
+          previous_tier_name: string | null
+          status: string | null
+          trial_days_remaining: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      activate_paid_subscription: {
+        Args: {
+          dodo_customer_id_param: string
+          dodo_subscription_id_param: string
+          subscription_id_param: string
+        }
+        Returns: undefined
+      }
       can_access_asset: {
         Args: {
           asset_id: string
@@ -2913,6 +2973,10 @@ export type Database = {
       }
       cleanup_old_recording_logs: { Args: never; Returns: number }
       downgrade_expired_trials: { Args: never; Returns: undefined }
+      downgrade_to_free_tier: {
+        Args: { user_id_param: string }
+        Returns: undefined
+      }
       get_asset_relationship_count: {
         Args: { asset_id: string; asset_type: string }
         Returns: number
@@ -3002,6 +3066,7 @@ export type Database = {
         Args: { org_id: string; requesting_user_id: string }
         Returns: boolean
       }
+      process_expired_trials: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

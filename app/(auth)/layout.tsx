@@ -88,8 +88,8 @@ export default function AuthLayout({
                                     SC
                                 </div>
                                 <div>
-                                    <p className="font-semibold text-white">Sarah Chen</p>
-                                    <p className="text-sm text-white/70">QA Director, TechFlow</p>
+                                    <p className="font-semibold text-white">Fidelis Agba</p>
+                                    <p className="text-sm text-white/70">QA Director, Venmail</p>
                                 </div>
                             </div>
                         </div>

@@ -5,6 +5,7 @@ import { CheckCircle, Star, ArrowRight, Zap, Sparkles, Crown, Loader2 } from 'lu
 import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
 import { useSupabase } from '@/providers/SupabaseProvider'
+import { formatPrice, formatPriceSimple } from '@/lib/utils/format'
 
 interface SubscriptionTier {
   id: string;
@@ -200,7 +201,7 @@ const Pricing = () => {
                 <div className="mb-8">
                   <div className="flex items-baseline gap-2">
                     <span className="text-5xl font-bold text-foreground">
-                      {isEnterprise ? 'Custom' : `$${price}`}
+                      {isEnterprise ? 'Custom' : formatPrice(price)}
                     </span>
                     {!isEnterprise && (
                       <span className="text-muted-foreground">
@@ -210,7 +211,7 @@ const Pricing = () => {
                   </div>
                   {!isEnterprise && billingCycle === 'yearly' && tier.price_monthly && tier.price_yearly && (
                     <p className="text-sm text-orange-600 dark:text-orange-400 mt-2 font-medium">
-                      ${tier.price_monthly}/mo billed annually
+                      {formatPrice(tier.price_monthly)}/mo billed annually
                     </p>
                   )}
                 </div>
