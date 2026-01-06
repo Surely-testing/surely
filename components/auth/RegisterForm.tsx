@@ -1,5 +1,6 @@
 // ============================================
-// FILE: components/auth/RegisterForm.tsx (MULTI-STEP WITH SUPABASE)
+// FILE: components/auth/RegisterForm.tsx (COMPLETE UPDATED VERSION)
+// Safe migration - maintains all existing functionality
 // ============================================
 'use client'
 
@@ -8,14 +9,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Mail, Lock, User, Eye, EyeOff, Loader2, CheckCircle2,
-  Building2, ArrowLeft, ChevronDown
+  Building2, ArrowLeft, ChevronDown, Sparkles
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons'
 import { useSupabase } from '@/providers/SupabaseProvider'
-import { isCommonEmailProvider, isCustomDomain } from '@/utils/domainValidator'
+import { isCommonEmailProvider } from '@/utils/domainValidator'
 
 const RegisterForm = () => {
   const router = useRouter()
@@ -47,14 +47,20 @@ const RegisterForm = () => {
     {
       value: 'individual',
       label: 'Individual Account',
-      description: 'For personal projects and individual testing',
-      icon: User
+      description: 'Perfect for solo testers and freelancers',
+      icon: User,
+      plan: 'Freelancer',
+      price: '$20/mo',
+      features: ['5 test suites', '500 test cases', 'AI features']
     },
     {
       value: 'organization',
       label: 'Organization Account',
-      description: 'For teams, companies, and collaborative testing',
-      icon: Building2
+      description: 'Best for teams and businesses',
+      icon: Building2,
+      plan: 'Pro',
+      price: '$80/mo',
+      features: ['20 test suites', '999 test cases', 'Team collaboration']
     }
   ]
 
@@ -89,7 +95,6 @@ const RegisterForm = () => {
     })
     setErrors({ ...errors, [name]: '' })
 
-    // Validate email domain for organization accounts
     if (name === 'email' && value && formData.accountType === 'organization') {
       if (isCommonEmailProvider(value)) {
         setErrors({ ...errors, email: 'Organization accounts require a custom domain email (e.g., name@yourcompany.com)' })
@@ -98,7 +103,6 @@ const RegisterForm = () => {
       }
     }
 
-    // Calculate password strength
     if (name === 'password') {
       let strength = 0
       if (value.length >= 8) strength += 25
@@ -113,7 +117,6 @@ const RegisterForm = () => {
     setFormData(prev => ({ ...prev, [field]: value }))
     setErrors({ ...errors, [field]: '' })
 
-    // Validate email domain for organization accounts
     if (field === 'email' && value && formData.accountType === 'organization') {
       if (isCommonEmailProvider(value)) {
         setErrors(prev => ({ ...prev, email: 'Organization accounts require a custom domain email (e.g., name@yourcompany.com)' }))
@@ -122,14 +125,12 @@ const RegisterForm = () => {
       }
     }
 
-    // Re-validate email when account type changes
     if (field === 'accountType' && value === 'organization' && formData.email) {
       if (isCommonEmailProvider(formData.email)) {
         setErrors(prev => ({ ...prev, email: 'Organization accounts require a custom domain email (e.g., name@yourcompany.com)' }))
       }
     }
 
-    // Clear email error when switching to individual
     if (field === 'accountType' && value === 'individual') {
       setErrors(prev => ({ ...prev, email: '' }))
     }
@@ -227,15 +228,13 @@ const RegisterForm = () => {
     }
   }
 
-  // Replace your handleSubmit function with this:
-
   const handleSubmit = async () => {
     if (!validateStep(currentStep)) return
 
     setIsLoading(true)
 
     try {
-      // 1. Create auth user
+      // Create auth user - the database trigger handles everything else automatically
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -243,7 +242,6 @@ const RegisterForm = () => {
           data: {
             full_name: formData.name,
             account_type: formData.accountType,
-            // Store org details in metadata for later
             ...(formData.accountType === 'organization' && {
               organization_name: formData.organizationName,
               organization_industry: formData.organizationIndustry,
@@ -260,31 +258,18 @@ const RegisterForm = () => {
         throw new Error('User creation failed')
       }
 
-      // 2. Call registration function immediately (don't wait for session)
-      const { data: registrationResult, error: registrationError } = await supabase.rpc(
-        'handle_new_user_registration',
-        {
-          user_id: authData.user.id,
-          user_email: formData.email,
-          user_name: formData.name,
-          user_account_type: formData.accountType,
-          user_terms_accepted: formData.terms,
-          org_name: formData.accountType === 'organization' ? formData.organizationName : undefined,
-          org_industry: formData.accountType === 'organization' ? formData.organizationIndustry : undefined,
-          org_size: formData.accountType === 'organization' ? formData.organizationSize : undefined,
-        }
+      // The database trigger has already created:
+      // - Profile
+      // - Organization (if applicable)
+      // - Subscription with 14-day trial
+      // - Activity log
+
+      const tierName = formData.accountType === 'individual' ? 'Freelancer' : 'Pro'
+
+      toast.success(
+        `🎉 Welcome! Your ${tierName} trial has started. Check your email to verify your account.`,
+        { duration: 5000 }
       )
-
-      if (registrationError) {
-        console.error('Registration function error:', registrationError)
-        throw new Error(`Failed to complete registration: ${registrationError.message}`)
-      }
-
-      console.log('Registration successful:', registrationResult)
-
-      toast.success('Registration successful! Please check your email to verify your account.', {
-        duration: 5000,
-      })
 
       router.push('/verify-email')
 
@@ -326,7 +311,8 @@ const RegisterForm = () => {
 
   const getButtonText = () => {
     if (isCurrentStepSubmit()) {
-      return 'Create Account'
+      const plan = formData.accountType === 'individual' ? 'Freelancer' : 'Pro'
+      return `Start ${plan} Trial`
     }
     return 'Continue'
   }
@@ -336,10 +322,10 @@ const RegisterForm = () => {
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-          Choose your account type
+          Start Your Free Trial
         </h2>
         <p className="text-sm sm:text-base text-muted-foreground">
-          Select the option that best fits your needs
+          Get full access for 14 days - no credit card required
         </p>
       </div>
 
@@ -366,17 +352,38 @@ const RegisterForm = () => {
                 <type.icon className="w-6 h-6 text-muted-foreground" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-foreground mb-1">
-                  {type.label}
-                </h3>
-                <p className="text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    {type.label}
+                  </h3>
+                  <span className="px-2.5 py-0.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold rounded-full flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    {type.plan}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">
                   {type.description}
                 </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {type.features.map((feature, idx) => (
+                    <span key={idx} className="flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-success" />
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-2 text-sm">
+                  <span className="text-muted-foreground">Then </span>
+                  <span className="font-semibold text-foreground">{type.price}</span>
+                  <span className="text-muted-foreground"> after trial</span>
+                </div>
               </div>
-              <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${formData.accountType === type.value
-                ? 'border-primary bg-primary'
-                : 'border-border'
-                }`}>
+              <div
+                className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${formData.accountType === type.value
+                  ? 'border-primary bg-primary'
+                  : 'border-border'
+                  }`}
+              >
                 {formData.accountType === type.value && (
                   <CheckCircle2 className="w-5 h-5 text-primary-foreground -m-0.5" />
                 )}
@@ -384,6 +391,13 @@ const RegisterForm = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Trial Benefits Callout */}
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <p className="text-sm text-blue-900 dark:text-blue-100 text-center">
+          ✨ <strong>Start with full premium access</strong> - Experience all features during your 14-day trial!
+        </p>
       </div>
 
       {errors.accountType && (
@@ -443,7 +457,7 @@ const RegisterForm = () => {
     </div>
   )
 
-  // Step 3: Organization Details (only for organization accounts)
+  // Step 3: Organization Details
   const renderOrganizationInfoStep = () => (
     <div className="space-y-6">
       <div className="text-center">

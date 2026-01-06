@@ -1,6 +1,6 @@
 // ============================================
 // FILE: components/sprints/SprintDetail.tsx
-// FIXED - Custom delete dialog instead of window.confirm
+// FIXED - Using consistent ConfirmDialog component
 // ============================================
 'use client';
 
@@ -14,13 +14,14 @@ import { logger } from '@/lib/utils/logger';
 import { 
   ArrowLeft, Edit, Trash, Calendar, CheckSquare, Bug, FileText, 
   Clock, AlertCircle, Target, TrendingUp, Lightbulb, BarChart3,
-  Play, Pause, RefreshCw
+  Play, Pause
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { deleteSprint } from '@/lib/actions/sprints';
+import { ConfirmDialog } from '@/components/ui/dialog';
 
 interface SprintDetailProps {
   suiteId: string;
@@ -52,7 +53,6 @@ function useSprintAssets(sprintId: string) {
 export function SprintDetail({ suiteId, sprintId }: SprintDetailProps) {
   const [showEditForm, setShowEditForm] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
   const { data: sprint, isLoading } = useSprint(sprintId);
   const { data: stats } = useSprintStats(sprintId);
@@ -112,8 +112,6 @@ export function SprintDetail({ suiteId, sprintId }: SprintDetailProps) {
   };
 
   const confirmDelete = async () => {
-    setIsDeleting(true);
-    
     try {
       const result = await deleteSprint(sprintId);
       
@@ -127,14 +125,7 @@ export function SprintDetail({ suiteId, sprintId }: SprintDetailProps) {
     } catch (error) {
       logger.log('Delete error:', error);
       toast.error('Failed to delete sprint');
-    } finally {
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
     }
-  };
-
-  const cancelDelete = () => {
-    setDeleteDialogOpen(false);
   };
 
   const handleEditSuccess = () => {
@@ -539,57 +530,15 @@ export function SprintDetail({ suiteId, sprintId }: SprintDetailProps) {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      {deleteDialogOpen && (
-        <div 
-          className="fixed inset-0 z-[9999]"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-dialog-title"
-        >
-          <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={cancelDelete}
-          />
-          
-          <div 
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 z-[10000]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="delete-dialog-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Delete Sprint
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Are you sure you want to delete this sprint? This action cannot be undone and will remove all associated data.
-            </p>
-            
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={cancelDelete}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={confirmDelete}
+        title="Delete Sprint"
+        description={`Are you sure you want to delete "${sprint.name}"? This action cannot be undone and will remove all associated data.`}
+        confirmText="Delete"
+        variant="error"
+      />
     </>
   );
 }

@@ -19,7 +19,7 @@ export function useSubscription() {
         .from('subscriptions')
         .select(`
           *,
-          tier:subscription_tiers(*)
+          tier:subscription_tiers!tier_id(*)
         `)
         .eq('user_id', user.id)
         .single()

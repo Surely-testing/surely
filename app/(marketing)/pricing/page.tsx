@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, Sparkles, Zap, Crown, ArrowRight, Loader2 } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
+import { formatPrice, formatPriceSimple } from '@/lib/utils/format';
 
 interface SubscriptionTier {
   id: string;
@@ -109,7 +110,7 @@ const PricingPage = () => {
   const calculateSavings = (monthly: number, yearly: number) => {
     const monthlyCost = monthly * 12;
     const savings = monthlyCost - yearly;
-    return { amount: savings };
+    return { amount: formatPriceSimple(savings) };
   };
 
   if (loading) {
@@ -226,7 +227,7 @@ const PricingPage = () => {
                     <div className="mb-8">
                       <div className="flex items-baseline gap-2">
                         <span className="text-5xl font-bold text-foreground">
-                          {isEnterprise ? 'Custom' : `$${price}`}
+                          {isEnterprise ? 'Custom' : formatPrice(price)}
                         </span>
                         {!isEnterprise && (
                           <span className="text-muted-foreground">

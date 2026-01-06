@@ -14,15 +14,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { logger } from '@/lib/utils/logger'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/dialog'
 import { useDocumentState } from './views/document-page.utils'
 import type { DocumentWithCreator, Suite } from './views/document-page.types'
 
@@ -631,56 +623,27 @@ export function DocumentsPageView({ suiteId, isOrganization = false }: Documents
         onAction={handleBulkAction}
       />
 
-      {/* Delete Dialog */}
-      <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, doc: null })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Document</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{deleteDialog.doc?.title}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialog({ open: false, doc: null })}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="error"
-              onClick={handleDeleteConfirm}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => !open && setDeleteDialog({ open: false, doc: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Document"
+        description={`Are you sure you want to delete "${deleteDialog.doc?.title}"? This will move it to trash where it can be recovered for 30 days.`}
+        confirmText="Delete"
+        variant="error"
+      />
 
-      {/* Archive Dialog */}
-      <Dialog open={archiveDialog.open} onOpenChange={(open) => !open && setArchiveDialog({ open: false, doc: null })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Archive Document</DialogTitle>
-            <DialogDescription>
-              Archive "{archiveDialog.doc?.title}"? You can restore it later from the archive.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setArchiveDialog({ open: false, doc: null })}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleArchiveConfirm}
-            >
-              Archive
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Archive Confirmation Dialog */}
+      <ConfirmDialog
+        open={archiveDialog.open}
+        onOpenChange={(open) => !open && setArchiveDialog({ open: false, doc: null })}
+        onConfirm={handleArchiveConfirm}
+        title="Archive Document"
+        description={`Archive "${archiveDialog.doc?.title}"? You can restore it later from the archive.`}
+        confirmText="Archive"
+        variant="warning"
+      />
     </>
   )
 }

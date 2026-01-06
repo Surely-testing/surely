@@ -1,30 +1,40 @@
-'use client'
+// ============================================
+// FILE: components/test-cases/views/TestCaseDialogs.tsx
+// Consistent dialog components using ConfirmDialog
+// ============================================
+'use client';
 
-import React from 'react'
-import { Trash2, Archive } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import type { DialogState, BulkDialogState } from '@/types/test-case-view.types'
+import React from 'react';
+import { ConfirmDialog } from '@/components/ui/dialog';
+
+interface DialogState {
+  open: boolean;
+  testCaseId: string | null;
+}
+
+interface BulkDialogState {
+  open: boolean;
+  count: number;
+}
 
 interface TestCaseDialogsProps {
-  deleteDialog: DialogState
-  onDeleteDialogChange: (state: DialogState) => void
-  onConfirmDelete: () => void
-  archiveDialog: DialogState
-  onArchiveDialogChange: (state: DialogState) => void
-  onConfirmArchive: () => void
-  bulkDeleteDialog: BulkDialogState
-  onBulkDeleteDialogChange: (state: BulkDialogState) => void
-  onConfirmBulkDelete: () => void
-  bulkArchiveDialog: BulkDialogState
-  onBulkArchiveDialogChange: (state: BulkDialogState) => void
-  onConfirmBulkArchive: () => void
+  // Single-item dialogs
+  deleteDialog: DialogState;
+  onDeleteDialogChange: (state: DialogState) => void;
+  onConfirmDelete: () => void;
+  
+  archiveDialog: DialogState;
+  onArchiveDialogChange: (state: DialogState) => void;
+  onConfirmArchive: () => void;
+  
+  // Bulk dialogs (kept for backward compatibility but not used - BulkActionsBar handles these)
+  bulkDeleteDialog: BulkDialogState;
+  onBulkDeleteDialogChange: (state: BulkDialogState) => void;
+  onConfirmBulkDelete: () => void;
+  
+  bulkArchiveDialog: BulkDialogState;
+  onBulkArchiveDialogChange: (state: BulkDialogState) => void;
+  onConfirmBulkArchive: () => void;
 }
 
 export function TestCaseDialogs({
@@ -43,137 +53,65 @@ export function TestCaseDialogs({
 }: TestCaseDialogsProps) {
   return (
     <>
-      {/* Delete Dialog */}
-      <Dialog 
-        open={deleteDialog.open} 
-        onOpenChange={(open) => onDeleteDialogChange({ open, testCaseId: null })}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Move to Trash?</DialogTitle>
-            <DialogDescription>
-              This test case will be moved to trash. You can restore it later from the Archive & Trash page.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => onDeleteDialogChange({ open: false, testCaseId: null })}
-              className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onConfirmDelete}
-              className="px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive rounded-lg hover:bg-destructive/90 transition-all inline-flex items-center gap-2"
-            >
-              <Trash2 className="h-4 w-4" />
-              Move to Trash
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Single Delete Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => onDeleteDialogChange({ 
+          open, 
+          testCaseId: deleteDialog.testCaseId 
+        })}
+        onConfirm={onConfirmDelete}
+        title="Delete Test Case"
+        description="Are you sure you want to delete this test case? This action cannot be undone."
+        confirmText="Delete"
+        variant="error"
+      />
 
-      {/* Archive Dialog */}
-      <Dialog 
-        open={archiveDialog.open} 
-        onOpenChange={(open) => onArchiveDialogChange({ open, testCaseId: null })}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Archive Test Case?</DialogTitle>
-            <DialogDescription>
-              This test case will be archived. You can restore it later from the Archive & Trash page.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => onArchiveDialogChange({ open: false, testCaseId: null })}
-              className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onConfirmArchive}
-              className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-all inline-flex items-center gap-2"
-            >
-              <Archive className="h-4 w-4" />
-              Archive
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Single Archive Dialog */}
+      <ConfirmDialog
+        open={archiveDialog.open}
+        onOpenChange={(open) => onArchiveDialogChange({ 
+          open, 
+          testCaseId: archiveDialog.testCaseId 
+        })}
+        onConfirm={onConfirmArchive}
+        title="Archive Test Case"
+        description="Are you sure you want to archive this test case? You can restore it later from the archive."
+        confirmText="Archive"
+        variant="warning"
+      />
 
-      {/* Bulk Delete Dialog */}
-      <Dialog 
-        open={bulkDeleteDialog.open} 
-        onOpenChange={(open) => onBulkDeleteDialogChange({ open, count: 0 })}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Move {bulkDeleteDialog.count} Test Case{bulkDeleteDialog.count > 1 ? 's' : ''} to Trash?
-            </DialogTitle>
-            <DialogDescription>
-              These test cases will be moved to trash. You can restore them later from the Archive & Trash page.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => onBulkDeleteDialogChange({ open: false, count: 0 })}
-              className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onConfirmBulkDelete}
-              className="px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive rounded-lg hover:bg-destructive/90 transition-all inline-flex items-center gap-2"
-            >
-              <Trash2 className="h-4 w-4" />
-              Move to Trash
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Bulk Delete Dialog - kept for backward compatibility */}
+      {bulkDeleteDialog.open && (
+        <ConfirmDialog
+          open={bulkDeleteDialog.open}
+          onOpenChange={(open) => onBulkDeleteDialogChange({ 
+            open, 
+            count: bulkDeleteDialog.count 
+          })}
+          onConfirm={onConfirmBulkDelete}
+          title={`Delete ${bulkDeleteDialog.count} Test Case${bulkDeleteDialog.count > 1 ? 's' : ''}`}
+          description={`Are you sure you want to delete ${bulkDeleteDialog.count} test case${bulkDeleteDialog.count > 1 ? 's' : ''}? This action cannot be undone.`}
+          confirmText={`Delete ${bulkDeleteDialog.count > 1 ? `(${bulkDeleteDialog.count})` : ''}`}
+          variant="error"
+        />
+      )}
 
-      {/* Bulk Archive Dialog */}
-      <Dialog 
-        open={bulkArchiveDialog.open} 
-        onOpenChange={(open) => onBulkArchiveDialogChange({ open, count: 0 })}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Archive {bulkArchiveDialog.count} Test Case{bulkArchiveDialog.count > 1 ? 's' : ''}?
-            </DialogTitle>
-            <DialogDescription>
-              These test cases will be archived. You can restore them later from the Archive & Trash page.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => onBulkArchiveDialogChange({ open: false, count: 0 })}
-              className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onConfirmBulkArchive}
-              className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-all inline-flex items-center gap-2"
-            >
-              <Archive className="h-4 w-4" />
-              Archive
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Bulk Archive Dialog - kept for backward compatibility */}
+      {bulkArchiveDialog.open && (
+        <ConfirmDialog
+          open={bulkArchiveDialog.open}
+          onOpenChange={(open) => onBulkArchiveDialogChange({ 
+            open, 
+            count: bulkArchiveDialog.count 
+          })}
+          onConfirm={onConfirmBulkArchive}
+          title={`Archive ${bulkArchiveDialog.count} Test Case${bulkArchiveDialog.count > 1 ? 's' : ''}`}
+          description={`Are you sure you want to archive ${bulkArchiveDialog.count} test case${bulkArchiveDialog.count > 1 ? 's' : ''}? You can restore them later from the archive.`}
+          confirmText={`Archive ${bulkArchiveDialog.count > 1 ? `(${bulkArchiveDialog.count})` : ''}`}
+          variant="warning"
+        />
+      )}
     </>
-  )
+  );
 }
