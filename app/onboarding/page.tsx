@@ -1,17 +1,17 @@
 // ============================================
-// FILE: app/onboarding/page.tsx (FIXED - Correct Routing)
+// FILE: app/onboarding/page.tsx (MODERNIZED)
 // ============================================
 'use client'
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/SupabaseProvider'
-import { setCurrentSuite } from '@/lib/suites/session' // Import suite session helper
+import { setCurrentSuite } from '@/lib/suites/session'
 import { toast } from 'sonner'
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/utils/logger'
 import {
   Building2, Globe, Users, Loader2, CheckCircle2,
-  ArrowRight, Sparkles, Folder, X, Plus
+  ArrowRight, Folder, X, Plus, ArrowLeft
 } from 'lucide-react'
 
 export default function OnboardingPage() {
@@ -54,14 +54,12 @@ export default function OnboardingPage() {
 
       setProfile(profileData)
 
-      // ✅ If already completed onboarding, redirect to dashboard
       if (profileData.registration_completed) {
         logger.log('✅ Onboarding already complete, redirecting to dashboard')
         router.push('/dashboard')
         return
       }
 
-      // Pre-fill data if exists
       if (profileData.organization_website) {
         setFormData(prev => ({
           ...prev,
@@ -69,11 +67,10 @@ export default function OnboardingPage() {
         }))
       }
 
-      // ✅ Set correct starting step based on account type
       if (profileData.account_type === 'individual') {
-        setCurrentStep(1) // Start at suite creation for individuals
+        setCurrentStep(1)
       } else {
-        setCurrentStep(1) // Start at org details for organizations
+        setCurrentStep(1)
       }
 
     } catch (error) {
@@ -111,7 +108,6 @@ export default function OnboardingPage() {
     }))
   }
 
-  // ✅ ORGANIZATION STEP 1: Save org details
   const handleOrgDetailsSubmit = async () => {
     if (!formData.organizationWebsite && !formData.organizationDescription) {
       toast.error('Please provide at least website or description')
@@ -143,7 +139,7 @@ export default function OnboardingPage() {
       if (profileError) throw profileError
 
       toast.success('Organization details saved!')
-      setCurrentStep(2) // Move to invitations
+      setCurrentStep(2)
     } catch (error: any) {
       toast.error(error.message || 'Failed to save details')
     } finally {
@@ -151,7 +147,6 @@ export default function OnboardingPage() {
     }
   }
 
-  // ✅ ORGANIZATION STEP 2: Send invitations
   const handleInvitationsSubmit = async () => {
     try {
       setSaving(true)
@@ -185,7 +180,7 @@ export default function OnboardingPage() {
         }
       }
 
-      setCurrentStep(3) // Move to suite creation
+      setCurrentStep(3)
     } catch (error: any) {
       toast.error(error.message || 'Failed to send invitations')
     } finally {
@@ -193,7 +188,6 @@ export default function OnboardingPage() {
     }
   }
 
-  // ✅ FINAL STEP: Create test suite and complete onboarding
   const handleSuiteCreation = async () => {
     if (!formData.suiteName.trim()) {
       toast.error('Test suite name is required')
@@ -210,7 +204,6 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Determine owner type and ID
       const ownerType = profile?.account_type === 'organization' ? 'organization' : 'individual'
       const ownerId = ownerType === 'organization'
         ? (profile.organization_id || user.id)
@@ -218,7 +211,6 @@ export default function OnboardingPage() {
 
       logger.log('Creating suite with:', { ownerType, ownerId, userId: user.id })
 
-      // ✅ Include admins and members for organization suites
       const suiteData: any = {
         name: formData.suiteName.trim(),
         description: formData.suiteDescription.trim() || '',
@@ -228,13 +220,11 @@ export default function OnboardingPage() {
         status: 'active',
       }
 
-      // ✅ Add creator as admin and member for organization suites
       if (ownerType === 'organization') {
         suiteData.admins = [user.id]
         suiteData.members = [user.id]
       }
 
-      // Create test suite
       const { data: suite, error: suiteError } = await supabase
         .from('test_suites')
         .insert(suiteData)
@@ -248,11 +238,9 @@ export default function OnboardingPage() {
 
       logger.log('✅ Suite created successfully:', suite)
 
-      // ✅ CRITICAL: Set this suite as the current suite in session
       await setCurrentSuite(suite.id)
       logger.log('✅ Set current suite in session:', suite.id)
 
-      // ✅ Mark onboarding as complete
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ registration_completed: true })
@@ -263,7 +251,6 @@ export default function OnboardingPage() {
         throw updateError
       }
 
-      // Log activity
       await supabase.from('activity_logs').insert({
         user_id: user.id,
         action: 'onboarding_completed',
@@ -279,8 +266,6 @@ export default function OnboardingPage() {
         description: 'Your workspace is ready!'
       })
 
-      // ✅ FIXED: Redirect to /dashboard (not /dashboard/${suiteId})
-      // The DashboardShell will automatically detect and use the current suite from context
       router.push('/dashboard')
       router.refresh()
     } catch (error: any) {
@@ -305,55 +290,69 @@ export default function OnboardingPage() {
   const orgDomain = userEmail.split('@')[1] || ''
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-primary/5 flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-700">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-            <Sparkles className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">
-            Welcome to Surely! 🎉
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-3 animate-in fade-in slide-in-from-top-2 duration-500">
+            Welcome to Surely! 👋
           </h1>
-          <p className="text-muted-foreground text-lg">
-            {isOrganization ? "Let's set up your organization" : "Let's create your first test suite"}
+          <p className="text-muted-foreground animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
+            {isOrganization ? "Let's get your team set up" : "Let's create your workspace"}
           </p>
         </div>
 
-        {/* Progress Indicators */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {Array.from({ length: totalSteps }).map((_, index) => (
-            <div
-              key={index}
-              className={`w-3 h-3 rounded-full transition-all ${currentStep > index + 1
-                  ? 'bg-success scale-125'
-                  : currentStep === index + 1
-                    ? 'bg-primary scale-125'
-                    : 'bg-border'
-                }`}
-            />
-          ))}
-        </div>
+        {/* Progress Bar */}
+        {totalSteps > 1 && (
+          <div className="mb-6 animate-in fade-in duration-500 delay-200">
+            <div className="flex items-center gap-2">
+              {Array.from({ length: totalSteps }).map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
+                    currentStep > index ? 'bg-primary' : 'bg-muted'
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Step {currentStep} of {totalSteps}
+            </p>
+          </div>
+        )}
 
         {/* Card */}
-        <div className="bg-card rounded-2xl shadow-xl border border-border p-6 sm:p-8">
+        <div className="bg-card rounded-xl shadow-lg border border-border p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-500 delay-300">
+          {/* Back Button */}
+          {currentStep > 1 && isOrganization && (
+            <button
+              onClick={() => setCurrentStep(currentStep - 1)}
+              className="mb-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+            >
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+              Back
+            </button>
+          )}
+
           {/* ORG STEP 1: Organization Details */}
           {currentStep === 1 && isOrganization && (
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
                   <Building2 className="w-5 h-5 text-primary" />
-                  Organization Details
-                </h2>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Organization Details
+                  </h2>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Help us know more about your organization
+                  Tell us about your organization
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-2">
-                    Website (Optional)
+                    Website
                   </label>
                   <div className="relative">
                     <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -362,44 +361,44 @@ export default function OnboardingPage() {
                       placeholder="https://yourcompany.com"
                       value={formData.organizationWebsite}
                       onChange={(e) => handleInputChange('organizationWebsite', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-input rounded-lg bg-background text-foreground focus:border-primary focus:ring-2 focus:ring-ring/10 transition-all"
+                      className="w-full pl-10 pr-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-2">
-                    Description (Optional)
+                    Description
                   </label>
                   <textarea
-                    placeholder="Tell us what your organization does..."
+                    placeholder="What does your organization do?"
                     value={formData.organizationDescription}
                     onChange={(e) => handleInputChange('organizationDescription', e.target.value)}
-                    rows={4}
-                    className="w-full px-4 py-3 border border-input rounded-lg bg-background text-foreground focus:border-primary focus:ring-2 focus:ring-ring/10 transition-all resize-none"
+                    rows={3}
+                    className="w-full px-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setCurrentStep(2)}
                   disabled={saving}
-                  className="flex-1 px-6 py-3 border border-border rounded-lg font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 border border-border rounded-lg font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all disabled:opacity-50"
                 >
-                  Skip for now
+                  Skip
                 </button>
                 <button
                   onClick={handleOrgDetailsSubmit}
                   disabled={saving}
-                  className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   {saving ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
                       Continue
-                      <ArrowRight className="w-5 h-5" />
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
@@ -409,34 +408,36 @@ export default function OnboardingPage() {
 
           {/* ORG STEP 2: Team Invitations */}
           {currentStep === 2 && isOrganization && (
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
                   <Users className="w-5 h-5 text-primary" />
-                  Invite Your Team
-                </h2>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Invite Your Team
+                  </h2>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Collaborate with your team members (optional)
+                  Add teammates to collaborate (optional)
                 </p>
               </div>
 
               <div className="space-y-3">
                 {formData.inviteEmails.map((email, index) => (
-                  <div key={index} className="flex gap-2">
+                  <div key={index} className="flex gap-2 animate-in fade-in slide-in-from-left-2 duration-300" style={{ animationDelay: `${index * 50}ms` }}>
                     <div className="flex-1 relative">
                       <input
                         type="email"
-                        placeholder="teammate@yourcompany.com"
+                        placeholder={`teammate${index > 0 ? index + 1 : ''}@${orgDomain || 'company.com'}`}
                         value={email}
                         onChange={(e) => handleEmailChange(index, e.target.value)}
-                        className="w-full px-4 py-3 border border-input rounded-lg bg-background text-foreground focus:border-primary focus:ring-2 focus:ring-ring/10 transition-all"
+                        className="w-full px-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                       />
-                      {email && email.includes('@') && (
+                      {email && /\S+@\S+\.\S+/.test(email) && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
                           <div
-                            className={`w-2 h-2 rounded-full ${email.endsWith(`@${orgDomain}`) ? 'bg-success' : 'bg-warning'
-                              }`}
-                            title={email.endsWith(`@${orgDomain}`) ? 'Internal' : 'External'}
+                            className={`w-2 h-2 rounded-full ${
+                              email.endsWith(`@${orgDomain}`) ? 'bg-success animate-pulse' : 'bg-warning'
+                            }`}
                           />
                         </div>
                       )}
@@ -444,9 +445,9 @@ export default function OnboardingPage() {
                     {formData.inviteEmails.length > 1 && (
                       <button
                         onClick={() => handleRemoveEmail(index)}
-                        className="px-3 py-3 border border-border rounded-lg text-muted-foreground hover:text-error hover:border-error transition-colors"
+                        className="p-2.5 border border-border rounded-lg text-muted-foreground hover:text-error hover:border-error hover:bg-error/5 transition-all"
                       >
-                        <X className="w-5 h-5" />
+                        <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -454,45 +455,32 @@ export default function OnboardingPage() {
 
                 <button
                   onClick={handleAddEmail}
-                  className="w-full px-4 py-3 border-2 border-dashed border-border rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors font-medium flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 border-2 border-dashed border-border rounded-lg text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all font-medium flex items-center justify-center gap-2 group"
                 >
-                  <Plus className="w-4 h-4" />
-                  Add another email
+                  <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  Add teammate
                 </button>
               </div>
 
-              {formData.inviteEmails.some(e => e.includes('@')) && (
-                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-2 border-t border-border">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-success rounded-full" />
-                    <span>Internal ({orgDomain})</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-warning rounded-full" />
-                    <span>External</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setCurrentStep(3)}
                   disabled={saving}
-                  className="flex-1 px-6 py-3 border border-border rounded-lg font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 border border-border rounded-lg font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all disabled:opacity-50"
                 >
-                  Skip for now
+                  Skip
                 </button>
                 <button
                   onClick={handleInvitationsSubmit}
                   disabled={saving}
-                  className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   {saving ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
                       Continue
-                      <ArrowRight className="w-5 h-5" />
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
@@ -500,87 +488,86 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* FINAL STEP: Create Test Suite (Both Individual & Organization) */}
+          {/* FINAL STEP: Create Test Suite */}
           {((currentStep === 3 && isOrganization) || (currentStep === 1 && !isOrganization)) && (
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
                   <Folder className="w-5 h-5 text-primary" />
-                  Create Your First Test Suite
-                </h2>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Create Your First Suite
+                  </h2>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  A test suite organizes your test cases
+                  A suite organizes your test cases
                 </p>
               </div>
 
-              <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg">
-                <div className="flex items-center gap-2 text-sm text-primary mb-2">
+              <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg animate-in fade-in zoom-in-95 duration-500 delay-200">
+                <div className="flex items-center gap-2 text-sm font-medium text-primary mb-1">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span className="font-medium">
-                    {isOrganization ? 'Organization Suite' : 'Personal Suite'}
-                  </span>
+                  {isOrganization ? 'Team Suite' : 'Personal Suite'}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {isOrganization
-                    ? 'This suite will be accessible to your organization members'
-                    : 'This suite will be private to your account'}
+                    ? 'Shared with your organization'
+                    : 'Private to your account'}
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-2">
-                    Suite Name <span className="text-destructive">*</span>
+                    Suite Name <span className="text-error">*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g., Web App Testing, Mobile QA, API Tests"
+                    placeholder="e.g., Web Testing, API Tests, Mobile QA"
                     value={formData.suiteName}
                     onChange={(e) => handleInputChange('suiteName', e.target.value)}
-                    className="w-full px-4 py-3 border border-input rounded-lg bg-background text-foreground focus:border-primary focus:ring-2 focus:ring-ring/10 transition-all"
+                    className="w-full px-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    autoFocus
                   />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-2">
-                    Description (Optional)
+                    Description
                   </label>
                   <textarea
-                    placeholder="Brief description of what you'll test in this suite..."
+                    placeholder="What will you test in this suite?"
                     value={formData.suiteDescription}
                     onChange={(e) => handleInputChange('suiteDescription', e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-input rounded-lg bg-background text-foreground focus:border-primary focus:ring-2 focus:ring-ring/10 transition-all resize-none"
+                    rows={2}
+                    className="w-full px-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                   />
                 </div>
               </div>
 
-              <div className="pt-4">
-                <button
-                  onClick={handleSuiteCreation}
-                  disabled={saving}
-                  className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Creating your workspace...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span>Complete Setup & Go to Dashboard</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={handleSuiteCreation}
+                disabled={saving || !formData.suiteName.trim()}
+                className="btn-primary w-full flex items-center justify-center gap-2 group"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating workspace...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    Complete Setup
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          You can always update these settings later in your dashboard
+        <p className="text-center text-xs text-muted-foreground mt-6 animate-in fade-in duration-500 delay-500">
+          You can update these settings anytime in your dashboard
         </p>
       </div>
     </div>
