@@ -1,36 +1,193 @@
-// ============================================
-// FILE: components/settings/SubscriptionView.tsx
-// ============================================
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Check, AlertCircle } from 'lucide-react'
+import { Check, AlertCircle, Download, RefreshCw, CreditCard, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useSupabase } from '@/providers/SupabaseProvider'
 
-export default function SubscriptionView({ subscription, tiers }: any) {
+interface SubscriptionViewProps {
+  userId: string
+}
+
+export default function SubscriptionView({ userId }: SubscriptionViewProps) {
+  const { supabase } = useSupabase()
+  const [subscription, setSubscription] = useState<any>(null)
+  const [tiers, setTiers] = useState<any[]>([])
+  const [payments, setPayments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetchData()
+  }, [userId])
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      // Fetch subscription with tier
+      const { data: subData, error: subError } = await supabase
+        .from('subscriptions')
+        .select(`
+          *,
+          tier:tier_id (*)
+        `)
+        .eq('user_id', userId)
+        .single()
+
+      if (subError && subError.code !== 'PGRST116') {
+        console.error('Subscription fetch error:', subError)
+      } else {
+        setSubscription(subData)
+      }
+
+      // Fetch all tiers
+      const { data: tiersData, error: tiersError } = await supabase
+        .from('subscription_tiers')
+        .select('*')
+        .order('price_monthly', { ascending: true })
+
+      if (tiersError) {
+        console.error('Tiers fetch error:', tiersError)
+      } else {
+        setTiers(tiersData || [])
+      }
+
+      // Fetch payment history
+      const { data: paymentsData, error: paymentsError } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (paymentsError) {
+        console.error('Payments fetch error:', paymentsError)
+      } else {
+        setPayments(paymentsData || [])
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    if (!confirm('Are you sure you want to cancel your subscription? You\'ll lose access at the end of your billing period.')) {
+      return
+    }
+
+    setActionLoading(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/billing/cancel-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription')
+      }
+
+      await fetchData()
+      alert('Subscription cancelled. You\'ll have access until the end of your billing period.')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleReactivateSubscription = async () => {
+    setActionLoading(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/billing/reactivate-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reactivate subscription')
+      }
+
+      await fetchData()
+      alert('Subscription reactivated successfully!')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleUpdatePaymentMethod = async () => {
+    setActionLoading(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/billing/update-payment-method', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId,
+          returnUrl: window.location.href
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update payment method')
+      }
+
+      if (data.updateUrl) {
+        window.location.href = data.updateUrl
+      }
+    } catch (err: any) {
+      setError(err.message)
+      setActionLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   const currentTier = subscription?.tier
   const status = subscription?.status || 'inactive'
   const isTrialing = status === 'trialing'
   const isActive = status === 'active'
-  const isCancelled = status === 'cancelled' || status === 'canceled'
+  const isCancelled = status === 'cancelled' || subscription?.cancel_at_period_end
   const isPastDue = status === 'past_due'
   const isOnHold = status === 'on_hold'
   const isExpired = status === 'expired'
   
-  // Free state: no subscription or expired/cancelled
   const isFreeState = !subscription || isExpired || (isCancelled && !subscription?.current_period_end) || 
                       (!isTrialing && !isActive && !isPastDue && !isOnHold)
 
-  // Calculate trial days remaining
   const trialDaysRemaining = subscription?.trial_end 
     ? Math.ceil((new Date(subscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0
 
   return (
     <div className="space-y-6">
-      {/* Current Status Alert */}
+      {/* Status Alerts */}
       {isTrialing && trialDaysRemaining > 0 && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
@@ -69,13 +226,18 @@ export default function SubscriptionView({ subscription, tiers }: any) {
         </Alert>
       )}
 
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Current Plan Card */}
       <Card>
         <CardHeader>
           <CardTitle>Current Plan</CardTitle>
-          <CardDescription>
-            Your active subscription details
-          </CardDescription>
+          <CardDescription>Your active subscription details</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -112,18 +274,27 @@ export default function SubscriptionView({ subscription, tiers }: any) {
 
             {/* Billing Period Info */}
             {subscription?.current_period_end && !isFreeState && (
-              <p className="text-sm text-muted-foreground">
-                {isCancelled
-                  ? `Access until ${new Date(subscription.current_period_end).toLocaleDateString()}`
-                  : isTrialing
-                  ? `Trial ends ${new Date(subscription.trial_end).toLocaleDateString()}, then $${(currentTier.price_monthly / 100).toFixed(2)}/mo`
-                  : `Next billing: ${new Date(subscription.current_period_end).toLocaleDateString()}`}
-              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Current Period</p>
+                  <p className="font-medium">
+                    {new Date(subscription.current_period_start).toLocaleDateString()} - {new Date(subscription.current_period_end).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    {isCancelled ? 'Access Until' : 'Next Billing Date'}
+                  </p>
+                  <p className="font-medium">
+                    {new Date(subscription.current_period_end).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* Plan Features */}
             <div className="pt-4 border-t">
-              <h4 className="font-medium mb-2">
+              <h4 className="font-medium mb-3">
                 {isFreeState ? 'Free Tier Limits' : 'Current Plan Features'}
               </h4>
               <ul className="space-y-2">
@@ -184,19 +355,49 @@ export default function SubscriptionView({ subscription, tiers }: any) {
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-4 flex gap-2">
+            <div className="pt-4 flex flex-wrap gap-2">
+              {(isActive || isTrialing) && !isCancelled && (
+                <>
+                  <Button 
+                    onClick={handleUpdatePaymentMethod}
+                    disabled={actionLoading}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Update Payment Method
+                  </Button>
+                  <Button 
+                    onClick={handleCancelSubscription}
+                    disabled={actionLoading}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel Subscription
+                  </Button>
+                </>
+              )}
+              
               {isCancelled && subscription?.current_period_end && (
-                <Button className="w-full" variant="ghost">
+                <Button 
+                  onClick={handleReactivateSubscription}
+                  disabled={actionLoading}
+                  className="w-full"
+                >
+                  {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  <RefreshCw className="h-4 w-4 mr-2" />
                   Reactivate Subscription
                 </Button>
               )}
-              {(isActive || isTrialing) && (
-                <Button className="w-full" variant="outline">
-                  Cancel Subscription
-                </Button>
-              )}
+              
               {(isPastDue || isOnHold) && (
-                <Button className="w-full" variant="ghost">
+                <Button 
+                  onClick={handleUpdatePaymentMethod}
+                  disabled={actionLoading}
+                  className="w-full"
+                >
+                  {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  <CreditCard className="h-4 w-4 mr-2" />
                   Update Payment Method
                 </Button>
               )}
@@ -204,6 +405,63 @@ export default function SubscriptionView({ subscription, tiers }: any) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Payment History Card */}
+      {payments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Payment History</CardTitle>
+                <CardDescription>Your recent transactions</CardDescription>
+              </div>
+              <Button
+                onClick={fetchData}
+                variant="outline"
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {payments.map((payment) => (
+                <div
+                  key={payment.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-lg ${
+                      payment.status === 'succeeded' 
+                        ? 'bg-green-100 dark:bg-green-900/20' 
+                        : 'bg-red-100 dark:bg-red-900/20'
+                    }`}>
+                      {payment.status === 'succeeded' ? (
+                        <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        ${(payment.amount / 100).toFixed(2)} {payment.currency.toUpperCase()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(payment.created_at).toLocaleDateString()} • {payment.status}
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Available Plans Card */}
       <Card>
@@ -282,7 +540,7 @@ export default function SubscriptionView({ subscription, tiers }: any) {
                       </ul>
                       <Button 
                         className="w-full"
-                        variant={isCurrentPlan ? 'outline' : 'ghost'}
+                        variant={isCurrentPlan ? 'ghost' : 'outline'}
                         disabled={isCurrentPlan}
                       >
                         {isCurrentPlan 

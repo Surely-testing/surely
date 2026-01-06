@@ -11,21 +11,19 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { updateAccountEmail, deleteAccount } from '@/lib/actions/acount'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { CheckCircle2, Users, Building2, Crown } from 'lucide-react'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { CheckCircle2, Users, Building2 } from 'lucide-react'
 
 export default function IndividualAccountView({ user, profile }: any) {
   const [email, setEmail] = useState(user.email)
   const [isLoading, setIsLoading] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const handleUpdateEmail = async () => {
     if (email === user.email) {
@@ -139,30 +137,9 @@ export default function IndividualAccountView({ user, profile }: any) {
                   Permanently delete your account and all associated data
                 </p>
               </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="error">Delete Account</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your
-                      account and remove all your data from our servers including all
-                      test suites, test cases, bugs, and reports.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAccount}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Delete Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button variant="error" onClick={() => setShowDeleteDialog(true)}>
+                Delete Account
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -270,6 +247,34 @@ export default function IndividualAccountView({ user, profile }: any) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Account Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Are you absolutely sure?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete your
+              account and remove all your data from our servers including all
+              test suites, test cases, bugs, and reports.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="error"
+              onClick={() => {
+                setShowDeleteDialog(false)
+                handleDeleteAccount()
+              }}
+            >
+              Delete Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

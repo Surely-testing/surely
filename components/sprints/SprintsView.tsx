@@ -16,6 +16,7 @@ import { useSuiteContext } from '@/providers/SuiteContextProvider';
 import { logger } from '@/lib/utils/logger';
 import { toast } from 'sonner';
 import { deleteSprint } from '@/lib/actions/sprints';
+import { ConfirmDialog } from '@/components/ui/dialog';
 
 interface SprintsViewProps {
   suiteId: string;
@@ -54,9 +55,15 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
   const [loadingActions, setLoadingActions] = useState<string[]>([]);
   
   // Delete dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [sprintToDelete, setSprintToDelete] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    sprintId: string | null;
+    sprintName: string | null;
+  }>({
+    open: false,
+    sprintId: null,
+    sprintName: null,
+  });
 
   const context = useSuiteContext();
   const canAdmin = context?.canAdmin ?? true;
@@ -182,19 +189,21 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
       return;
     }
     
-    setSprintToDelete(sprintId);
-    setDeleteDialogOpen(true);
+    setDeleteDialog({
+      open: true,
+      sprintId: sprintId,
+      sprintName: sprint.name,
+    });
   };
 
   // FIXED: Only ONE toast here
   const confirmDelete = async () => {
-    if (!sprintToDelete) return;
+    if (!deleteDialog.sprintId) return;
 
-    logger.log('Confirming delete for sprint:', sprintToDelete);
-    setIsDeleting(true);
+    logger.log('Confirming delete for sprint:', deleteDialog.sprintId);
 
     try {
-      const result = await deleteSprint(sprintToDelete);
+      const result = await deleteSprint(deleteDialog.sprintId);
       logger.log('Result from deleteSprint:', result);
       
       if (result.error) {
@@ -213,17 +222,7 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
     } catch (error) {
       logger.log('Delete error:', error);
       toast.error('Failed to delete sprint');
-    } finally {
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
-      setSprintToDelete(null);
     }
-  };
-
-  const cancelDelete = () => {
-    logger.log('Cancel delete clicked');
-    setDeleteDialogOpen(false);
-    setSprintToDelete(null);
   };
 
   const handleArchiveSprint = async (sprintId: string) => {
@@ -603,57 +602,18 @@ export default function SprintsView({ suiteId, sprints, onRefresh, isLoading = f
       </div>
 
       {/* Delete Confirmation Dialog */}
-      {deleteDialogOpen && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-dialog-title"
-        >
-          <div 
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={cancelDelete}
-          />
-          
-          <div 
-            className="relative bg-card border border-border rounded-lg shadow-lg max-w-md w-full mx-4 p-6 z-[101]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="delete-dialog-title" className="text-lg font-semibold text-foreground mb-2">
-              Delete Sprint
-            </h3>
-            <p className="text-sm text-muted-foreground mb-6">
-              Are you sure you want to delete this sprint? This action cannot be undone.
-            </p>
-            
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={cancelDelete}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => !open && setDeleteDialog({ open: false, sprintId: null, sprintName: null })}
+        onConfirm={confirmDelete}
+        title="Delete Sprint"
+        description={deleteDialog.sprintName 
+          ? `Are you sure you want to delete "${deleteDialog.sprintName}"? This action cannot be undone.`
+          : 'Are you sure you want to delete this sprint? This action cannot be undone.'
+        }
+        confirmText="Delete"
+        variant="error"
+      />
     </>
   );
 }

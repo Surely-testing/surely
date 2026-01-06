@@ -103,7 +103,8 @@ export function SettingsTabs({
       </TabsContent>
 
       <TabsContent value="subscription" className="mt-6">
-        <SubscriptionView subscription={subscription} tiers={tiers} />
+        {/* <SubscriptionView subscription={subscription} tiers={tiers} /> */}
+          <SubscriptionView userId={user.id} />
       </TabsContent>
 
       <TabsContent value="notifications" className="mt-6">

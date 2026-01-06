@@ -5,8 +5,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Calendar, FileText, RefreshCw, AlertTriangle, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Plus, Calendar, FileText, RefreshCw } from 'lucide-react';
 import { ReportsControlBar } from '@/components/reports/views/ReportsControlBar';
 import { ReportsTabContent } from '@/components/reports/views/ReportsTabContent';
 import { SchedulesTabContent } from '@/components/reports/views/SchedulesTabContent';
@@ -17,14 +16,7 @@ import { BulkActionsBar } from '@/components/shared/bulk-action/BulkActionBar';
 import { useReports } from '@/lib/hooks/useReports';
 import { useReportSchedules } from '@/lib/hooks/useReportSchedules';
 import { EmptyState } from '@/components/shared/EmptyState';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { ReportWithCreator, ReportScheduleWithReport } from '@/types/report.types';
 import { toast } from 'sonner';
 
@@ -57,7 +49,6 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     isOpen: false,
     type: null,
   });
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Search, Filter, Sort, Group - Reports
   const [searchQuery, setSearchQuery] = useState('');
@@ -157,7 +148,6 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
   };
 
   const handleConfirmDelete = async () => {
-    setIsDeleting(true);
     try {
       if (deleteDialog.type === 'report' && deleteDialog.itemId) {
         await deleteReport(deleteDialog.itemId);
@@ -174,11 +164,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
         toast.success(`${deleteDialog.bulkIds.length} schedule(s) deleted`);
         setSelectedScheduleIds([]);
       }
-      closeDeleteDialog();
     } catch (error: any) {
       toast.error('Delete failed', { description: error?.message });
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -258,31 +245,31 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     switch (deleteDialog.type) {
       case 'report':
         return {
-          title: 'Delete Report?',
+          title: 'Delete Report',
           description: deleteDialog.itemName
             ? `Are you sure you want to delete "${deleteDialog.itemName}"? This action cannot be undone.`
             : 'Are you sure you want to delete this report? This action cannot be undone.',
         };
       case 'schedule':
         return {
-          title: 'Delete Schedule?',
+          title: 'Delete Schedule',
           description: deleteDialog.itemName
             ? `Are you sure you want to delete "${deleteDialog.itemName}"? This action cannot be undone.`
             : 'Are you sure you want to delete this schedule? This action cannot be undone.',
         };
       case 'bulk-report':
         return {
-          title: `Delete ${count} Report${count > 1 ? 's' : ''}?`,
+          title: `Delete ${count} Report${count > 1 ? 's' : ''}`,
           description: `Are you sure you want to delete ${count} report${count > 1 ? 's' : ''}? This action cannot be undone.`,
         };
       case 'bulk-schedule':
         return {
-          title: `Delete ${count} Schedule${count > 1 ? 's' : ''}?`,
+          title: `Delete ${count} Schedule${count > 1 ? 's' : ''}`,
           description: `Are you sure you want to delete ${count} schedule${count > 1 ? 's' : ''}? This action cannot be undone.`,
         };
       default:
         return {
-          title: 'Delete Item?',
+          title: 'Delete Item',
           description: 'Are you sure you want to delete this item? This action cannot be undone.',
         };
     }
@@ -596,53 +583,18 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialog.isOpen} onOpenChange={closeDeleteDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10">
-                <AlertTriangle className="w-6 h-6 text-destructive" />
-              </div>
-              <DialogTitle className="text-left">
-                {dialogContent.title}
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-left">
-              {dialogContent.description}
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={closeDeleteDialog}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="error"
-              onClick={handleConfirmDelete}
-              disabled={isDeleting}
-              className="gap-2"
-            >
-              {isDeleting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4" />
-                  Delete {deleteDialog.bulkIds && deleteDialog.bulkIds.length > 1 ? `(${deleteDialog.bulkIds.length})` : ''}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteDialog.isOpen}
+        onOpenChange={closeDeleteDialog}
+        onConfirm={handleConfirmDelete}
+        title={dialogContent.title}
+        description={dialogContent.description}
+        confirmText={deleteDialog.bulkIds && deleteDialog.bulkIds.length > 1 
+          ? `Delete (${deleteDialog.bulkIds.length})` 
+          : 'Delete'
+        }
+        variant="error"
+      />
 
       {/* Bulk Actions Bar */}
       <BulkActionsBar
