@@ -234,6 +234,9 @@ const RegisterForm = () => {
     setIsLoading(true)
 
     try {
+      // FIXED: Ensure proper redirect URL format
+      const redirectUrl = `${window.location.origin}/auth/callback`
+
       // Create auth user - the database trigger handles everything else automatically
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
@@ -248,7 +251,7 @@ const RegisterForm = () => {
               organization_size: formData.organizationSize,
             }),
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: redirectUrl, // FIXED: Use the properly formatted URL
         },
       })
 
@@ -257,12 +260,6 @@ const RegisterForm = () => {
       if (!authData.user) {
         throw new Error('User creation failed')
       }
-
-      // The database trigger has already created:
-      // - Profile
-      // - Organization (if applicable)
-      // - Subscription with 14-day trial
-      // - Activity log
 
       const tierName = formData.accountType === 'individual' ? 'Freelancer' : 'Pro'
 

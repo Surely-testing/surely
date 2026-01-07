@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/auth/SocialAuthButtons.tsx
+// FILE 1: components/auth/SocialAuthButtons.tsx (FIXED)
 // ============================================
 'use client'
 
@@ -18,7 +18,11 @@ const SocialAuthButtons = ({ showGithub = true }: SocialAuthButtonsProps) => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?provider=google`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
       },
     })
   }
@@ -27,7 +31,7 @@ const SocialAuthButtons = ({ showGithub = true }: SocialAuthButtonsProps) => {
     await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?provider=github`,
       },
     })
   }

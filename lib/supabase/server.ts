@@ -1,5 +1,5 @@
 // ============================================
-// FILE: lib/supabase/server.ts
+// FILE: lib/supabase/server.ts (FIXED)
 // ============================================
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -20,14 +20,15 @@ export async function createClient() {
           try {
             cookieStore.set({ name, value, ...options })
           } catch (error) {
-            // Handle cookie setting errors
+            // Server component can't set cookies - this is normal
+            // The middleware and route handlers will handle cookie setting
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options })
           } catch (error) {
-            // Handle cookie removal errors
+            // Server component can't remove cookies - this is normal
           }
         },
       },
