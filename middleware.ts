@@ -70,6 +70,7 @@ export async function middleware(request: NextRequest) {
     '/auth/callback',
     '/verify-email',
     '/auth/reactivate',
+    '/select-account-type',
   ]
   
   // Public marketing pages (accessible to everyone, auth or not)
