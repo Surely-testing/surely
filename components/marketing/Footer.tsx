@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Mail } from "lucide-react";
+import { Mail, Linkedin, Twitter, Github } from "lucide-react";
 import { LOGO_URL } from "@/config/logo";
 
 const Footer: React.FC = () => {
@@ -35,6 +35,33 @@ const Footer: React.FC = () => {
 
                         {/* Social Links */}
                         <div className="flex gap-3">
+                            <Link 
+                                href="https://linkedin.com/company/assura"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-background hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-blue-200 dark:border-blue-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md touch-manipulation active:scale-95"
+                                aria-label="LinkedIn"
+                            >
+                                <Linkedin className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400" />
+                            </Link>
+                            <Link 
+                                href="https://twitter.com/assuraqa"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-background hover:bg-sky-50 dark:hover:bg-sky-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-sky-200 dark:border-sky-600 hover:border-sky-300 dark:hover:border-sky-500 hover:shadow-md touch-manipulation active:scale-95"
+                                aria-label="Twitter"
+                            >
+                                <Twitter className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-sky-600 dark:hover:text-sky-400" />
+                            </Link>
+                            <Link 
+                                href="https://github.com/assura"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-background hover:bg-slate-50 dark:hover:bg-slate-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md touch-manipulation active:scale-95"
+                                aria-label="GitHub"
+                            >
+                                <Github className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-slate-600 dark:hover:text-slate-400" />
+                            </Link>
                             <Link 
                                 href="/contact"
                                 className="bg-background hover:bg-orange-50 dark:hover:bg-orange-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-orange-200 dark:border-orange-600 hover:border-orange-300 dark:hover:border-orange-500 hover:shadow-md touch-manipulation active:scale-95"
@@ -123,6 +150,14 @@ const Footer: React.FC = () => {
                                     className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
                                 >
                                     Contact
+                                </Link>
+                            </li>
+                            <li>
+                                <Link 
+                                    href="/reviews/submit" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Write a Review
                                 </Link>
                             </li>
                         </ul>

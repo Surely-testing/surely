@@ -917,6 +917,54 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_sales: {
+        Row: {
+          company_name: string
+          company_size: string | null
+          created_at: string | null
+          email: string
+          first_name: string
+          hear_about: string | null
+          id: string
+          last_name: string
+          message: string | null
+          phone: string | null
+          status: string | null
+          timezone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_name: string
+          company_size?: string | null
+          created_at?: string | null
+          email: string
+          first_name: string
+          hear_about?: string | null
+          id?: string
+          last_name: string
+          message?: string | null
+          phone?: string | null
+          status?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_name?: string
+          company_size?: string | null
+          created_at?: string | null
+          email?: string
+          first_name?: string
+          hear_about?: string | null
+          id?: string
+          last_name?: string
+          message?: string | null
+          phone?: string | null
+          status?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       document_collaborators: {
         Row: {
           added_at: string | null
@@ -1206,11 +1254,13 @@ export type Database = {
           organization_id: string | null
           organization_industry: string | null
           organization_name: string | null
+          organization_role: string | null
           organization_size: string | null
           organization_website: string | null
           registration_completed: boolean | null
           role: string | null
           status: string | null
+          system_role: string | null
           terms_accepted: boolean | null
           terms_accepted_at: string | null
           theme: string | null
@@ -1233,11 +1283,13 @@ export type Database = {
           organization_id?: string | null
           organization_industry?: string | null
           organization_name?: string | null
+          organization_role?: string | null
           organization_size?: string | null
           organization_website?: string | null
           registration_completed?: boolean | null
           role?: string | null
           status?: string | null
+          system_role?: string | null
           terms_accepted?: boolean | null
           terms_accepted_at?: string | null
           theme?: string | null
@@ -1260,11 +1312,13 @@ export type Database = {
           organization_id?: string | null
           organization_industry?: string | null
           organization_name?: string | null
+          organization_role?: string | null
           organization_size?: string | null
           organization_website?: string | null
           registration_completed?: boolean | null
           role?: string | null
           status?: string | null
+          system_role?: string | null
           terms_accepted?: boolean | null
           terms_accepted_at?: string | null
           theme?: string | null
@@ -1506,6 +1560,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reviews: {
+        Row: {
+          company: string | null
+          created_at: string | null
+          email: string
+          featured: boolean | null
+          id: string
+          name: string
+          photo_url: string | null
+          rating: number
+          review: string
+          role: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string | null
+          email: string
+          featured?: boolean | null
+          id?: string
+          name: string
+          photo_url?: string | null
+          rating: number
+          review: string
+          role?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company?: string | null
+          created_at?: string | null
+          email?: string
+          featured?: boolean | null
+          id?: string
+          name?: string
+          photo_url?: string | null
+          rating?: number
+          review?: string
+          role?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       sprints: {
         Row: {

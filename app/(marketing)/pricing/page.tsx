@@ -243,7 +243,7 @@ const PricingPage = () => {
                     </div>
 
                     <button
-                      onClick={() => window.location.href = isEnterprise ? '/contact' : '/register'}
+                      onClick={() => window.location.href = isEnterprise ? '/contact-sales' : '/register'}
                       className={`w-full mb-8 px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 group ${
                         recommended
                           ? 'btn-primary hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl hover:scale-105'
@@ -342,7 +342,7 @@ const PricingPage = () => {
               Start Free Trial
             </button>
             <button
-              onClick={() => window.location.href = '/contact'}
+              onClick={() => window.location.href = '/contact-sales'}
               className="px-8 py-3 bg-card border-2 border-border hover:border-blue-500 text-foreground rounded-lg font-semibold transition-all duration-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
             >
               Talk to Sales
