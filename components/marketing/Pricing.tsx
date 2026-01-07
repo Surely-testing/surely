@@ -225,7 +225,7 @@ const Pricing = () => {
                   ))}
                 </ul>
 
-                <Link href={isEnterprise ? '/contact' : '/register'}>
+                <Link href={isEnterprise ? '/contact-sales' : '/register'}>
                   <Button
                     variant={recommended ? 'ghost' : 'outline'}
                     className="w-full group"
