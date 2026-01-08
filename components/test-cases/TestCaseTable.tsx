@@ -1,6 +1,6 @@
 // ============================================
-// FILE: components/test-cases/TestCaseTable.tsx
-// Updated to work with parent selection state
+// components/test-cases/TestCaseTable.tsx
+// Mobile: full scroll | Desktop: sticky checkbox & title
 // ============================================
 'use client'
 
@@ -8,34 +8,21 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { logger } from '@/lib/utils/logger';
 import { 
   MoreVertical, 
-  Calendar, 
   TestTube, 
   User, 
-  FileText, 
-  Clock,
-  Edit,
-  Trash2,
-  Archive,
-  Copy,
   CheckCircle2,
   XCircle,
   AlertCircle,
   Play,
-  ChevronDown,
-  ChevronRight,
+  Copy,
+  Archive,
+  Trash2,
+  Clock,
   Link2,
   Eye
 } from 'lucide-react'
 import {
-  Table,
-  TableRow,
-  TableCell,
-  TableGrid,
-  TableCheckbox,
-  TableSelectAll,
   TableEmpty,
-  TableHeaderText,
-  TableDescriptionText,
 } from '../ui/Table'
 import { Badge } from '@/components/ui/Badge'
 import { BulkActionsBar, type BulkAction, type ActionOption } from '../shared/bulk-action/BulkActionBar'
@@ -44,6 +31,13 @@ import { DetailsDrawer } from './DetailsDrawer'
 import { relationshipsApi } from '@/lib/api/relationships'
 import type { TestCase } from '@/types/test-case.types'
 import { cn } from '@/lib/utils/cn'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/Dropdown'
 
 export interface TestCaseRow {
   id: string;
@@ -92,8 +86,6 @@ export function TestCaseTable({
   onSelectionChange
 }: TestCaseTableProps) {
   const [loadingActions, setLoadingActions] = useState<string[]>([])
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
   const [drawerTestCase, setDrawerTestCase] = useState<TestCase | null>(null)
   const [linkedAssetsCounts, setLinkedAssetsCounts] = useState<Record<string, number>>({})
   
@@ -135,29 +127,21 @@ export function TestCaseTable({
     }
   }, [paginatedTestCases])
 
-  const getPriorityColor = (priority: string | null | undefined): 'danger' | 'warning' | 'info' | 'success' | 'default' => {
+  const getPriorityVariant = (priority: string | null | undefined): "default" | "primary" | "success" | "warning" | "danger" | "info" => {
     switch (priority) {
-      case 'critical':
-        return 'danger'
-      case 'high':
-        return 'warning'
-      case 'medium':
-        return 'info'
-      case 'low':
-        return 'success'
-      default:
-        return 'default'
+      case 'critical': return 'danger'
+      case 'high': return 'warning'
+      case 'medium': return 'info'
+      case 'low': return 'success'
+      default: return 'default'
     }
   }
 
-  const getStatusColor = (status: string | null | undefined): 'success' | 'default' | 'info' => {
+  const getStatusVariant = (status: string | null | undefined): "default" | "primary" | "success" | "warning" | "danger" | "info" => {
     switch (status) {
-      case 'active':
-        return 'success'
-      case 'archived':
-        return 'default'
-      default:
-        return 'info'
+      case 'active': return 'success'
+      case 'archived': return 'default'
+      default: return 'info'
     }
   }
 
@@ -183,12 +167,13 @@ export function TestCaseTable({
     })
   }
 
-  const handleSelectOne = (id: string, checked: boolean) => {
+  const handleToggleSelection = (id: string, event: React.MouseEvent) => {
+    event.stopPropagation()
     if (onSelectionChange) {
-      if (checked) {
-        onSelectionChange([...selectedIds, id])
-      } else {
+      if (selectedIds.includes(id)) {
         onSelectionChange(selectedIds.filter(selectedId => selectedId !== id))
+      } else {
+        onSelectionChange([...selectedIds, id])
       }
     }
   }
@@ -232,16 +217,6 @@ export function TestCaseTable({
     }
   }
 
-  const toggleExpand = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setExpandedId(expandedId === id ? null : id)
-  }
-
-  const toggleMenu = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setMenuOpenId(menuOpenId === id ? null : id)
-  }
-
   const handleViewDetails = (testCase: TestCaseRow, e: React.MouseEvent) => {
     e.stopPropagation()
     setDrawerTestCase(testCase as TestCase)
@@ -259,334 +234,204 @@ export function TestCaseTable({
 
   return (
     <div className="space-y-0">
-      {/* Table - Mobile First */}
-      <Table>
-        {paginatedTestCases.map((testCase) => {
-          const isSelected = selectedIds.includes(testCase.id)
-          const isExpanded = expandedId === testCase.id
-          const isMenuOpen = menuOpenId === testCase.id
-          const linkedCount = linkedAssetsCounts[testCase.id] ?? 0
+      <div className="relative border border-border rounded-lg bg-card overflow-x-auto">
+        <div className="min-w-max">
+          {/* Table Header */}
+          <div className="flex bg-muted border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <div className="w-12 px-4 py-2 border-r border-border flex items-center justify-center md:sticky md:left-0 bg-muted md:z-10">
+              {/* Empty for checkbox */}
+            </div>
+            <div className="w-80 px-4 py-2 border-r border-border md:sticky md:left-12 bg-muted md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+              Title
+            </div>
+            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Test Case ID</div>
+            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Priority</div>
+            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Status</div>
+            <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Last Result</div>
+            <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Assignee</div>
+            <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Module</div>
+            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Type</div>
+            <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Automated</div>
+            <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Linked Assets</div>
+            <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Created</div>
+            <div className="w-32 px-4 py-2 flex-shrink-0">Actions</div>
+          </div>
 
-          return (
-            <div key={testCase.id}>
-              {/* Mobile View - Card Style */}
-              <div className="block lg:hidden">
-                <TableRow selected={isSelected} selectable>
-                  <div className="p-4 space-y-3">
-                    {/* Header Row */}
-                    <div className="flex items-start gap-3">
-                      <TableCheckbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) => handleSelectOne(testCase.id, checked)}
-                      />
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-foreground text-sm leading-tight mb-1">
-                              {testCase.title}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                              ID: {testCase.id.slice(0, 8)}
-                            </p>
-                          </div>
-                          
-                          <button 
-                            onClick={(e) => toggleMenu(testCase.id, e)}
-                            className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
-                          >
-                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                        </div>
+          {/* Table Body */}
+          {paginatedTestCases.map((testCase) => {
+            const isSelected = selectedIds.includes(testCase.id)
+            const linkedCount = linkedAssetsCounts[testCase.id] ?? 0
 
-                        {/* Badges */}
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          <Badge variant={getPriorityColor(testCase.priority)} size="sm">
-                            {testCase.priority || 'None'}
-                          </Badge>
-                          <Badge variant={getStatusColor(testCase.status)} size="sm">
-                            {testCase.status || 'Active'}
-                          </Badge>
-                          {getResultIcon(testCase.last_result)}
-                        </div>
-
-                        {/* Meta Info */}
-                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-                          {testCase.assigned_to && (
-                            <div className="flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              <span>{testCase.assigned_to}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1">
-                            <Link2 className="w-3 h-3" />
-                            <span>{linkedCount > 0 ? `${linkedCount} linked` : 'Not linked'}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>{formatDate(testCase.created_at)}</span>
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2 mt-3">
-                          <button
-                            onClick={(e) => handleViewDetails(testCase, e)}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View
-                          </button>
-                          <button
-                            onClick={(e) => toggleExpand(testCase.id, e)}
-                            className="px-3 py-1.5 text-xs font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
-                          >
-                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </TableRow>
-              </div>
-
-              {/* Desktop View - Table Style */}
-              <div className="hidden lg:block">
-                <TableRow selected={isSelected} selectable>
-                  <TableCheckbox
-                    checked={isSelected}
-                    onCheckedChange={(checked) => handleSelectOne(testCase.id, checked)}
-                  />
-
-                  <TableGrid columns={7}>
-                    {/* Title & ID */}
-                    <TableCell className="col-span-2">
-                      <div className="flex items-start gap-2">
-                        <button
-                          onClick={(e) => toggleExpand(testCase.id, e)}
-                          className="mt-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {getResultIcon(testCase.last_result)}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <TableHeaderText>
-                            <span className="hover:text-primary transition-colors">
-                              {testCase.title}
-                            </span>
-                          </TableHeaderText>
-                          <TableDescriptionText className="mt-1">
-                            ID: {testCase.id.slice(0, 8)} {testCase.description && `• ${testCase.description}`}
-                          </TableDescriptionText>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Priority */}
-                    <TableCell>
-                      <Badge 
-                        variant={getPriorityColor(testCase.priority)}
-                        size="sm"
-                      >
-                        {testCase.priority || 'None'}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell>
-                      <Badge 
-                        variant={getStatusColor(testCase.status)}
-                        size="sm"
-                      >
-                        {testCase.status || 'Active'}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Linked Assets */}
-                    <TableCell>
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className={cn(
-                          "text-xs",
-                          linkedCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
-                        )}>
-                          {linkedCount > 0 ? `${linkedCount} linked` : 'Not linked'}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    {/* Assignee */}
-                    <TableCell>
-                      {testCase.assigned_to ? (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <User className="w-3 h-3" />
-                          <span className="truncate">{testCase.assigned_to}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Unassigned</span>
+            return (
+              <div
+                key={testCase.id}
+                className={`flex items-center border-b border-border last:border-b-0 transition-colors ${
+                  isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+                }`}
+              >
+                {/* Checkbox - Sticky on md+ */}
+                <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 ${
+                  isSelected ? 'bg-primary/5' : 'bg-card'
+                }`}>
+                  {onSelectionChange && (
+                    <div
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      onClick={(e) => handleToggleSelection(testCase.id, e)}
+                      className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
+                        isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
+                      }`}
+                    >
+                      {isSelected && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
                       )}
-                    </TableCell>
-
-                    {/* Actions */}
-                    <TableCell className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={(e) => handleViewDetails(testCase, e)}
-                        className="p-2 rounded-lg hover:bg-muted transition-colors"
-                        title="View details"
-                      >
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                      
-                      <div className="relative">
-                        <button 
-                          onClick={(e) => toggleMenu(testCase.id, e)}
-                          className="p-2 rounded-lg hover:bg-muted transition-colors"
-                        >
-                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                        </button>
-
-                        {isMenuOpen && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-10"
-                              onClick={() => setMenuOpenId(null)}
-                            />
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-20 py-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onRun?.(testCase.id)
-                                  setMenuOpenId(null)
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                              >
-                                <Play className="w-4 h-4" />
-                                Run Test
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onDuplicate?.(testCase.id)
-                                  setMenuOpenId(null)
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                              >
-                                <Copy className="w-4 h-4" />
-                                Duplicate
-                              </button>
-                              <div className="my-1 h-px bg-border" />
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onArchive?.(testCase.id)
-                                  setMenuOpenId(null)
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                              >
-                                <Archive className="w-4 h-4" />
-                                Archive
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onDelete?.(testCase.id)
-                                  setMenuOpenId(null)
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-error hover:bg-error/10 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Delete
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableGrid>
-                </TableRow>
-              </div>
-
-              {/* Expanded Details - Both Mobile & Desktop */}
-              {isExpanded && (
-                <div className="bg-muted/30 border border-border border-t-0 rounded-b-lg p-4 sm:p-6 mb-4 -mt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                    {/* Test Details */}
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground mb-3">Test Details</h4>
-                      <dl className="space-y-2 text-sm">
-                        <div>
-                          <dt className="text-muted-foreground">Type</dt>
-                          <dd className="text-foreground font-medium">{testCase.type || 'Manual'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-muted-foreground">Automated</dt>
-                          <dd className="text-foreground font-medium">{testCase.is_automated ? 'Yes' : 'No'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-muted-foreground">Last Result</dt>
-                          <dd className="flex items-center gap-2">
-                            {getResultIcon(testCase.last_result)}
-                            <span className="text-foreground font-medium capitalize">
-                              {testCase.last_result || 'Not Run'}
-                            </span>
-                          </dd>
-                        </div>
-                      </dl>
                     </div>
+                  )}
+                </div>
 
-                    {/* Steps */}
-                    {testCase.steps && Array.isArray(testCase.steps) && testCase.steps.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-foreground mb-3">Steps ({testCase.steps.length})</h4>
-                        <ol className="space-y-2 text-sm list-decimal list-inside">
-                          {testCase.steps.slice(0, 3).map((step: any, idx: number) => {
-                            const stepText = typeof step === 'string' ? step : step?.step || step?.action || 'No description'
-                            return (
-                              <li key={idx} className="text-muted-foreground truncate">
-                                {stepText}
-                              </li>
-                            )
-                          })}
-                          {testCase.steps.length > 3 && (
-                            <li className="text-primary text-xs">+{testCase.steps.length - 3} more</li>
-                          )}
-                        </ol>
-                      </div>
-                    )}
-
-                    {/* Expected Result */}
-                    {testCase.expected_result && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-foreground mb-3">Expected Result</h4>
-                        <p className="text-sm text-muted-foreground line-clamp-3">
-                          {testCase.expected_result}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-border flex flex-wrap gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onRun?.(testCase.id)
-                      }}
-                      className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
-                    >
-                      Run Test
-                    </button>
-                    <button
-                      onClick={(e) => handleViewDetails(testCase, e)}
-                      className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                      View Full Details
-                    </button>
+                {/* Title - Sticky on md+ with shadow */}
+                <div className={`w-80 px-4 py-3 border-r border-border md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
+                  isSelected ? 'bg-primary/5' : 'bg-card'
+                }`}>
+                  <div 
+                    className="font-medium truncate cursor-help"
+                    title={testCase.title}
+                  >
+                    {testCase.title}
                   </div>
                 </div>
-              )}
-            </div>
-          )
-        })}
-      </Table>
+
+                {/* Test Case ID */}
+                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
+                  <span className="text-sm text-muted-foreground font-mono">
+                    {testCase.id.slice(0, 8)}
+                  </span>
+                </div>
+
+                {/* Priority */}
+                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0 flex items-center">
+                  <Badge variant={getPriorityVariant(testCase.priority)} size="sm">
+                    {testCase.priority || 'None'}
+                  </Badge>
+                </div>
+
+                {/* Status */}
+                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0 flex items-center">
+                  <Badge variant={getStatusVariant(testCase.status)} size="sm">
+                    {testCase.status || 'Active'}
+                  </Badge>
+                </div>
+
+                {/* Last Result */}
+                <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    {getResultIcon(testCase.last_result)}
+                    <span className="text-sm capitalize">
+                      {testCase.last_result || 'Not Run'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Assignee */}
+                <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
+                  {testCase.assigned_to ? (
+                    <div className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-sm truncate">{testCase.assigned_to}</span>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Unassigned</span>
+                  )}
+                </div>
+
+                {/* Module */}
+                <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                  <span className="text-sm">{testCase.module || '—'}</span>
+                </div>
+
+                {/* Type */}
+                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
+                  <span className="text-sm">{testCase.type || 'Manual'}</span>
+                </div>
+
+                {/* Automated */}
+                <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
+                  <span className="text-sm">{testCase.is_automated ? 'Yes' : 'No'}</span>
+                </div>
+
+                {/* Linked Assets */}
+                <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className={cn(
+                      "text-sm",
+                      linkedCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
+                    )}>
+                      {linkedCount > 0 ? `${linkedCount}` : 'None'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Created */}
+                <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
+                  <span className="text-sm text-muted-foreground">
+                    {formatDate(testCase.created_at)}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="w-32 px-4 py-3 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => handleViewDetails(testCase, e)}
+                      className="p-2 rounded-lg hover:bg-muted transition-colors"
+                      title="View details"
+                    >
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => onRun?.(testCase.id)}>
+                          <Play className="w-4 h-4" />
+                          Run Test
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEdit?.(testCase.id)}>
+                          <Copy className="w-4 h-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onDuplicate?.(testCase.id)}>
+                          <Copy className="w-4 h-4" />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onArchive?.(testCase.id)}>
+                          <Archive className="w-4 h-4" />
+                          Archive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => onDelete?.(testCase.id)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Pagination */}
       {testCases.length > 0 && (

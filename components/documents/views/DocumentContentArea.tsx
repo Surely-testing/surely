@@ -136,6 +136,9 @@ export function DocumentsContentArea({
                   onOpen={onOpenDocument}
                   selectedDocIds={selectedDocIds}
                   onToggleSelect={onToggleSelect}
+                  onDelete={onDeleteDocument}
+                  onShare={onShareDocument}
+                  onArchive={onArchiveDocument}
                 />
               )}
 
@@ -181,6 +184,9 @@ export function DocumentsContentArea({
                       onOpen={onOpenDocument}
                       selectedDocIds={selectedDocIds}
                       onToggleSelect={onToggleSelect}
+                      onDelete={onDeleteDocument}
+                      onShare={onShareDocument}
+                      onArchive={onArchiveDocument}
                     />
                   )}
                 </div>

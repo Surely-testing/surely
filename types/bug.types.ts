@@ -127,7 +127,7 @@ export type BugAttachment = {
 
 export type BugSeverity = 'low' | 'medium' | 'high' | 'critical';
 export type BugPriority = 'low' | 'medium' | 'high' | 'critical';
-export type BugStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'reopened';
+export type BugStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'reopened' | 'blocked' | 'pending' | 'wont_fix' | 'duplicate' | 'cannot_reproduce';
 
 export interface BugReproductionStep {
   id: string;

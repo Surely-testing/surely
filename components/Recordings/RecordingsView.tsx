@@ -1,6 +1,6 @@
 // ============================================
 // components/recordings/RecordingsView.tsx
-// Updated with consistent ConfirmDialog
+// Fixed with extracted RecordingTable component
 // ============================================
 
 'use client';
@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Recording, RecordingFilters } from '@/types/recording.types';
 import { RecordingGrid } from './RecordingGrid';
+import { RecordingTable } from './RecordingTable';
 import {
   Select,
   SelectContent,
@@ -15,21 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/Select';
-import { Search, Grid3x3, List, Play, Clock, Calendar, Filter, RefreshCw, ChevronLeft } from 'lucide-react';
+import { Search, Grid3x3, List, Play, Filter, RefreshCw, ChevronLeft } from 'lucide-react';
 import { getRecordings, deleteRecording } from '@/lib/actions/recordings';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { BulkActionsBar, type ActionGroup } from '@/components/shared/bulk-action/BulkActionBar';
 import { Pagination } from '@/components/shared/Pagination';
 import { toast } from 'sonner';
-import {
-  Table,
-  TableRow,
-  TableCell,
-  TableGrid,
-  TableCheckbox,
-  TableHeaderText,
-  TableDescriptionText,
-} from '@/components/ui/Table';
 import { logger } from '@/lib/utils/logger';
 import { RecordWithExtensionButton } from './RecordWithExtensionButton';
 import { ConfirmDialog } from '@/components/ui/dialog';
@@ -80,7 +72,6 @@ export function RecordingsView({
     try {
       const { data } = await getRecordings(suiteId, filters);
       if (data) {
-        // Filter to ensure only recordings from current suite
         const suiteRecordings = data.filter(r => r.suite_id === suiteId);
         setRecordings(suiteRecordings);
       }
@@ -184,7 +175,6 @@ export function RecordingsView({
     }
   }, [selectedRecordings, paginatedRecordings]);
 
-  // Confirm delete handler
   const confirmDelete = async () => {
     const selectedIds = deleteDialog.recordingIds;
     if (selectedIds.length === 0) return;
@@ -208,11 +198,9 @@ export function RecordingsView({
         toast.success(`Successfully deleted ${successCount} recording(s)`, { id: deleteToastId });
       }
 
-      // Optimistically update UI by filtering out deleted recordings
       setRecordings(prev => prev.filter(r => !selectedIds.includes(r.id)));
       setSelectedRecordings([]);
       
-      // Fetch fresh data in background
       fetchRecordings();
     } catch (error) {
       logger.log('Delete error:', error);
@@ -247,7 +235,6 @@ export function RecordingsView({
         break;
 
       case 'delete':
-        // Open confirmation dialog instead of window.confirm
         setDeleteDialog({
           open: true,
           recordingIds: selectedIds,
@@ -272,26 +259,6 @@ export function RecordingsView({
       ]
     }
   ]), []);
-
-  const formatDuration = (seconds?: number | null) => {
-    if (!seconds) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatDate = (date?: string | null) => {
-    if (!date) return 'N/A';
-    try {
-      return new Date(date).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    } catch {
-      return 'Invalid date';
-    }
-  };
 
   const clearFilters = useCallback(() => {
     setFilters({
@@ -398,17 +365,6 @@ export function RecordingsView({
 
             <div className="relative overflow-hidden">
               <div className="flex items-center justify-end gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
-                <div
-                  className="flex items-center gap-2 transition-all duration-300 ease-in-out"
-                  style={{
-                    maxWidth: isDrawerOpen ? '1000px' : '0px',
-                    opacity: isDrawerOpen ? 1 : 0,
-                    marginRight: isDrawerOpen ? '0.5rem' : '0',
-                    pointerEvents: isDrawerOpen ? 'auto' : 'none',
-                  }}
-                >
-                </div>
-
                 <button
                   type="button"
                   onClick={handleToggleDrawer}
@@ -437,6 +393,7 @@ export function RecordingsView({
         <div className="bg-card border-b border-border">
           <div className="px-3 py-2">
             <div className="flex flex-col gap-3 lg:gap-0">
+              {/* Mobile View */}
               <div className="lg:hidden space-y-3">
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -529,6 +486,7 @@ export function RecordingsView({
                 </div>
               </div>
 
+              {/* Desktop View */}
               <div className="hidden lg:flex lg:flex-col lg:gap-0">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -731,94 +689,13 @@ export function RecordingsView({
           </>
         ) : (
           <>
-            <Table>
-              {paginatedRecordings.map((recording) => {
-                const isSelected = selectedRecordings.includes(recording.id);
-                const isDeleting = isDeletingIds.has(recording.id);
-
-                return (
-                  <TableRow
-                    key={recording.id}
-                    selected={isSelected}
-                    selectable
-                    onClick={() => {
-                      if (!isDeleting) {
-                        window.location.href = `/dashboard/recordings/${recording.id}`;
-                      }
-                    }}
-                    className={`cursor-pointer ${isDeleting ? 'opacity-50 pointer-events-none' : ''}`}
-                  >
-                    <TableCheckbox
-                      checked={isSelected}
-                      onCheckedChange={() => !isDeleting && handleToggleSelection(recording.id)}
-                    />
-
-                    <TableGrid columns={4}>
-                      <TableCell className="col-span-2 md:col-span-1">
-                        <div className="flex items-center gap-3">
-                          <div className="relative w-20 h-12 bg-muted rounded overflow-hidden shrink-0">
-                            {recording.thumbnail_url ? (
-                              <img
-                                src={recording.thumbnail_url}
-                                alt={recording.title || 'Recording'}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Play className="w-5 h-5 text-muted-foreground" />
-                              </div>
-                            )}
-                            {recording.duration && (
-                              <div className="absolute bottom-1 right-1 bg-black/75 text-white text-[10px] px-1 rounded">
-                                {formatDuration(recording.duration)}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="min-w-0">
-                            <TableHeaderText>
-                              {recording.title || 'Untitled Recording'}
-                            </TableHeaderText>
-                            {recording.description && (
-                              <TableDescriptionText className="mt-0.5">
-                                {recording.description}
-                              </TableDescriptionText>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="hidden md:block">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="w-4 h-4" />
-                          <span>{recording.duration ? formatDuration(recording.duration) : '0:00'}</span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="hidden lg:block">
-                        <div className="flex items-center gap-4 text-sm">
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 rounded-full bg-blue-500" />
-                            <span className="text-muted-foreground">{recording.logs_count || 0} logs</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 rounded-full bg-red-500" />
-                            <span className="text-muted-foreground">{recording.requests_count || 0} requests</span>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="hidden sm:block">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="w-4 h-4" />
-                          <span>{formatDate(recording.created_at)}</span>
-                        </div>
-                      </TableCell>
-                    </TableGrid>
-                  </TableRow>
-                );
-              })}
-            </Table>
+            <RecordingTable
+              recordings={paginatedRecordings}
+              selectedRecordings={selectedRecordings}
+              onToggleSelection={handleToggleSelection}
+              onSelectAll={handleSelectAll}
+              isDeletingIds={isDeletingIds}
+            />
 
             {filteredRecordings.length > itemsPerPage && (
               <Pagination

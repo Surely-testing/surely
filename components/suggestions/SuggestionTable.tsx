@@ -1,20 +1,18 @@
+// ============================================
+// components/suggestions/SuggestionTable.tsx
+// Mobile: full scroll | Desktop: sticky checkbox & title
+// ============================================
 'use client';
 
 import { useState } from 'react';
 import { SuggestionWithCreator } from '@/types/suggestion.types';
-import { ThumbsUp, ThumbsDown, Eye, User } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
-  Table,
-  TableRow,
-  TableCell,
-  TableGrid,
-  TableHeaderText,
-  TableDescriptionText,
-  TableCheckbox,
+  TableBadge,
+  TableAvatar,
 } from '@/components/ui/Table';
-import { Button } from '@/components/ui/Button';
 import { logger } from '@/lib/utils/logger';
 
 interface SuggestionTableProps {
@@ -38,7 +36,8 @@ export function SuggestionTable({
 }: SuggestionTableProps) {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
-  const handleToggleSelection = (suggestionId: string) => {
+  const handleToggleSelection = (suggestionId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!onSelectionChange) return;
     
     if (selectedSuggestions.includes(suggestionId)) {
@@ -48,7 +47,7 @@ export function SuggestionTable({
     }
   };
 
-  const handleStatusChange = async (suggestionId: string, newStatus: string, e: React.MouseEvent) => {
+  const handleStatusChange = async (suggestionId: string, newStatus: string, e: React.ChangeEvent<HTMLSelectElement>) => {
     e.stopPropagation();
     
     try {
@@ -79,24 +78,35 @@ export function SuggestionTable({
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityVariant = (priority: string): "default" | "yellow" | "green" | "pink" | "gray" | "orange" | "red" => {
     switch (priority) {
-      case 'critical': return 'text-error bg-destructive/10';
-      case 'high': return 'text-warning bg-warning/10';
-      case 'medium': return 'text-accent bg-accent/10';
-      case 'low': return 'text-info bg-info/10';
-      default: return 'text-muted-foreground bg-muted';
+      case 'critical': return 'red';
+      case 'high': return 'orange';
+      case 'medium': return 'yellow';
+      case 'low': return 'green';
+      default: return 'gray';
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): "default" | "yellow" | "green" | "pink" | "gray" | "orange" | "red" => {
     switch (status) {
-      case 'pending': return 'text-warning bg-warning/10';
-      case 'under_review': return 'text-info bg-info/10';
-      case 'accepted': return 'text-success bg-success/10';
-      case 'rejected': return 'text-error bg-destructive/10';
-      case 'implemented': return 'text-primary bg-primary/10';
-      default: return 'text-muted-foreground bg-muted';
+      case 'pending': return 'yellow';
+      case 'under_review': return 'default';
+      case 'accepted': return 'green';
+      case 'rejected': return 'red';
+      case 'implemented': return 'pink';
+      default: return 'gray';
+    }
+  };
+
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'under_review': return 'Under Review';
+      case 'accepted': return 'Accepted';
+      case 'rejected': return 'Rejected';
+      case 'implemented': return 'Implemented';
+      default: return 'N/A';
     }
   };
 
@@ -109,193 +119,176 @@ export function SuggestionTable({
   }
 
   return (
-    <div className="space-y-3">
-      <div className={`hidden md:block px-4 py-2 bg-muted/50 rounded-lg border border-border ${onSelectionChange ? 'pl-12' : ''}`}>
-        <TableGrid columns={7} className="gap-4">
-          <TableHeaderText className="text-xs uppercase font-semibold">Title</TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">Category</TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">Priority</TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">Status</TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">Creator</TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">Votes</TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold text-right">Actions</TableHeaderText>
-        </TableGrid>
-      </div>
+    <div className="relative border border-border rounded-lg bg-card overflow-x-auto">
+      <div className="min-w-max">
+        {/* Table Header */}
+        <div className="flex bg-muted border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="w-12 px-4 py-2 border-r border-border flex items-center justify-center md:sticky md:left-0 bg-muted md:z-10">
+            {/* Empty for checkbox */}
+          </div>
+          <div className="w-80 px-4 py-2 border-r border-border md:sticky md:left-12 bg-muted md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+            Title
+          </div>
+          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Suggestion ID</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Category</div>
+          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Priority</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Status</div>
+          <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Creator</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Votes</div>
+          <div className="w-32 px-4 py-2 flex-shrink-0">Actions</div>
+        </div>
 
-      <Table className="space-y-2">
+        {/* Table Body */}
         {suggestions.map((suggestion) => {
           const isSelected = selectedSuggestions.includes(suggestion.id);
+          const isUpdating = updatingStatus === suggestion.id;
           const userVote = suggestion.votes?.[currentUserId || ''];
           
           return (
-            <TableRow
+            <div
               key={suggestion.id}
-              onClick={() => onSelect(suggestion)}
-              selected={isSelected}
-              selectable={!!onSelectionChange}
+              className={`flex items-center border-b border-border last:border-b-0 transition-colors ${
+                isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+              }`}
             >
-              {onSelectionChange && (
-                <TableCheckbox
-                  checked={isSelected}
-                  onCheckedChange={() => handleToggleSelection(suggestion.id)}
-                />
-              )}
-
-              <div className="md:hidden space-y-3">
-                <div>
-                  <div className="text-xs text-muted-foreground font-medium mb-1">TITLE</div>
-                  <div className="text-sm font-medium text-foreground">{suggestion.title}</div>
-                  {suggestion.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                      {suggestion.description}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(suggestion.priority)}`}>
-                    {suggestion.priority}
-                  </span>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(suggestion.status)}`}>
-                    {suggestion.status.replace('_', ' ')}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {suggestion.category.replace('_', ' ')}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {suggestion.creator && (
-                      <div className="flex items-center gap-1.5">
-                        {suggestion.creator.avatar_url ? (
-                          <img src={suggestion.creator.avatar_url} alt={suggestion.creator.name} className="w-5 h-5 rounded-full" />
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center">
-                            <User className="w-3 h-3 text-muted-foreground" />
-                          </div>
-                        )}
-                        <span className="text-xs text-muted-foreground">{suggestion.creator.name}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onVote(suggestion.id, 'upvote'); }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
-                        userVote === 'upvote' ? 'bg-success/20 text-success' : 'hover:bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <ThumbsUp className="w-3 h-3" />
-                      <span className="text-xs">{suggestion.upvotes}</span>
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onVote(suggestion.id, 'downvote'); }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
-                        userVote === 'downvote' ? 'bg-error/20 text-error' : 'hover:bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <ThumbsDown className="w-3 h-3" />
-                      <span className="text-xs">{suggestion.downvotes}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => { e.stopPropagation(); onSelect(suggestion); }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-lg hover:bg-primary/10 transition-colors"
-                >
-                  <Eye className="w-4 h-4" />View Details
-                </button>
-              </div>
-
-              <TableGrid columns={7} className="hidden md:grid gap-4">
-                <TableCell>
-                  <div className="text-sm font-medium text-foreground">{suggestion.title}</div>
-                  {suggestion.description && (
-                    <TableDescriptionText className="line-clamp-1 mt-1">{suggestion.description}</TableDescriptionText>
-                  )}
-                </TableCell>
-
-                <TableCell>
-                  <span className="text-sm text-foreground">{suggestion.category.replace('_', ' ')}</span>
-                </TableCell>
-
-                <TableCell>
-                  <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${getPriorityColor(suggestion.priority)}`}>
-                    {suggestion.priority}
-                  </span>
-                </TableCell>
-
-                <TableCell>
-                  <select
-                    value={suggestion.status}
-                    onChange={(e) => handleStatusChange(suggestion.id, e.target.value, e as any)}
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={updatingStatus === suggestion.id}
-                    className={`px-2 py-1 rounded text-xs font-medium border-0 cursor-pointer transition-colors w-full ${getStatusColor(suggestion.status)} ${
-                      updatingStatus === suggestion.id ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'
+              {/* Checkbox - Sticky on md+ */}
+              <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                {onSelectionChange && (
+                  <div
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    onClick={(e) => handleToggleSelection(suggestion.id, e)}
+                    className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
+                      isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
                     }`}
                   >
-                    <option value="pending">Pending</option>
-                    <option value="under_review">Under Review</option>
-                    <option value="accepted">Accepted</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="implemented">Implemented</option>
-                  </select>
-                </TableCell>
-
-                <TableCell>
-                  {suggestion.creator ? (
-                    <div className="flex items-center gap-2">
-                      {suggestion.creator.avatar_url ? (
-                        <img src={suggestion.creator.avatar_url} alt={suggestion.creator.name} className="w-6 h-6 rounded-full" />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
-                          <User className="w-3 h-3 text-muted-foreground" />
-                        </div>
-                      )}
-                      <span className="text-sm text-foreground">{suggestion.creator.name}</span>
-                    </div>
-                  ) : (
-                    <TableDescriptionText>—</TableDescriptionText>
-                  )}
-                </TableCell>
-
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onVote(suggestion.id, 'upvote'); }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
-                        userVote === 'upvote' ? 'bg-success/20 text-success' : 'hover:bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <ThumbsUp className="w-3 h-3" />
-                      <span className="text-xs">{suggestion.upvotes}</span>
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onVote(suggestion.id, 'downvote'); }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
-                        userVote === 'downvote' ? 'bg-error/20 text-error' : 'hover:bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <ThumbsDown className="w-3 h-3" />
-                      <span className="text-xs">{suggestion.downvotes}</span>
-                    </button>
+                    {isSelected && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
                   </div>
-                </TableCell>
+                )}
+              </div>
 
-                <TableCell className="text-right">
-                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onSelect(suggestion); }} className="h-8 text-xs">
-                    <Eye className="w-3.5 h-3.5 mr-1.5" />View
-                  </Button>
-                </TableCell>
-              </TableGrid>
-            </TableRow>
+              {/* Title - Sticky on md+ with shadow */}
+              <div className={`w-80 px-4 py-3 border-r border-border md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                <div 
+                  className="font-medium truncate cursor-help"
+                  title={suggestion.title}
+                >
+                  {suggestion.title}
+                </div>
+              </div>
+
+              {/* Suggestion ID */}
+              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm text-muted-foreground font-mono">
+                  {suggestion.id.slice(0, 8)}
+                </span>
+              </div>
+
+              {/* Category */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm capitalize">{suggestion.category.replace('_', ' ')}</span>
+              </div>
+
+              {/* Priority */}
+              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0 flex items-center">
+                <TableBadge variant={getPriorityVariant(suggestion.priority)}>
+                  {suggestion.priority}
+                </TableBadge>
+              </div>
+
+              {/* Status with dropdown */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <select
+                  value={suggestion.status}
+                  onChange={(e) => handleStatusChange(suggestion.id, e.target.value, e)}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={isUpdating}
+                  className={`
+                    w-full px-2.5 py-1 rounded text-xs font-medium border-0 cursor-pointer 
+                    focus:ring-2 focus:ring-primary outline-none
+                    ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}
+                    ${getStatusVariant(suggestion.status) === 'yellow' ? 'bg-yellow-400 text-yellow-900' : ''}
+                    ${getStatusVariant(suggestion.status) === 'default' ? 'bg-gray-100 text-gray-800' : ''}
+                    ${getStatusVariant(suggestion.status) === 'green' ? 'bg-green-500 text-white' : ''}
+                    ${getStatusVariant(suggestion.status) === 'red' ? 'bg-red-500 text-white' : ''}
+                    ${getStatusVariant(suggestion.status) === 'pink' ? 'bg-pink-500 text-white' : ''}
+                    ${getStatusVariant(suggestion.status) === 'gray' ? 'bg-gray-400 text-gray-900' : ''}
+                  `}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="under_review">Under Review</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="implemented">Implemented</option>
+                </select>
+              </div>
+
+              {/* Creator */}
+              <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
+                {suggestion.creator ? (
+                  <div className="flex items-center gap-2">
+                    <TableAvatar
+                      src={suggestion.creator.avatar_url || undefined}
+                      alt={suggestion.creator.name}
+                      fallback={suggestion.creator.name.charAt(0).toUpperCase()}
+                    />
+                    <span className="text-sm truncate">{suggestion.creator.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Unknown</span>
+                )}
+              </div>
+
+              {/* Votes */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onVote(suggestion.id, 'upvote'); }}
+                    className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                      userVote === 'upvote' ? 'bg-success/20 text-success' : 'hover:bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <ThumbsUp className="w-3 h-3" />
+                    <span className="text-xs">{suggestion.upvotes}</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onVote(suggestion.id, 'downvote'); }}
+                    className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                      userVote === 'downvote' ? 'bg-error/20 text-error' : 'hover:bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <ThumbsDown className="w-3 h-3" />
+                    <span className="text-xs">{suggestion.downvotes}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions - View Button */}
+              <div className="w-32 px-4 py-3 flex-shrink-0">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(suggestion);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded transition-colors"
+                  title="View details"
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </button>
+              </div>
+            </div>
           );
         })}
-      </Table>
+      </div>
     </div>
   );
 }

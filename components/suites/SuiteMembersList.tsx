@@ -6,14 +6,14 @@
 import React, { useState } from 'react';
 import {
   Table,
+  TableHeader,
+  TableHeaderCell,
   TableRow,
-  TableGrid,
   TableCell,
   TableEmpty,
-  TableHeaderText,
-  TableDescriptionText,
+  TableAvatar,
+  TableBadge,
 } from '@/components/ui/Table';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useUpdateMemberRole, useRemoveMember } from '@/lib/hooks/useMembers';
 import { SuiteMember } from '@/types/member.types';
@@ -51,81 +51,84 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
   };
 
   return (
-    <Table>
-      {members.map((member) => (
-        <TableRow key={member.id}>
-          <TableGrid columns={3}>
-            <TableCell className="col-span-1">
-              <div className="flex items-center gap-3">
-                {member.avatar_url ? (
-                  <img
-                    src={member.avatar_url}
+    <div className="overflow-x-auto -mx-4 sm:mx-0">
+      <div className="min-w-[600px] px-4 sm:px-0">
+        <Table>
+          <TableHeader columns={3}>
+            <div></div>
+            <TableHeaderCell>Member</TableHeaderCell>
+            <TableHeaderCell>Role</TableHeaderCell>
+            <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+          </TableHeader>
+
+          {members.map((member) => (
+            <TableRow key={member.id} columns={3}>
+              <div></div>
+
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <TableAvatar
+                    src={member.avatar_url || undefined}
                     alt={member.name}
-                    className="w-10 h-10 rounded-full object-cover"
+                    fallback={member.name.charAt(0).toUpperCase()}
                   />
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">{member.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{member.email}</div>
+                  </div>
+                </div>
+              </TableCell>
+
+              <TableCell>
+                {editingMember === member.id ? (
+                  <select
+                    value={member.role}
+                    onChange={(e) => handleRoleChange(member.id, e.target.value as 'admin' | 'member')}
+                    className="w-32 px-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                    disabled={updateRoleMutation.isPending}
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                    <span className="text-primary-foreground font-semibold">
-                      {member.name.charAt(0).toUpperCase()}
-                    </span>
+                  <div className="inline-flex items-center gap-1.5">
+                    {member.role === 'admin' ? (
+                      <>
+                        <Crown className="w-3.5 h-3.5 text-warning" />
+                        <TableBadge variant="yellow">Admin</TableBadge>
+                      </>
+                    ) : (
+                      <>
+                        <User className="w-3.5 h-3.5 text-muted-foreground" />
+                        <TableBadge variant="default">Member</TableBadge>
+                      </>
+                    )}
                   </div>
                 )}
-                <div className="min-w-0">
-                  <TableHeaderText>{member.name}</TableHeaderText>
-                  <TableDescriptionText>{member.email}</TableDescriptionText>
-                </div>
-              </div>
-            </TableCell>
+              </TableCell>
 
-            <TableCell>
-              {editingMember === member.id ? (
-                <select
-                  value={member.role}
-                  onChange={(e) => handleRoleChange(member.id, e.target.value as 'admin' | 'member')}
-                  className="w-32 px-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              <TableCell className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditingMember(editingMember === member.id ? null : member.id)}
                   disabled={updateRoleMutation.isPending}
                 >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
-              ) : (
-                <Badge variant={member.role === 'admin' ? 'warning' : 'default'}>
-                  {member.role === 'admin' ? (
-                    <>
-                      <Crown className="w-3 h-3 mr-1" />
-                      Admin
-                    </>
-                  ) : (
-                    <>
-                      <User className="w-3 h-3 mr-1" />
-                      Member
-                    </>
-                  )}
-                </Badge>
-              )}
-            </TableCell>
-
-            <TableCell className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditingMember(editingMember === member.id ? null : member.id)}
-                disabled={updateRoleMutation.isPending}
-              >
-                <Shield className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleRemoveMember(member.id, member.name)}
-                disabled={removeMemberMutation.isPending}
-              >
-                <Trash className="w-4 h-4 text-error" />
-              </Button>
-            </TableCell>
-          </TableGrid>
-        </TableRow>
-      ))}
-    </Table>
+                  <Shield className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRemoveMember(member.id, member.name)}
+                  disabled={removeMemberMutation.isPending}
+                >
+                  <Trash className="w-4 h-4 text-error" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </Table>
+      </div>
+    </div>
   );
 }

@@ -3071,6 +3071,7 @@ export type Database = {
         Returns: number
       }
       cleanup_old_recording_logs: { Args: never; Returns: number }
+      custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       downgrade_expired_trials: { Args: never; Returns: undefined }
       downgrade_to_free_tier: {
         Args: { user_id_param: string }

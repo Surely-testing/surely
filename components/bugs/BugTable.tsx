@@ -1,6 +1,6 @@
 // ============================================
 // components/bugs/BugTable.tsx
-// Table view for bugs with inline actions using Table UI components
+// Mobile: full scroll | Desktop: sticky checkbox & title
 // ============================================
 'use client';
 
@@ -8,13 +8,8 @@ import { BugWithCreator, BugSeverity, BugStatus } from '@/types/bug.types';
 import { Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import {
-  Table,
-  TableRow,
-  TableCell,
-  TableGrid,
-  TableHeaderText,
-  TableDescriptionText,
-  TableCheckbox,
+  TableBadge,
+  TableAvatar,
 } from '@/components/ui/Table';
 import { AssetLinkerCompact } from '@/components/relationships/AssetLinkerCompact';
 import { useState } from 'react';
@@ -35,7 +30,8 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const supabase = createClient();
 
-  const handleToggleSelection = (bugId: string) => {
+  const handleToggleSelection = (bugId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!onSelectionChange) return;
     
     if (selectedBugs.includes(bugId)) {
@@ -65,24 +61,45 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
     }
   };
 
-  const getSeverityColor = (severity: BugSeverity | null) => {
+  const getSeverityVariant = (severity: BugSeverity | null): "default" | "yellow" | "green" | "pink" | "gray" | "orange" | "red" => {
     switch (severity) {
-      case 'critical': return 'text-error bg-destructive/10';
-      case 'high': return 'text-warning bg-warning/10';
-      case 'medium': return 'text-accent bg-accent/10';
-      case 'low': return 'text-info bg-info/10';
-      default: return 'text-muted-foreground bg-muted';
+      case 'critical': return 'red';
+      case 'high': return 'orange';
+      case 'medium': return 'yellow';
+      case 'low': return 'green';
+      default: return 'gray';
     }
   };
 
-  const getStatusColor = (status: BugStatus | null) => {
+  const getStatusVariant = (status: BugStatus | null): "default" | "yellow" | "green" | "pink" | "gray" | "orange" | "red" => {
     switch (status) {
-      case 'open': return 'text-error bg-destructive/10';
-      case 'in_progress': return 'text-info bg-info/10';
-      case 'resolved': return 'text-success bg-success/10';
-      case 'closed': return 'text-muted-foreground bg-muted';
-      case 'reopened': return 'text-warning bg-warning/10';
-      default: return 'text-muted-foreground bg-muted';
+      case 'open': return 'red';
+      case 'in_progress': return 'yellow';
+      case 'resolved': return 'green';
+      case 'closed': return 'gray';
+      case 'reopened': return 'orange';
+      case 'blocked': return 'red';
+      case 'pending': return 'yellow';
+      case 'wont_fix': return 'gray';
+      case 'duplicate': return 'gray';
+      case 'cannot_reproduce': return 'gray';
+      default: return 'gray';
+    }
+  };
+
+  const getStatusLabel = (status: BugStatus | null): string => {
+    switch (status) {
+      case 'open': return 'Open';
+      case 'in_progress': return 'In Progress';
+      case 'resolved': return 'Resolved';
+      case 'closed': return 'Closed';
+      case 'reopened': return 'Reopened';
+      case 'blocked': return 'Blocked';
+      case 'pending': return 'Pending';
+      case 'wont_fix': return "Won't Fix";
+      case 'duplicate': return 'Duplicate';
+      case 'cannot_reproduce': return 'Cannot Reproduce';
+      default: return 'N/A';
     }
   };
 
@@ -95,148 +112,180 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
   }
 
   return (
-    <div className="space-y-3">
-      {/* Table Header */}
-      <div className={`px-4 py-2 bg-muted/50 rounded-lg border border-border ${onSelectionChange ? 'pl-12' : ''}`}>
-        <TableGrid columns={6} className="gap-4">
-          <TableHeaderText className="text-xs uppercase font-semibold">
+    <div className="relative border border-border rounded-lg bg-card overflow-x-auto">
+      <div className="min-w-max">
+        {/* Table Header */}
+        <div className="flex bg-muted border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="w-12 px-4 py-2 border-r border-border flex items-center justify-center md:sticky md:left-0 bg-muted md:z-10">
+            {/* Empty for checkbox */}
+          </div>
+          <div className="w-80 px-4 py-2 border-r border-border md:sticky md:left-12 bg-muted md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
             Title
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold hidden md:block">
-            Severity
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold">
-            Status
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold hidden lg:block">
-            Created By
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold hidden lg:block">
-            Created
-          </TableHeaderText>
-          <TableHeaderText className="text-xs uppercase font-semibold hidden xl:block">
-            Linked Assets
-          </TableHeaderText>
-        </TableGrid>
-      </div>
+          </div>
+          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Bug ID</div>
+          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Severity</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Status</div>
+          <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Assignee</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Category</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Module</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Environment</div>
+          <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Created</div>
+          <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Linked Assets</div>
+          <div className="w-32 px-4 py-2 flex-shrink-0">Actions</div>
+        </div>
 
-      {/* Table Rows */}
-      <Table className="space-y-2">
+        {/* Table Body */}
         {bugs.map((bug) => {
           const isSelected = selectedBugs.includes(bug.id);
           const isUpdating = updatingStatus === bug.id;
           
           return (
-            <TableRow
+            <div
               key={bug.id}
-              className="cursor-pointer"
-              onClick={() => onSelect(bug)}
-              selected={isSelected}
-              selectable={!!onSelectionChange}
+              className={`flex items-center border-b border-border last:border-b-0 transition-colors ${
+                isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+              }`}
             >
-              {/* Checkbox */}
-              {onSelectionChange && (
-                <TableCheckbox
-                  checked={isSelected}
-                  onCheckedChange={() => handleToggleSelection(bug.id)}
-                />
-              )}
-
-              <TableGrid columns={6} className="gap-4">
-                {/* Title Column - Always visible */}
-                <TableCell>
-                  <div className="text-sm font-medium text-foreground">
-                    {bug.title}
-                  </div>
-                  {bug.description && (
-                    <TableDescriptionText className="line-clamp-1 mt-1">
-                      {bug.description}
-                    </TableDescriptionText>
-                  )}
-                </TableCell>
-
-                {/* Severity Column - Hidden on mobile, visible md+ */}
-                <TableCell className="hidden md:block">
-                  <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${getSeverityColor(bug.severity)}`}>
-                    {bug.severity || 'N/A'}
-                  </span>
-                </TableCell>
-
-                {/* Status Column - Always visible */}
-                <TableCell>
-                  <select
-                    value={bug.status || 'open'}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      handleStatusChange(bug.id, e.target.value as BugStatus);
-                    }}
-                    disabled={isUpdating}
-                    className={`px-2 py-1 rounded text-xs font-medium inline-block border-0 cursor-pointer focus:ring-2 focus:ring-primary outline-none ${getStatusColor(bug.status)} ${isUpdating ? 'opacity-50' : ''}`}
+              {/* Checkbox - Sticky on md+ */}
+              <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                {onSelectionChange && (
+                  <div
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    onClick={(e) => handleToggleSelection(bug.id, e)}
+                    className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
+                      isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
+                    }`}
                   >
-                    <option value="open">Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                    <option value="reopened">Reopened</option>
-                  </select>
-                </TableCell>
+                    {isSelected && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                )}
+              </div>
 
-                {/* Created By Column - Hidden on mobile, visible lg+ */}
-                <TableCell className="hidden lg:block">
-                  {bug.creator ? (
-                    <div className="flex items-center gap-2">
-                      {bug.creator.avatar_url ? (
-                        <img 
-                          src={bug.creator.avatar_url} 
-                          alt={bug.creator.name} 
-                          className="w-6 h-6 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
-                          {bug.creator.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className="text-sm text-foreground">
-                        {bug.creator.name}
-                      </span>
-                    </div>
-                  ) : (
-                    <TableDescriptionText>—</TableDescriptionText>
-                  )}
-                </TableCell>
+              {/* Title - Sticky on md+ with shadow */}
+              <div className={`w-80 px-4 py-3 border-r border-border md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                <div 
+                  className="font-medium truncate cursor-help"
+                  title={bug.title}
+                >
+                  {bug.title}
+                </div>
+              </div>
 
-                {/* Created Column - Hidden on mobile, visible lg+ */}
-                <TableCell className="hidden lg:block">
-                  <TableDescriptionText>
-                    {bug.created_at ? format(new Date(bug.created_at), 'MMM d, yyyy') : 'N/A'}
-                  </TableDescriptionText>
-                </TableCell>
+              {/* Bug ID */}
+              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm text-muted-foreground font-mono">
+                  {bug.id.slice(0, 8)}
+                </span>
+              </div>
 
-                {/* Linked Assets Column - Hidden on mobile, visible xl+ */}
-                <TableCell className="hidden xl:block">
-                  {bug.suite_id ? (
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <AssetLinkerCompact
-                        assetType="bug"
-                        assetId={bug.id}
-                        suiteId={bug.suite_id}
-                        maxDisplay={2}
-                        onLink={onRefresh}
-                      />
-                    </div>
-                  ) : (
-                    <TableDescriptionText>—</TableDescriptionText>
-                  )}
-                </TableCell>
+              {/* Severity */}
+              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0 flex items-center">
+                <TableBadge variant={getSeverityVariant(bug.severity)}>
+                  {bug.severity || 'N/A'}
+                </TableBadge>
+              </div>
 
-                {/* Actions Column - Empty, button shows on hover */}
-                <TableCell className="text-right">
-                  {/* Intentionally empty - View button appears on row hover */}
-                </TableCell>
-              </TableGrid>
+              {/* Status */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <select
+                  value={bug.status || 'open'}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    handleStatusChange(bug.id, e.target.value as BugStatus);
+                  }}
+                  disabled={isUpdating}
+                  className={`
+                    w-full px-2.5 py-1 rounded text-xs font-medium border-0 cursor-pointer 
+                    focus:ring-2 focus:ring-primary outline-none
+                    ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}
+                    ${getStatusVariant(bug.status) === 'red' ? 'bg-red-500 text-white' : ''}
+                    ${getStatusVariant(bug.status) === 'yellow' ? 'bg-yellow-400 text-yellow-900' : ''}
+                    ${getStatusVariant(bug.status) === 'green' ? 'bg-green-500 text-white' : ''}
+                    ${getStatusVariant(bug.status) === 'gray' ? 'bg-gray-400 text-gray-900' : ''}
+                    ${getStatusVariant(bug.status) === 'orange' ? 'bg-orange-500 text-white' : ''}
+                  `}
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="pending">Pending</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="reopened">Reopened</option>
+                  <option value="cannot_reproduce">Cannot Reproduce</option>
+                  <option value="duplicate">Duplicate</option>
+                  <option value="wont_fix">Won't Fix</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
 
-              {/* View Button - Appears on hover */}
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Assignee */}
+              <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
+                {bug.assignee ? (
+                  <div className="flex items-center gap-2">
+                    <TableAvatar
+                      src={bug.assignee.avatar_url || undefined}
+                      alt={bug.assignee.name}
+                      fallback={bug.assignee.name.charAt(0).toUpperCase()}
+                    />
+                    <span className="text-sm truncate">{bug.assignee.name}</span>
+                  </div>
+                ) : bug.assigned_to ? (
+                  <span className="text-sm truncate">{bug.assigned_to}</span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Unassigned</span>
+                )}
+              </div>
+
+              {/* Category */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm">{bug.component || '—'}</span>
+              </div>
+
+              {/* Module */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm">{bug.module || '—'}</span>
+              </div>
+
+              {/* Environment */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm">{bug.environment || '—'}</span>
+              </div>
+
+              {/* Created */}
+              <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm text-muted-foreground">
+                  {bug.created_at ? format(new Date(bug.created_at), 'MMM d, yyyy') : 'N/A'}
+                </span>
+              </div>
+
+              {/* Linked Assets */}
+              <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
+                {bug.suite_id ? (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <AssetLinkerCompact
+                      assetType="bug"
+                      assetId={bug.id}
+                      suiteId={bug.suite_id}
+                      maxDisplay={2}
+                      onLink={onRefresh}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+
+              {/* Actions - View Button */}
+              <div className="w-32 px-4 py-3 flex-shrink-0">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -249,10 +298,10 @@ export function BugTable({ bugs, onSelect, selectedBugs = [], onSelectionChange,
                   View
                 </button>
               </div>
-            </TableRow>
+            </div>
           );
         })}
-      </Table>
+      </div>
     </div>
   );
 }

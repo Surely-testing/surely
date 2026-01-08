@@ -1,22 +1,18 @@
 // ============================================
-// components/reports/ReportsTable.tsx
-// Updated with selection support using custom Table components
+// FILE: components/reports/ReportsTable.tsx
+// Mobile: full scroll | Desktop: sticky checkbox & title
 // ============================================
 'use client';
 
 import { ReportWithCreator } from '@/types/report.types';
-import { ReportGrid } from './ReportsGrid';
-import { 
-  Table, 
-  TableRow, 
-  TableCell, 
-  TableGrid, 
-  TableCheckbox,
-  TableHeaderText,
-  TableDescriptionText,
-  TableEmpty 
-} from '@/components/ui/Table';
-import { FileText } from 'lucide-react';
+import { FileText, Eye, RefreshCw, MoreVertical, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/Dropdown';
 
 interface ReportTableProps {
   reports: ReportWithCreator[];
@@ -24,7 +20,6 @@ interface ReportTableProps {
   onRegenerate: (reportId: string) => void;
   onDelete: (reportId: string) => void;
   generatingId?: string | null;
-  viewMode?: 'grid' | 'table';
   selectedReports?: string[];
   onSelectionChange?: (selectedIds: string[]) => void;
 }
@@ -35,12 +30,12 @@ export function ReportTable({
   onRegenerate,
   onDelete,
   generatingId,
-  viewMode = 'table',
   selectedReports = [],
   onSelectionChange,
 }: ReportTableProps) {
   
-  const handleToggleSelection = (reportId: string) => {
+  const handleToggleSelection = (reportId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!onSelectionChange) return;
     
     if (selectedReports.includes(reportId)) {
@@ -50,29 +45,14 @@ export function ReportTable({
     }
   };
 
-  // If grid view is selected, use ReportGrid component
-  if (viewMode === 'grid') {
-    return (
-      <ReportGrid
-        reports={reports}
-        onView={onView}
-        onRegenerate={onRegenerate}
-        onDelete={onDelete}
-        generatingId={generatingId}
-        selectedReports={selectedReports}
-        onSelectionChange={onSelectionChange}
-      />
-    );
-  }
-
-  const getReportTypeColor = (type: string): string => {
+  const getReportTypeVariant = (type: string): string => {
     switch (type) {
-      case 'test_execution': return 'text-info bg-info/10 border-info/20';
-      case 'test_coverage': return 'text-success bg-success/10 border-success/20';
-      case 'bug_trends': return 'text-warning bg-warning/10 border-warning/20';
-      case 'sprint_summary': return 'text-purple-600 bg-purple-600/10 border-purple-600/20';
-      case 'team_performance': return 'text-blue-600 bg-blue-600/10 border-blue-600/20';
-      default: return 'text-muted-foreground bg-muted border-border';
+      case 'test_execution': return 'bg-blue-500 text-white';
+      case 'test_coverage': return 'bg-green-500 text-white';
+      case 'bug_trends': return 'bg-yellow-400 text-yellow-900';
+      case 'sprint_summary': return 'bg-purple-500 text-white';
+      case 'team_performance': return 'bg-orange-500 text-white';
+      default: return 'bg-gray-400 text-gray-900';
     }
   };
 
@@ -100,94 +80,128 @@ export function ReportTable({
 
   if (reports.length === 0) {
     return (
-      <TableEmpty
-        icon={<FileText className="w-8 h-8 text-muted-foreground" />}
-        title="No reports found"
-        description="Generate your first report to get started"
-      />
+      <div className="bg-card rounded-lg border border-border p-12 text-center">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+          <FileText className="w-8 h-8 text-primary" />
+        </div>
+        <h3 className="text-lg font-semibold text-foreground mb-2">No reports found</h3>
+        <p className="text-sm text-muted-foreground">Generate your first report to get started</p>
+      </div>
     );
   }
 
   return (
-    <Table>
-      {/* Table Header */}
-      <div className="hidden lg:grid lg:grid-cols-5 gap-4 px-4 py-2 bg-muted/50 rounded-lg border border-border text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-        <div>Report Name</div>
-        <div>Type</div>
-        <div>Creator</div>
-        <div>Generated</div>
-        <div className="text-right">Actions</div>
-      </div>
+    <div className="relative border border-border rounded-lg bg-card overflow-x-auto">
+      <div className="min-w-max">
+        {/* Table Header */}
+        <div className="flex bg-muted border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="w-12 px-4 py-2 border-r border-border flex items-center justify-center md:sticky md:left-0 bg-muted md:z-10">
+            {/* Empty for checkbox */}
+          </div>
+          <div className="w-80 px-4 py-2 border-r border-border md:sticky md:left-12 bg-muted md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+            Report Name
+          </div>
+          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Report ID</div>
+          <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Type</div>
+          <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Creator</div>
+          <div className="w-56 px-4 py-2 border-r border-border flex-shrink-0">Generated Date</div>
+          <div className="w-32 px-4 py-2 flex-shrink-0">Actions</div>
+        </div>
 
-      {/* Table Rows */}
-      {reports.map((report) => {
-        const isGenerating = generatingId === report.id;
-        const isSelected = selectedReports.includes(report.id);
+        {/* Table Body */}
+        {reports.map((report) => {
+          const isSelected = selectedReports.includes(report.id);
+          const isGenerating = generatingId === report.id;
 
-        return (
-          <TableRow
-            key={report.id}
-            selected={isSelected}
-            selectable={!!onSelectionChange}
-            onClick={() => onView(report)}
-            className="cursor-pointer"
-          >
-            {/* Selection Checkbox */}
-            {onSelectionChange && (
-              <TableCheckbox
-                checked={isSelected}
-                onCheckedChange={() => handleToggleSelection(report.id)}
-              />
-            )}
-
-            <TableGrid columns={5}>
-              {/* Report Name Column */}
-              <TableCell>
-                <TableHeaderText>{report.name || 'Untitled Report'}</TableHeaderText>
-                {report.data && typeof report.data === 'object' && 'summary' in report.data && (
-                  <TableDescriptionText>{String(report.data.summary)}</TableDescriptionText>
+          return (
+            <div
+              key={report.id}
+              className={`flex items-center border-b border-border last:border-b-0 transition-colors ${
+                isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+              }`}
+            >
+              {/* Checkbox - Sticky on md+ */}
+              <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                {onSelectionChange && (
+                  <div
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    onClick={(e) => handleToggleSelection(report.id, e)}
+                    className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
+                      isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
+                    }`}
+                  >
+                    {isSelected && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
                 )}
-              </TableCell>
+              </div>
 
-              {/* Type Column */}
-              <TableCell>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block ${getReportTypeColor(report.type)}`}>
+              {/* Name - Sticky on md+ with shadow */}
+              <div className={`w-80 px-4 py-3 border-r border-border md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                <div 
+                  className="font-medium truncate cursor-help"
+                  title={report.name || 'Untitled Report'}
+                >
+                  {report.name || 'Untitled Report'}
+                </div>
+              </div>
+
+              {/* Report ID */}
+              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm text-muted-foreground font-mono">
+                  {report.id.slice(0, 8)}
+                </span>
+              </div>
+
+              {/* Type */}
+              <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap ${getReportTypeVariant(report.type)}`}>
                   {getReportTypeLabel(report.type)}
                 </span>
-              </TableCell>
+              </div>
 
-              {/* Creator Column */}
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  {report.creator?.avatar_url ? (
-                    <img
-                      src={report.creator.avatar_url}
-                      alt={report.creator.name}
-                      className="w-6 h-6 rounded-full"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
-                      {report.creator?.name?.charAt(0).toUpperCase() || '?'}
-                    </div>
-                  )}
-                  <span className="text-sm text-foreground truncate">
-                    {report.creator?.name || 'Unknown'}
-                  </span>
-                </div>
-              </TableCell>
+              {/* Creator */}
+              <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
+                {report.creator ? (
+                  <div className="flex items-center gap-2">
+                    {report.creator.avatar_url ? (
+                      <img
+                        src={report.creator.avatar_url}
+                        alt={report.creator.name}
+                        className="w-6 h-6 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                        {report.creator.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-sm truncate">{report.creator.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Unknown</span>
+                )}
+              </div>
 
-              {/* Generated Column */}
-              <TableCell>
-                <div className="text-sm text-foreground">
+              {/* Generated */}
+              <div className="w-56 px-4 py-3 border-r border-border flex-shrink-0">
+                <div className="text-sm whitespace-nowrap">
                   {formatDate(report.created_at)}
                 </div>
                 {isGenerating && (
-                  <span className="text-xs text-warning">Generating...</span>
+                  <span className="text-xs text-yellow-600">Generating...</span>
                 )}
-              </TableCell>
+              </div>
 
-              {/* Actions Column */}
-              <TableCell>
+              {/* Actions */}
+              <div className="w-32 px-4 py-3 flex-shrink-0">
                 <div className="flex items-center justify-end gap-2">
                   <button
                     onClick={(e) => {
@@ -195,46 +209,42 @@ export function ReportTable({
                       onView(report);
                     }}
                     disabled={isGenerating}
-                    className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+                    className="p-2 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
                     title="View"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                    <Eye className="w-4 h-4 text-muted-foreground" />
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRegenerate(report.id);
-                    }}
-                    disabled={isGenerating}
-                    className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
-                    title="Regenerate"
-                  >
-                    <svg className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(report.id);
-                    }}
-                    disabled={isGenerating}
-                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors disabled:opacity-50"
-                    title="Delete"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button 
+                        className="p-2 rounded-lg hover:bg-muted transition-colors"
+                        disabled={isGenerating}
+                      >
+                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => onRegenerate(report.id)}>
+                        <RefreshCw className="w-4 h-4" />
+                        Regenerate
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => onDelete(report.id)}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              </TableCell>
-            </TableGrid>
-          </TableRow>
-        );
-      })}
-    </Table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

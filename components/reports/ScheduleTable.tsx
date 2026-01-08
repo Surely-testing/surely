@@ -1,12 +1,11 @@
 // ============================================
-// components/reports/ScheduleTable.tsx
-// Updated with selection support using custom Table components
+// FILE: components/reports/ScheduleTable.tsx
+// Mobile: full scroll | Desktop: sticky checkbox & title
 // ============================================
 
 import { ReportScheduleWithReport } from '@/types/report.types';
-import { ScheduleGrid } from './ScheduleGrid';
-import { Calendar } from 'lucide-react';
-import { Table, TableCell, TableCheckbox, TableDescriptionText, TableEmpty, TableGrid, TableHeaderText, TableRow } from '../ui/Table';
+import { Calendar, Edit, MoreVertical, Play, Power, Trash2 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/Dropdown';
 
 interface ScheduleTableProps {
   schedules: ReportScheduleWithReport[];
@@ -14,11 +13,10 @@ interface ScheduleTableProps {
   onDelete: (scheduleId: string) => void;
   onRunNow: (scheduleId: string) => void;
   onEdit: (schedule: ReportScheduleWithReport) => void;
-  viewMode?: 'grid' | 'table';
   selectedSchedules?: string[];
   onSelectionChange?: (selectedIds: string[]) => void;
-  onSelectAll?: () => void;
   isLoading?: boolean;
+  viewMode?: 'grid' | 'table';
 }
 
 export function ScheduleTable({
@@ -27,14 +25,13 @@ export function ScheduleTable({
   onDelete,
   onRunNow,
   onEdit,
-  viewMode = 'table',
   selectedSchedules = [],
   onSelectionChange,
-  onSelectAll,
   isLoading = false
 }: ScheduleTableProps) {
 
-  const handleToggleSelection = (scheduleId: string) => {
+  const handleToggleSelection = (scheduleId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!onSelectionChange) return;
 
     if (selectedSchedules.includes(scheduleId)) {
@@ -44,27 +41,12 @@ export function ScheduleTable({
     }
   };
 
-  // If grid view is selected, use ScheduleGrid component
-  if (viewMode === 'grid') {
-    return (
-      <ScheduleGrid
-        schedules={schedules}
-        onToggle={onToggle}
-        onDelete={onDelete}
-        onRunNow={onRunNow}
-        onEdit={onEdit}
-        selectedSchedules={selectedSchedules}
-        onSelectionChange={onSelectionChange}
-      />
-    );
-  }
-
-  const getFrequencyColor = (frequency: string): string => {
+  const getFrequencyVariant = (frequency: string): string => {
     switch (frequency) {
-      case 'daily': return 'text-info bg-info/10 border-info/20';
-      case 'weekly': return 'text-success bg-success/10 border-success/20';
-      case 'monthly': return 'text-warning bg-warning/10 border-warning/20';
-      default: return 'text-muted-foreground bg-muted border-border';
+      case 'daily': return 'bg-blue-500 text-white';
+      case 'weekly': return 'bg-green-500 text-white';
+      case 'monthly': return 'bg-yellow-400 text-yellow-900';
+      default: return 'bg-gray-400 text-gray-900';
     }
   };
 
@@ -79,177 +61,171 @@ export function ScheduleTable({
 
   if (schedules.length === 0) {
     return (
-      <TableEmpty
-        icon={<Calendar className="w-8 h-8 text-muted-foreground" />}
-        title="No schedules found"
-        description="Create your first report schedule to automate reporting"
-      />
+      <div className="bg-card rounded-lg border border-border p-12 text-center">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+          <Calendar className="w-8 h-8 text-primary" />
+        </div>
+        <h3 className="text-lg font-semibold text-foreground mb-2">No schedules found</h3>
+        <p className="text-sm text-muted-foreground">Create your first report schedule to automate reporting</p>
+      </div>
     );
   }
 
   return (
-    <Table>
-      {/* Table Header */}
-      <div className="hidden lg:grid lg:grid-cols-6 gap-4 px-4 py-2 bg-muted/50 rounded-lg border border-border text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-        <div>Schedule Name</div>
-        <div>Frequency</div>
-        <div>Time</div>
-        <div>Next Run</div>
-        <div>Status</div>
-        <div className="text-right">Actions</div>
-      </div>
+    <div className="relative border border-border rounded-lg bg-card overflow-x-auto">
+      <div className="min-w-max">
+        {/* Table Header */}
+        <div className="flex bg-muted border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="w-12 px-4 py-2 border-r border-border flex items-center justify-center md:sticky md:left-0 bg-muted md:z-10">
+            {/* Empty for checkbox */}
+          </div>
+          <div className="w-80 px-4 py-2 border-r border-border md:sticky md:left-12 bg-muted md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+            Schedule Name
+          </div>
+          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Schedule ID</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Frequency</div>
+          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Time</div>
+          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Next Run</div>
+          <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Status</div>
+          <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Report Type</div>
+          <div className="w-32 px-4 py-2 flex-shrink-0">Actions</div>
+        </div>
 
-      {/* Table Rows */}
-      {schedules.map((schedule) => {
-        const isActive = schedule.is_active;
-        const isSelected = selectedSchedules.includes(schedule.id);
+        {/* Table Body */}
+        {schedules.map((schedule) => {
+          const isSelected = selectedSchedules.includes(schedule.id);
+          const isActive = schedule.is_active;
 
-        return (
-          <TableRow
-            key={schedule.id}
-            selected={isSelected}
-            selectable={!!onSelectionChange}
-            onClick={() => onEdit(schedule)}
-            className={`cursor-pointer ${!isActive ? 'opacity-60' : ''}`}
-          >
-            {/* Selection Checkbox */}
-            {onSelectionChange && (
-              <TableCheckbox
-                checked={isSelected}
-                onCheckedChange={() => handleToggleSelection(schedule.id)}
-              />
-            )}
-
-            {/* Mobile: Show only 3 columns */}
-            <div className="grid grid-cols-3 gap-4 lg:hidden">
-              <TableCell>
-                <TableHeaderText>{schedule.name || 'Untitled Schedule'}</TableHeaderText>
-                {schedule.description && (
-                  <TableDescriptionText>{schedule.description}</TableDescriptionText>
+          return (
+            <div
+              key={schedule.id}
+              className={`flex items-center border-b border-border last:border-b-0 transition-colors ${
+                isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+              }`}
+            >
+              {/* Checkbox - Sticky on md+ */}
+              <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                {onSelectionChange && (
+                  <div
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    onClick={(e) => handleToggleSelection(schedule.id, e)}
+                    className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
+                      isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
+                    }`}
+                  >
+                    {isSelected && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
                 )}
-              </TableCell>
+              </div>
 
-              <TableCell>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block capitalize ${getFrequencyColor(schedule.frequency)}`}>
+              {/* Name - Sticky on md+ with shadow */}
+              <div className={`w-80 px-4 py-3 border-r border-border md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
+                isSelected ? 'bg-primary/5' : 'bg-card'
+              }`}>
+                <div 
+                  className="font-medium truncate cursor-help"
+                  title={schedule.name || 'Untitled Schedule'}
+                >
+                  {schedule.name || 'Untitled Schedule'}
+                </div>
+              </div>
+
+              {/* Schedule ID */}
+              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm text-muted-foreground font-mono">
+                  {schedule.id.slice(0, 8)}
+                </span>
+              </div>
+
+              {/* Frequency */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap capitalize ${getFrequencyVariant(schedule.frequency)}`}>
                   {schedule.frequency}
                 </span>
-              </TableCell>
+              </div>
 
-              <TableCell>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block ${isActive
-                  ? 'text-success bg-success/10 border-success/20'
-                  : 'text-muted-foreground bg-muted border-border'
-                  }`}>
-                  {isActive ? 'Active' : 'Inactive'}
+              {/* Time */}
+              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm">
+                  {schedule.schedule_time || '—'}
                 </span>
-              </TableCell>
-            </div>
+              </div>
 
-            {/* Desktop: Show all 6 columns */}
-            <TableGrid columns={6} className="hidden lg:grid">
-              {/* Schedule Name Column */}
-              <TableCell>
-                <TableHeaderText>{schedule.name || 'Untitled Schedule'}</TableHeaderText>
-                {schedule.description && (
-                  <TableDescriptionText>{schedule.description}</TableDescriptionText>
-                )}
-              </TableCell>
-
-              {/* Frequency Column */}
-              <TableCell>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block capitalize ${getFrequencyColor(schedule.frequency)}`}>
-                  {schedule.frequency}
-                </span>
-              </TableCell>
-
-              {/* Time Column */}
-              <TableCell>
-                <span className="text-sm text-foreground">
-                  {schedule.schedule_time || 'N/A'}
-                </span>
-              </TableCell>
-
-              {/* Next Run Column */}
-              <TableCell>
-                <span className="text-sm text-foreground">
+              {/* Next Run */}
+              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm">
                   {formatDate(schedule.next_run_at)}
                 </span>
-              </TableCell>
+              </div>
 
-              {/* Status Column */}
-              <TableCell>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block ${isActive
-                  ? 'text-success bg-success/10 border-success/20'
-                  : 'text-muted-foreground bg-muted border-border'
-                  }`}>
+              {/* Status */}
+              <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                  isActive ? 'bg-green-500 text-white' : 'bg-gray-400 text-gray-900'
+                }`}>
                   {isActive ? 'Active' : 'Inactive'}
                 </span>
-              </TableCell>
+              </div>
 
-              {/* Actions Column */}
-              <TableCell>
+              {/* Report Type */}
+              <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
+                <span className="text-sm capitalize">
+                  {schedule.report?.type?.replace('_', ' ') || '—'}
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className="w-32 px-4 py-3 flex-shrink-0">
                 <div className="flex items-center justify-end gap-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onEdit(schedule);
                     }}
-                    className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors"
+                    className="p-2 rounded-lg hover:bg-muted transition-colors"
                     title="Edit"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
+                    <Edit className="w-4 h-4 text-muted-foreground" />
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRunNow(schedule.id);
-                    }}
-                    className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors"
-                    title="Run Now"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggle(schedule.id, !isActive);
-                    }}
-                    className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors"
-                    title={isActive ? 'Deactivate' : 'Activate'}
-                  >
-                    {isActive ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(schedule.id);
-                    }}
-                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
-                    title="Delete"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => onRunNow(schedule.id)}>
+                        <Play className="w-4 h-4" />
+                        Run Now
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onToggle(schedule.id, !isActive)}>
+                        <Power className="w-4 h-4" />
+                        {isActive ? 'Deactivate' : 'Activate'}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => onDelete(schedule.id)}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              </TableCell>
-            </TableGrid>
-          </TableRow>
-        );
-      })}
-    </Table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
