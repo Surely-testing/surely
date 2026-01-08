@@ -1,6 +1,6 @@
 // ============================================
 // components/test-data/TestDataTypeListItem.tsx
-// Fixed to work as a table row - matches custom table format
+// Table row component - matches custom table format
 // ============================================
 'use client'
 
@@ -26,26 +26,29 @@ export default function TestDataTypeListItem({
   const TypeIcon = ICON_MAP[type.icon as keyof typeof ICON_MAP] || Database
   const iconColorClass = COLOR_MAP[type.color as keyof typeof COLOR_MAP] || COLOR_MAP.blue
 
-  const handleToggleSelection = (event: React.MouseEvent) => {
-    event.stopPropagation()
+  const handleToggleSelection = () => {
     onSelect(type.id)
   }
 
   return (
     <div
       onDoubleClick={() => onDoubleClick(type.id)}
-      className={`flex items-center border-b border-border last:border-b-0 transition-colors cursor-pointer min-w-max ${
+      className={`flex items-center border-b border-border last:border-b-0 transition-colors cursor-pointer ${
         isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
       }`}
     >
       {/* Checkbox */}
-      <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center ${
+      <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 flex-shrink-0 ${
         isSelected ? 'bg-primary/5' : 'bg-card'
       }`}>
         <div
           role="checkbox"
           aria-checked={isSelected}
-          onClick={handleToggleSelection}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            handleToggleSelection()
+          }}
           className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
             isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
           }`}
@@ -59,7 +62,7 @@ export default function TestDataTypeListItem({
       </div>
 
       {/* Icon & Name & Description */}
-      <div className={`flex-1 px-4 py-3 border-r border-border min-w-0 ${
+      <div className={`flex-1 px-4 py-3 border-r border-border text-sm text-foreground min-w-0 md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] flex-shrink-0 ${
         isSelected ? 'bg-primary/5' : 'bg-card'
       }`}>
         <div className="flex items-center gap-3">
@@ -78,16 +81,18 @@ export default function TestDataTypeListItem({
       </div>
 
       {/* Item Count */}
-      <div className={`w-32 px-4 py-3 flex items-center justify-end ${
+      <div className={`w-32 px-4 py-3 flex-shrink-0 ${
         isSelected ? 'bg-primary/5' : 'bg-card'
       }`}>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
-          <span className="text-sm font-medium text-foreground">
-            {type.item_count || 0}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {type.item_count === 1 ? 'item' : 'items'}
-          </span>
+        <div className="flex items-center justify-end">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
+            <span className="text-sm font-medium text-foreground">
+              {type.item_count || 0}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {type.item_count === 1 ? 'item' : 'items'}
+            </span>
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 // ============================================
 // components/test-cases/TestCaseTable.tsx
-// Mobile: full scroll | Desktop: sticky checkbox & title
+// Using custom Table components with responsive behavior
 // ============================================
 'use client'
 
@@ -22,8 +22,14 @@ import {
   Eye
 } from 'lucide-react'
 import {
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  TableCell,
+  TableCheckbox,
   TableEmpty,
-} from '../ui/Table'
+} from '@/components/ui/Table'
 import { Badge } from '@/components/ui/Badge'
 import { BulkActionsBar, type BulkAction, type ActionOption } from '../shared/bulk-action/BulkActionBar'
 import { Pagination } from '../shared/Pagination'
@@ -167,8 +173,7 @@ export function TestCaseTable({
     })
   }
 
-  const handleToggleSelection = (id: string, event: React.MouseEvent) => {
-    event.stopPropagation()
+  const handleToggleSelection = (id: string) => {
     if (onSelectionChange) {
       if (selectedIds.includes(id)) {
         onSelectionChange(selectedIds.filter(selectedId => selectedId !== id))
@@ -234,204 +239,177 @@ export function TestCaseTable({
 
   return (
     <div className="space-y-0">
-      <div className="relative border border-border rounded-lg bg-card overflow-x-auto">
-        <div className="min-w-max">
-          {/* Table Header */}
-          <div className="flex bg-muted border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            <div className="w-12 px-4 py-2 border-r border-border flex items-center justify-center md:sticky md:left-0 bg-muted md:z-10">
-              {/* Empty for checkbox */}
-            </div>
-            <div className="w-80 px-4 py-2 border-r border-border md:sticky md:left-12 bg-muted md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-              Title
-            </div>
-            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Test Case ID</div>
-            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Priority</div>
-            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Status</div>
-            <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Last Result</div>
-            <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Assignee</div>
-            <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Module</div>
-            <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Type</div>
-            <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Automated</div>
-            <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Linked Assets</div>
-            <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Created</div>
-            <div className="w-32 px-4 py-2 flex-shrink-0">Actions</div>
-          </div>
+      <Table>
+        {/* Table Header */}
+        <TableHeader
+          columns={[
+            <TableHeaderCell key="title" sticky minWidth="min-w-[320px]">Title</TableHeaderCell>,
+            <TableHeaderCell key="id">Test Case ID</TableHeaderCell>,
+            <TableHeaderCell key="priority">Priority</TableHeaderCell>,
+            <TableHeaderCell key="status">Status</TableHeaderCell>,
+            <TableHeaderCell key="result">Last Result</TableHeaderCell>,
+            <TableHeaderCell key="assignee">Assignee</TableHeaderCell>,
+            <TableHeaderCell key="module">Module</TableHeaderCell>,
+            <TableHeaderCell key="type">Type</TableHeaderCell>,
+            <TableHeaderCell key="automated">Automated</TableHeaderCell>,
+            <TableHeaderCell key="linked">Linked Assets</TableHeaderCell>,
+            <TableHeaderCell key="created">Created</TableHeaderCell>,
+            <TableHeaderCell key="actions" minWidth="min-w-[120px]">Actions</TableHeaderCell>,
+          ]}
+        />
 
-          {/* Table Body */}
-          {paginatedTestCases.map((testCase) => {
-            const isSelected = selectedIds.includes(testCase.id)
-            const linkedCount = linkedAssetsCounts[testCase.id] ?? 0
+        {/* Table Body */}
+        {paginatedTestCases.map((testCase) => {
+          const isSelected = selectedIds.includes(testCase.id)
+          const linkedCount = linkedAssetsCounts[testCase.id] ?? 0
 
-            return (
-              <div
-                key={testCase.id}
-                className={`flex items-center border-b border-border last:border-b-0 transition-colors ${
-                  isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
-                }`}
-              >
-                {/* Checkbox - Sticky on md+ */}
-                <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 ${
-                  isSelected ? 'bg-primary/5' : 'bg-card'
-                }`}>
-                  {onSelectionChange && (
-                    <div
-                      role="checkbox"
-                      aria-checked={isSelected}
-                      onClick={(e) => handleToggleSelection(testCase.id, e)}
-                      className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
-                        isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
-                      }`}
-                    >
-                      {isSelected && (
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  )}
+          return (
+            <TableRow key={testCase.id} selected={isSelected}>
+              {/* Checkbox */}
+              <TableCheckbox
+                checked={isSelected}
+                selected={isSelected}
+                onCheckedChange={() => handleToggleSelection(testCase.id)}
+              />
+
+              {/* Title - Sticky */}
+              <TableCell sticky selected={isSelected} minWidth="min-w-[320px]">
+                <div 
+                  className="font-medium truncate cursor-help"
+                  title={testCase.title}
+                >
+                  {testCase.title}
                 </div>
+              </TableCell>
 
-                {/* Title - Sticky on md+ with shadow */}
-                <div className={`w-80 px-4 py-3 border-r border-border md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
-                  isSelected ? 'bg-primary/5' : 'bg-card'
-                }`}>
-                  <div 
-                    className="font-medium truncate cursor-help"
-                    title={testCase.title}
+              {/* Test Case ID */}
+              <TableCell>
+                <span className="text-sm text-muted-foreground font-mono">
+                  {testCase.id.slice(0, 8)}
+                </span>
+              </TableCell>
+
+              {/* Priority */}
+              <TableCell>
+                <Badge variant={getPriorityVariant(testCase.priority)} size="sm">
+                  {testCase.priority || 'None'}
+                </Badge>
+              </TableCell>
+
+              {/* Status */}
+              <TableCell>
+                <Badge variant={getStatusVariant(testCase.status)} size="sm">
+                  {testCase.status || 'Active'}
+                </Badge>
+              </TableCell>
+
+              {/* Last Result */}
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  {getResultIcon(testCase.last_result)}
+                  <span className="text-sm capitalize">
+                    {testCase.last_result || 'Not Run'}
+                  </span>
+                </div>
+              </TableCell>
+
+              {/* Assignee */}
+              <TableCell>
+                {testCase.assigned_to ? (
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-sm truncate">{testCase.assigned_to}</span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Unassigned</span>
+                )}
+              </TableCell>
+
+              {/* Module */}
+              <TableCell>
+                <span className="text-sm">{testCase.module || '—'}</span>
+              </TableCell>
+
+              {/* Type */}
+              <TableCell>
+                <span className="text-sm">{testCase.type || 'Manual'}</span>
+              </TableCell>
+
+              {/* Automated */}
+              <TableCell>
+                <span className="text-sm">{testCase.is_automated ? 'Yes' : 'No'}</span>
+              </TableCell>
+
+              {/* Linked Assets */}
+              <TableCell>
+                <div className="flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className={cn(
+                    "text-sm",
+                    linkedCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
+                  )}>
+                    {linkedCount > 0 ? `${linkedCount}` : 'None'}
+                  </span>
+                </div>
+              </TableCell>
+
+              {/* Created */}
+              <TableCell>
+                <span className="text-sm text-muted-foreground">
+                  {formatDate(testCase.created_at)}
+                </span>
+              </TableCell>
+
+              {/* Actions */}
+              <TableCell minWidth="min-w-[120px]">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleViewDetails(testCase, e)}
+                    className="p-2 rounded-lg hover:bg-muted transition-colors"
+                    title="View details"
                   >
-                    {testCase.title}
-                  </div>
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => onRun?.(testCase.id)}>
+                        <Play className="w-4 h-4" />
+                        Run Test
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onEdit?.(testCase.id)}>
+                        <Copy className="w-4 h-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onDuplicate?.(testCase.id)}>
+                        <Copy className="w-4 h-4" />
+                        Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onArchive?.(testCase.id)}>
+                        <Archive className="w-4 h-4" />
+                        Archive
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => onDelete?.(testCase.id)}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-
-                {/* Test Case ID */}
-                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
-                  <span className="text-sm text-muted-foreground font-mono">
-                    {testCase.id.slice(0, 8)}
-                  </span>
-                </div>
-
-                {/* Priority */}
-                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0 flex items-center">
-                  <Badge variant={getPriorityVariant(testCase.priority)} size="sm">
-                    {testCase.priority || 'None'}
-                  </Badge>
-                </div>
-
-                {/* Status */}
-                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0 flex items-center">
-                  <Badge variant={getStatusVariant(testCase.status)} size="sm">
-                    {testCase.status || 'Active'}
-                  </Badge>
-                </div>
-
-                {/* Last Result */}
-                <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    {getResultIcon(testCase.last_result)}
-                    <span className="text-sm capitalize">
-                      {testCase.last_result || 'Not Run'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Assignee */}
-                <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
-                  {testCase.assigned_to ? (
-                    <div className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-sm truncate">{testCase.assigned_to}</span>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">Unassigned</span>
-                  )}
-                </div>
-
-                {/* Module */}
-                <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
-                  <span className="text-sm">{testCase.module || '—'}</span>
-                </div>
-
-                {/* Type */}
-                <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
-                  <span className="text-sm">{testCase.type || 'Manual'}</span>
-                </div>
-
-                {/* Automated */}
-                <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
-                  <span className="text-sm">{testCase.is_automated ? 'Yes' : 'No'}</span>
-                </div>
-
-                {/* Linked Assets */}
-                <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className={cn(
-                      "text-sm",
-                      linkedCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
-                    )}>
-                      {linkedCount > 0 ? `${linkedCount}` : 'None'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Created */}
-                <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
-                  <span className="text-sm text-muted-foreground">
-                    {formatDate(testCase.created_at)}
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="w-32 px-4 py-3 flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => handleViewDetails(testCase, e)}
-                      className="p-2 rounded-lg hover:bg-muted transition-colors"
-                      title="View details"
-                    >
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                    
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="p-2 rounded-lg hover:bg-muted transition-colors">
-                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => onRun?.(testCase.id)}>
-                          <Play className="w-4 h-4" />
-                          Run Test
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit?.(testCase.id)}>
-                          <Copy className="w-4 h-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDuplicate?.(testCase.id)}>
-                          <Copy className="w-4 h-4" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onArchive?.(testCase.id)}>
-                          <Archive className="w-4 h-4" />
-                          Archive
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => onDelete?.(testCase.id)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </Table>
 
       {/* Pagination */}
       {testCases.length > 0 && (

@@ -1,12 +1,21 @@
 // ============================================
 // components/documents/DocumentsTable.tsx
-// Mobile: full scroll | Desktop: sticky checkbox & title
+// Using custom Table components with responsive behavior
 // ============================================
 'use client'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { Eye, FileText, ClipboardList, Target, Lightbulb, FileIcon, Share2, Archive, Trash2, MoreVertical } from 'lucide-react'
+import {
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  TableCell,
+  TableCheckbox,
+  TableAvatar,
+  TableEmpty,
+} from '@/components/ui/Table'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,6 +81,10 @@ export function DocumentsTable({
   onShare,
   onArchive
 }: DocumentsTableProps) {
+  const handleToggleSelection = (id: string) => {
+    onToggleSelect(id)
+  }
+
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
@@ -86,194 +99,158 @@ export function DocumentsTable({
 
   if (documents.length === 0) {
     return (
-      <div className="text-center py-8 text-sm text-muted-foreground">
-        No documents to display
-      </div>
+      <TableEmpty
+        title="No documents to display"
+        description="Create your first document to get started."
+      />
     )
   }
 
   return (
-    <div className="relative border border-border rounded-lg bg-card overflow-x-auto">
-      <div className="min-w-max">
-        {/* Table Header */}
-        <div className="flex bg-muted border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          <div className="w-12 px-4 py-2 border-r border-border flex items-center justify-center md:sticky md:left-0 bg-muted md:z-10">
-            {onSelectAll && (
-              <input
-                type="checkbox"
-                checked={selectedDocIds.length === documents.length && documents.length > 0}
-                onChange={onSelectAll}
-                className="w-4 h-4 rounded border-input text-primary focus:ring-2 focus:ring-primary transition-all cursor-pointer"
-              />
-            )}
-          </div>
-          <div className="w-80 px-4 py-2 border-r border-border md:sticky md:left-12 bg-muted md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-            Title
-          </div>
-          <div className="w-32 px-4 py-2 border-r border-border flex-shrink-0">Document ID</div>
-          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Type</div>
-          <div className="w-48 px-4 py-2 border-r border-border flex-shrink-0">Created By</div>
-          <div className="w-36 px-4 py-2 border-r border-border flex-shrink-0">Created</div>
-          <div className="w-40 px-4 py-2 border-r border-border flex-shrink-0">Last Modified</div>
-          <div className="w-32 px-4 py-2 flex-shrink-0">Actions</div>
-        </div>
+    <Table>
+      {/* Table Header */}
+      <TableHeader
+        columns={[
+          <TableHeaderCell key="title" sticky minWidth="min-w-[320px]">Title</TableHeaderCell>,
+          <TableHeaderCell key="id" minWidth="min-w-[120px]">Document ID</TableHeaderCell>,
+          <TableHeaderCell key="type" minWidth="min-w-[140px]">Type</TableHeaderCell>,
+          <TableHeaderCell key="creator" minWidth="min-w-[180px]">Created By</TableHeaderCell>,
+          <TableHeaderCell key="created" minWidth="min-w-[120px]">Created</TableHeaderCell>,
+          <TableHeaderCell key="modified" minWidth="min-w-[160px]">Last Modified</TableHeaderCell>,
+          <TableHeaderCell key="actions" minWidth="min-w-[120px]">Actions</TableHeaderCell>,
+        ]}
+      />
 
-        {/* Table Body */}
-        {documents.map((doc) => {
-          const isSelected = selectedDocIds.includes(doc.id)
-          const IconComponent = DOC_TYPE_ICONS[doc.file_type || 'general']
-          const iconColor = DOC_TYPE_COLORS[doc.file_type || 'general']
+      {/* Table Body */}
+      {documents.map((doc) => {
+        const isSelected = selectedDocIds.includes(doc.id)
+        const IconComponent = DOC_TYPE_ICONS[doc.file_type || 'general']
+        const iconColor = DOC_TYPE_COLORS[doc.file_type || 'general']
 
-          return (
-            <div
-              key={doc.id}
-              className={`flex items-center border-b border-border last:border-b-0 transition-colors ${
-                isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
-              }`}
-            >
-              {/* Checkbox - Sticky on md+ */}
-              <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 ${
-                isSelected ? 'bg-primary/5' : 'bg-card'
-              }`}>
-                <div
-                  role="checkbox"
-                  aria-checked={isSelected}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    onToggleSelect(doc.id)
-                  }}
-                  className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
-                    isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
-                  }`}
+        return (
+          <TableRow key={doc.id} selected={isSelected}>
+            {/* Checkbox */}
+            <TableCheckbox
+              checked={isSelected}
+              selected={isSelected}
+              onCheckedChange={() => handleToggleSelection(doc.id)}
+            />
+
+            {/* Title - Sticky */}
+            <TableCell sticky selected={isSelected} minWidth="min-w-[320px]">
+              <div className="flex items-center gap-3 min-w-0">
+                <IconComponent className={`w-5 h-5 flex-shrink-0 ${iconColor}`} />
+                <div 
+                  className="font-medium text-sm text-foreground truncate cursor-help"
+                  title={doc.title}
                 >
-                  {isSelected && (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
+                  {doc.title}
                 </div>
               </div>
+            </TableCell>
 
-              {/* Title - Sticky on md+ with shadow */}
-              <div className={`w-80 px-4 py-3 border-r border-border md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
-                isSelected ? 'bg-primary/5' : 'bg-card'
-              }`}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <IconComponent className={`w-5 h-5 flex-shrink-0 ${iconColor}`} />
-                  <div 
-                    className="font-medium text-sm text-foreground truncate cursor-help"
-                    title={doc.title}
-                  >
-                    {doc.title}
-                  </div>
-                </div>
-              </div>
+            {/* Document ID */}
+            <TableCell minWidth="min-w-[120px]">
+              <span className="text-sm text-muted-foreground font-mono">
+                {doc.id.slice(0, 8)}
+              </span>
+            </TableCell>
 
-              {/* Document ID */}
-              <div className="w-32 px-4 py-3 border-r border-border flex-shrink-0">
-                <span className="text-sm text-muted-foreground font-mono">
-                  {doc.id.slice(0, 8)}
+            {/* Type */}
+            <TableCell minWidth="min-w-[140px]">
+              <span className="text-sm text-foreground">
+                {DOC_TYPE_LABELS[doc.file_type || 'general']}
+              </span>
+            </TableCell>
+
+            {/* Created By */}
+            <TableCell minWidth="min-w-[180px]">
+              <div className="flex items-center gap-2 min-w-0">
+                <TableAvatar
+                  src={doc.creator?.avatar_url || undefined}
+                  alt={doc.creator?.name || 'Unknown'}
+                  fallback={doc.creator?.name?.charAt(0) || 'U'}
+                />
+                <span className="text-sm text-foreground truncate">
+                  {doc.creator?.name || 'Unknown'}
                 </span>
               </div>
+            </TableCell>
 
-              {/* Type */}
-              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
-                <span className="text-sm text-foreground">
-                  {DOC_TYPE_LABELS[doc.file_type || 'general']}
-                </span>
-              </div>
+            {/* Created */}
+            <TableCell minWidth="min-w-[120px]">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {formatDate(doc.created_at)}
+              </span>
+            </TableCell>
 
-              {/* Created By */}
-              <div className="w-48 px-4 py-3 border-r border-border flex-shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Avatar className="h-6 w-6 flex-shrink-0">
-                    <AvatarImage src={doc.creator?.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {doc.creator?.name?.charAt(0) || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm text-foreground truncate">
-                    {doc.creator?.name || 'Unknown'}
-                  </span>
-                </div>
-              </div>
+            {/* Last Modified */}
+            <TableCell minWidth="min-w-[160px]">
+              <span className="text-sm text-muted-foreground">
+                {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
+              </span>
+            </TableCell>
 
-              {/* Created */}
-              <div className="w-36 px-4 py-3 border-r border-border flex-shrink-0">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  {formatDate(doc.created_at)}
-                </span>
-              </div>
+            {/* Actions */}
+            <TableCell minWidth="min-w-[120px]">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpen(doc)
+                  }}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                  title="View document"
+                >
+                  <Eye className="w-4 h-4 text-muted-foreground" />
+                </button>
 
-              {/* Last Modified */}
-              <div className="w-40 px-4 py-3 border-r border-border flex-shrink-0">
-                <span className="text-sm text-muted-foreground">
-                  {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
-                </span>
-              </div>
-
-              {/* Actions */}
-              <div className="w-32 px-4 py-3 flex-shrink-0">
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onOpen(doc)
-                    }}
-                    className="p-2 rounded-lg hover:bg-muted transition-colors"
-                    title="View document"
-                  >
-                    <Eye className="w-4 h-4 text-muted-foreground" />
-                  </button>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="p-2 rounded-lg hover:bg-muted transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      {onShare && (
-                        <DropdownMenuItem onClick={() => onShare(doc)}>
-                          <Share2 className="w-4 h-4" />
-                          Share
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="p-2 rounded-lg hover:bg-muted transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {onShare && (
+                      <DropdownMenuItem onClick={() => onShare(doc)}>
+                        <Share2 className="w-4 h-4" />
+                        Share
+                      </DropdownMenuItem>
+                    )}
+                    
+                    {onArchive && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onArchive(doc)}>
+                          <Archive className="w-4 h-4" />
+                          Archive
                         </DropdownMenuItem>
-                      )}
-                      
-                      {onArchive && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => onArchive(doc)}>
-                            <Archive className="w-4 h-4" />
-                            Archive
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      
-                      {onDelete && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => onDelete(doc)}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                      </>
+                    )}
+                    
+                    {onDelete && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => onDelete(doc)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+            </TableCell>
+          </TableRow>
+        )
+      })}
+    </Table>
   )
 }
