@@ -1,5 +1,5 @@
 // ============================================
-// FILE: middleware.ts (EDGE-OPTIMIZED + RLS FIX)
+// FILE: middleware.ts (EDGE-OPTIMIZED + RLS FIX + API ROUTES)
 // System role + Organization role routing
 // ============================================
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
@@ -98,6 +98,12 @@ export async function middleware(request: NextRequest) {
   
   // Early return for bypass routes
   if (routeType === 'bypass') {
+    return NextResponse.next()
+  }
+
+  // CRITICAL: Allow API routes to handle their own authentication
+  // API routes should check auth internally and return proper JSON responses
+  if (path.startsWith('/api/')) {
     return NextResponse.next()
   }
 
@@ -316,12 +322,19 @@ export async function middleware(request: NextRequest) {
 │ PUBLIC                  │ ✓ Allow  │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
 │ AUTH (login/signup)     │ ✓ Allow  │ → dash   │ → dash      │ → admin          │
 │ BYPASS (callbacks)      │ ✓ Allow  │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
+│ API ROUTES (/api/*)     │ ✓ Allow  │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
 │ SHARED (onboarding)     │ → /login │ ✓ Allow  │ ✓ Allow     │ ✓ Bypass         │
 │ USER (/dashboard, etc)  │ → /login │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
 │ /org-admin/*            │ → /login │ ✗ Deny   │ ✓ Allow*    │ ✓ Allow          │
 │ /admin/* (system)       │ → /login │ ✗ Deny   │ ✗ Deny      │ ✓ Allow          │
 │ Unknown routes          │ → /login │ → dash   │ → dash      │ → admin          │
 └─────────────────────────┴──────────┴──────────┴─────────────┴──────────────────┘
+
+API ROUTES:
+-----------
+API routes (/api/*) are now excluded from middleware auth checks.
+They handle their own authentication and return proper JSON responses.
+This prevents redirect loops and HTML error pages.
 
 RLS TROUBLESHOOTING:
 --------------------
@@ -346,4 +359,7 @@ If you see "Profile not found" with RLS enabled:
 
 KEY FIX: This version calls getSession() before getUser() to ensure
 the auth context is fully established for RLS policies.
+
+API FIX: Added early return for /api/* routes to allow them to handle
+their own authentication and return proper JSON responses.
 */

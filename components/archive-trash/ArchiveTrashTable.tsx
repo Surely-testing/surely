@@ -1,5 +1,6 @@
 // ============================================
-// FILE: components/archive/ArchiveTrashTable.tsx
+// components/archive/ArchiveTrashTable.tsx
+// Using custom Table components with responsive behavior
 // ============================================
 'use client'
 
@@ -8,13 +9,12 @@ import { Tables } from '@/types/database.types'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Table,
+  TableHeader,
+  TableHeaderCell,
   TableRow,
   TableCell,
-  TableGrid,
   TableCheckbox,
   TableEmpty,
-  TableHeaderText,
-  TableDescriptionText,
 } from '@/components/ui/Table'
 
 type ArchivedItem = Tables<'archived_items'> & {
@@ -77,118 +77,140 @@ export function ArchiveTrashTable({
 
   return (
     <Table>
-      {/* Table Header */}
-      <div className="hidden lg:grid lg:grid-cols-5 gap-4 px-4 py-2 bg-muted/50 rounded-lg border border-border text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-        <div>Item</div>
-        <div>Type</div>
-        <div>{activeTab === 'archived' ? 'Archived By' : 'Deleted By'}</div>
-        <div>{activeTab === 'archived' ? 'Archived' : 'Deleted'}</div>
-        <div className="text-right">Actions</div>
-      </div>
+      {/* Table Header - Archived Tab */}
+      {activeTab === 'archived' && (
+        <TableHeader
+          columns={[
+            <TableHeaderCell key="item" sticky minWidth="min-w-[320px]">Item</TableHeaderCell>,
+            <TableHeaderCell key="type">Type</TableHeaderCell>,
+            <TableHeaderCell key="user">Archived By</TableHeaderCell>,
+            <TableHeaderCell key="date">Archived</TableHeaderCell>,
+            <TableHeaderCell key="actions" minWidth="min-w-[120px]">Actions</TableHeaderCell>,
+          ]}
+        />
+      )}
 
-      {/* Table Rows */}
+      {/* Table Header - Trash Tab */}
+      {activeTab === 'trash' && (
+        <TableHeader
+          columns={[
+            <TableHeaderCell key="item" sticky minWidth="min-w-[320px]">Item</TableHeaderCell>,
+            <TableHeaderCell key="type">Type</TableHeaderCell>,
+            <TableHeaderCell key="user">Deleted By</TableHeaderCell>,
+            <TableHeaderCell key="date">Deleted</TableHeaderCell>,
+            <TableHeaderCell key="expires">Expires</TableHeaderCell>,
+            <TableHeaderCell key="actions" minWidth="min-w-[120px]">Actions</TableHeaderCell>,
+          ]}
+        />
+      )}
+
+      {/* Table Body */}
       {items.map((item) => {
         const config = ASSET_CONFIG[item.asset_type as keyof typeof ASSET_CONFIG]
         const Icon = config?.icon || FileText
         const isSelected = selectedIds.includes(item.id)
         
-        // Type-safe way to get user and timestamp
         const isArchived = activeTab === 'archived'
         const user = isArchived ? (item as ArchivedItem).archiver : (item as TrashItem).deleter
         const timestamp = isArchived ? (item as ArchivedItem).archived_at : (item as TrashItem).deleted_at
         const expiresAt = isArchived ? null : (item as TrashItem).expires_at
 
         return (
-          <TableRow
-            key={item.id}
-            selected={isSelected}
-            selectable={true}
-          >
-            {/* Selection Checkbox */}
+          <TableRow key={item.id} selected={isSelected}>
+            {/* Checkbox */}
             <TableCheckbox
               checked={isSelected}
+              selected={isSelected}
               onCheckedChange={() => onToggleSelect(item.id)}
             />
 
-            <TableGrid columns={5}>
-              {/* Item Name Column */}
-              <TableCell>
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-5 h-5 ${config?.color} flex-shrink-0`} />
-                  <div className="min-w-0">
-                    <TableHeaderText>{getItemTitle(item)}</TableHeaderText>
-                    {expiresAt && (
-                      <TableDescriptionText className="flex items-center gap-1 text-orange-500 mt-1">
-                        <Clock className="w-3 h-3" />
-                        Expires {formatDate(expiresAt)}
-                      </TableDescriptionText>
-                    )}
+            {/* Item Name - Sticky */}
+            <TableCell sticky selected={isSelected} minWidth="min-w-[320px]">
+              <div className="flex items-center gap-3">
+                <Icon className={`w-5 h-5 ${config?.color} flex-shrink-0`} />
+                <div className="min-w-0">
+                  <div className="font-medium truncate" title={getItemTitle(item)}>
+                    {getItemTitle(item)}
                   </div>
                 </div>
-              </TableCell>
+              </div>
+            </TableCell>
 
-              {/* Type Column */}
-              <TableCell>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block ${config?.color} bg-current/10 border-current/20`}>
-                  {config?.label}
+            {/* Type */}
+            <TableCell>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-block ${config?.color} bg-current/10 border-current/20`}>
+                {config?.label}
+              </span>
+            </TableCell>
+
+            {/* User */}
+            <TableCell>
+              <div className="flex items-center gap-2">
+                {user?.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.name}
+                    className="w-6 h-6 rounded-full ring-1 ring-border"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary ring-1 ring-border">
+                    {user?.name?.charAt(0).toUpperCase() || '?'}
+                  </div>
+                )}
+                <span className="text-sm truncate">
+                  {user?.name || 'Unknown'}
                 </span>
-              </TableCell>
+              </div>
+            </TableCell>
 
-              {/* User Column */}
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  {user?.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt={user.name}
-                      className="w-6 h-6 rounded-full ring-1 ring-border"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary ring-1 ring-border">
-                      {user?.name?.charAt(0).toUpperCase() || '?'}
-                    </div>
-                  )}
-                  <span className="text-sm text-foreground truncate">
-                    {user?.name || 'Unknown'}
-                  </span>
-                </div>
-              </TableCell>
+            {/* Date */}
+            <TableCell>
+              <div className="text-sm">
+                {formatDate(timestamp)}
+              </div>
+            </TableCell>
 
-              {/* Date Column */}
+            {/* Expires (Trash only) */}
+            {activeTab === 'trash' && (
               <TableCell>
-                <div className="text-sm text-foreground">
-                  {formatDate(timestamp)}
-                </div>
+                {expiresAt ? (
+                  <div className="flex items-center gap-1.5 text-sm text-orange-500">
+                    <Clock className="w-3.5 h-3.5" />
+                    {formatDate(expiresAt)}
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
               </TableCell>
+            )}
 
-              {/* Actions Column */}
-              <TableCell>
-                <div className="flex items-center justify-end gap-2">
+            {/* Actions */}
+            <TableCell minWidth="min-w-[120px]">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRestore(item)
+                  }}
+                  className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  title="Restore"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                {activeTab === 'trash' && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      onRestore(item)
+                      onDelete(item as TrashItem)
                     }}
-                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                    title="Restore"
+                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
+                    title="Delete Permanently"
                   >
-                    <RotateCcw className="w-4 h-4" />
+                    <XCircle className="w-4 h-4" />
                   </button>
-                  {activeTab === 'trash' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDelete(item as TrashItem)
-                      }}
-                      className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
-                      title="Delete Permanently"
-                    >
-                      <XCircle className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </TableCell>
-            </TableGrid>
+                )}
+              </div>
+            </TableCell>
           </TableRow>
         )
       })}

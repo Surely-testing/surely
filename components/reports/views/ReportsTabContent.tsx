@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { ReportTable } from '@/components/reports/ReportsTable';
 import { Pagination } from '@/components/shared/Pagination';
 import { ReportWithCreator } from '@/types/report.types';
+import { ReportGrid } from '@/components/reports/ReportsGrid';
 
 type SortField = 'created_at' | 'name' | 'type' | 'status';
 type SortOrder = 'asc' | 'desc';
@@ -165,16 +166,29 @@ export function ReportsTabContent({
       {/* Content */}
       {filteredReports.length > 0 && (
         groupBy === 'none' ? (
-          <ReportTable
-            reports={paginatedReports}
-            onView={onView}
-            onRegenerate={onRegenerate}
-            onDelete={onDelete}
-            generatingId={generatingId}
-            viewMode={viewMode}
-            selectedReports={selectedReportIds}
-            onSelectionChange={onSelectionChange}
-          />
+          <>
+            {viewMode === 'grid' ? (
+              <ReportGrid
+                reports={paginatedReports}
+                onView={onView}
+                onRegenerate={onRegenerate}
+                onDelete={onDelete}
+                generatingId={generatingId}
+                selectedReports={selectedReportIds}
+                onSelectionChange={onSelectionChange}
+              />
+            ) : (
+              <ReportTable
+                reports={paginatedReports}
+                onView={onView}
+                onRegenerate={onRegenerate}
+                onDelete={onDelete}
+                generatingId={generatingId}
+                selectedReports={selectedReportIds}
+                onSelectionChange={onSelectionChange}
+              />
+            )}
+          </>
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedReports).map(([groupName, groupReports]) => (
@@ -183,24 +197,35 @@ export function ReportsTabContent({
                   <h3 className="text-sm font-semibold text-foreground uppercase">{groupName}</h3>
                   <span className="text-xs text-muted-foreground">({groupReports.length})</span>
                 </div>
-                <ReportTable
-                  reports={groupReports}
-                  onView={onView}
-                  onRegenerate={onRegenerate}
-                  onDelete={onDelete}
-                  generatingId={generatingId}
-                  viewMode={viewMode}
-                  selectedReports={selectedReportIds}
-                  onSelectionChange={onSelectionChange}
-                />
+                {viewMode === 'grid' ? (
+                  <ReportGrid
+                    reports={groupReports}
+                    onView={onView}
+                    onRegenerate={onRegenerate}
+                    onDelete={onDelete}
+                    generatingId={generatingId}
+                    selectedReports={selectedReportIds}
+                    onSelectionChange={onSelectionChange}
+                  />
+                ) : (
+                  <ReportTable
+                    reports={groupReports}
+                    onView={onView}
+                    onRegenerate={onRegenerate}
+                    onDelete={onDelete}
+                    generatingId={generatingId}
+                    selectedReports={selectedReportIds}
+                    onSelectionChange={onSelectionChange}
+                  />
+                )}
               </div>
             ))}
           </div>
         )
       )}
 
-      {/* Pagination */}
-      {groupBy === 'none' && filteredReports.length > itemsPerPage && (
+      {/* Pagination - only shown for table view when not grouped */}
+      {groupBy === 'none' && viewMode === 'table' && filteredReports.length > itemsPerPage && (
         <div className="mt-6">
           <Pagination
             currentPage={currentPage}

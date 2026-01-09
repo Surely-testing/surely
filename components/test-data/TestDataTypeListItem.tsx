@@ -1,13 +1,14 @@
+// ============================================
 // components/test-data/TestDataTypeListItem.tsx
+// Table row component - matches custom table format
+// ============================================
 'use client'
 
 import React from 'react'
 import { TestDataType } from '@/types/test-data'
 import { ICON_MAP, COLOR_MAP } from '@/lib/constants/test-data-constants'
 import { Database } from 'lucide-react'
-import { logger } from '@/lib/utils/logger';
 import { cn } from '@/lib/utils/cn'
-import { TableRow, TableGrid, TableCell, TableCheckbox, TableHeaderText, TableDescriptionText } from '@/components/ui/Table'
 
 interface TestDataTypeListItemProps {
   type: TestDataType
@@ -25,52 +26,75 @@ export default function TestDataTypeListItem({
   const TypeIcon = ICON_MAP[type.icon as keyof typeof ICON_MAP] || Database
   const iconColorClass = COLOR_MAP[type.color as keyof typeof COLOR_MAP] || COLOR_MAP.blue
 
-  // Debug: Log the type data
-  React.useEffect(() => {
-    logger.log('Type data:', type)
-  }, [type])
+  const handleToggleSelection = () => {
+    onSelect(type.id)
+  }
 
   return (
-    <TableRow
-      selected={isSelected}
-      selectable
+    <div
       onDoubleClick={() => onDoubleClick(type.id)}
-      className="cursor-pointer"
+      className={`flex items-center border-b border-border last:border-b-0 transition-colors cursor-pointer ${
+        isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+      }`}
     >
-      <TableCheckbox
-        checked={isSelected}
-        onCheckedChange={() => onSelect(type.id)}
-      />
-
-      <div className="flex items-center gap-4">
-        {/* Icon */}
-        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", iconColorClass)}>
-          <TypeIcon className="w-5 h-5" />
+      {/* Checkbox */}
+      <div className={`w-12 px-4 py-3 border-r border-border flex items-center justify-center md:sticky md:left-0 md:z-10 flex-shrink-0 ${
+        isSelected ? 'bg-primary/5' : 'bg-card'
+      }`}>
+        <div
+          role="checkbox"
+          aria-checked={isSelected}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            handleToggleSelection()
+          }}
+          className={`w-4 h-4 rounded border-2 border-border cursor-pointer transition-all flex items-center justify-center ${
+            isSelected ? 'bg-primary border-primary' : 'hover:border-primary/50'
+          }`}
+        >
+          {isSelected && (
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
         </div>
-
-        {/* Grid Layout for Content */}
-        <TableGrid columns={3}>
-          {/* Name & Description */}
-          <TableCell className="col-span-2">
-            <TableHeaderText>{type.name}</TableHeaderText>
-            <TableDescriptionText>
-              {type.description || 'No description'}
-            </TableDescriptionText>
-          </TableCell>
-
-          {/* Item Count */}
-          <TableCell className="text-right">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
-              <span className="text-sm font-medium text-foreground">
-                {type.item_count || 0}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {type.item_count === 1 ? 'item' : 'items'}
-              </span>
-            </div>
-          </TableCell>
-        </TableGrid>
       </div>
-    </TableRow>
+
+      {/* Icon & Name & Description */}
+      <div className={`flex-1 px-4 py-3 border-r border-border text-sm text-foreground min-w-0 md:sticky md:left-12 md:z-10 md:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] flex-shrink-0 ${
+        isSelected ? 'bg-primary/5' : 'bg-card'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", iconColorClass)}>
+            <TypeIcon className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm text-foreground truncate">
+              {type.name}
+            </div>
+            <div className="text-xs text-muted-foreground truncate mt-0.5">
+              {type.description || 'No description'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Item Count */}
+      <div className={`w-32 px-4 py-3 flex-shrink-0 ${
+        isSelected ? 'bg-primary/5' : 'bg-card'
+      }`}>
+        <div className="flex items-center justify-end">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted">
+            <span className="text-sm font-medium text-foreground">
+              {type.item_count || 0}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {type.item_count === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

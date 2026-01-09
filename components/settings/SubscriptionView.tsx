@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Check, AlertCircle, Download, RefreshCw, CreditCard, Loader2 } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Check, AlertCircle, Download, RefreshCw, CreditCard, Loader2, X, AlertTriangle } from 'lucide-react'
 import { useSupabase } from '@/providers/SupabaseProvider'
+import { toast } from 'sonner'
 
 interface SubscriptionViewProps {
   userId: string
@@ -18,31 +18,49 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
   const [tiers, setTiers] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
 
   useEffect(() => {
     fetchData()
+    
+    // Check if returning from payment method update
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.get('payment_updated') === 'true') {
+      toast.success('Payment method updated successfully!')
+      // Clean up URL
+      window.history.replaceState({}, '', '/settings/billing')
+    }
   }, [userId])
 
   const fetchData = async () => {
     setLoading(true)
     try {
-      // Fetch subscription with tier
+      // FIXED: Separate queries for subscription and tier
       const { data: subData, error: subError } = await supabase
         .from('subscriptions')
-        .select(`
-          *,
-          tier:tier_id (*)
-        `)
+        .select('*')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (subError && subError.code !== 'PGRST116') {
         console.error('Subscription fetch error:', subError)
-      } else {
-        setSubscription(subData)
+        toast.error('Failed to load subscription data')
       }
+
+      // If subscription exists, fetch the tier separately
+      let tierData = null
+      if (subData?.tier_id) {
+        const { data: tier } = await supabase
+          .from('subscription_tiers')
+          .select('*')
+          .eq('id', subData.tier_id)
+          .single()
+        
+        tierData = tier
+      }
+
+      setSubscription(subData ? { ...subData, tier: tierData } : null)
 
       // Fetch all tiers
       const { data: tiersData, error: tiersError } = await supabase
@@ -52,6 +70,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
 
       if (tiersError) {
         console.error('Tiers fetch error:', tiersError)
+        toast.error('Failed to load pricing tiers')
       } else {
         setTiers(tiersData || [])
       }
@@ -69,20 +88,77 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
       } else {
         setPayments(paymentsData || [])
       }
+
+      // Show status toasts based on subscription state
+      if (subData) {
+        const status = subData.status
+        const trialEnd = subData.trial_end
+        const trialDays = trialEnd ? Math.ceil((new Date(trialEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0
+
+        if (status === 'trialing' && trialDays > 0 && trialDays <= 3) {
+          toast.warning(`Your trial ends in ${trialDays} day${trialDays === 1 ? '' : 's'}!`, {
+            description: 'Subscribe now to avoid losing access to premium features.'
+          })
+        } else if (status === 'past_due') {
+          toast.error('Payment failed', {
+            description: 'Please update your payment method to continue using your plan.'
+          })
+        } else if (status === 'on_hold') {
+          toast.error('Subscription on hold', {
+            description: 'Update your payment method to reactivate your subscription.'
+          })
+        }
+      }
     } catch (err) {
       console.error('Error fetching data:', err)
+      toast.error('Failed to load billing information')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleCancelSubscription = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription? You\'ll lose access at the end of your billing period.')) {
-      return
-    }
+  const handleSubscribe = async (tierId: string, billingCycle: 'monthly' | 'yearly') => {
+    setActionLoading(tierId)
 
-    setActionLoading(true)
-    setError('')
+    try {
+      const response = await fetch('/api/billing/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tierId, billingCycle })
+      })
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text()
+        console.error('Non-JSON response:', text)
+        throw new Error('Server error: Please check if the API route exists')
+      }
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout')
+      }
+
+      // Redirect to checkout URL
+      if (data.checkoutUrl) {
+        toast.success('Redirecting to checkout...')
+        window.location.href = data.checkoutUrl
+      } else {
+        throw new Error('No checkout URL received')
+      }
+
+    } catch (err: any) {
+      console.error('Checkout error:', err)
+      toast.error(err.message || 'Failed to create checkout session')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    setActionLoading('cancel')
 
     try {
       const response = await fetch('/api/billing/cancel-subscription', {
@@ -97,18 +173,22 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         throw new Error(data.error || 'Failed to cancel subscription')
       }
 
-      await fetchData()
-      alert('Subscription cancelled. You\'ll have access until the end of your billing period.')
+      toast.success('Subscription cancelled', {
+        description: 'You will have access until the end of your billing period.'
+      })
+
+      setShowCancelDialog(false)
+      await fetchData() // Refresh data
     } catch (err: any) {
-      setError(err.message)
+      console.error('Cancel error:', err)
+      toast.error(err.message || 'Failed to cancel subscription')
     } finally {
-      setActionLoading(false)
+      setActionLoading(null)
     }
   }
 
   const handleReactivateSubscription = async () => {
-    setActionLoading(true)
-    setError('')
+    setActionLoading('reactivate')
 
     try {
       const response = await fetch('/api/billing/reactivate-subscription', {
@@ -123,18 +203,21 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         throw new Error(data.error || 'Failed to reactivate subscription')
       }
 
-      await fetchData()
-      alert('Subscription reactivated successfully!')
+      toast.success('Subscription reactivated!', {
+        description: 'Your subscription will continue at the end of the current period.'
+      })
+
+      await fetchData() // Refresh data
     } catch (err: any) {
-      setError(err.message)
+      console.error('Reactivate error:', err)
+      toast.error(err.message || 'Failed to reactivate subscription')
     } finally {
-      setActionLoading(false)
+      setActionLoading(null)
     }
   }
 
   const handleUpdatePaymentMethod = async () => {
-    setActionLoading(true)
-    setError('')
+    setActionLoading('payment')
 
     try {
       const response = await fetch('/api/billing/update-payment-method', {
@@ -142,23 +225,35 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           userId,
-          returnUrl: window.location.href
+          returnUrl: `${window.location.origin}/settings/billing?payment_updated=true`
         })
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to update payment method')
+        throw new Error(data.error || 'Failed to get update URL')
       }
 
+      // Redirect to payment method update page
       if (data.updateUrl) {
+        toast.success('Redirecting to update payment method...')
         window.location.href = data.updateUrl
+      } else {
+        throw new Error('No update URL received')
       }
+
     } catch (err: any) {
-      setError(err.message)
-      setActionLoading(false)
+      console.error('Payment method update error:', err)
+      toast.error(err.message || 'Failed to update payment method')
+    } finally {
+      setActionLoading(null)
     }
+  }
+
+  const handleContactSales = () => {
+    // Redirect to contact sales page or open modal
+    window.location.href = '/contact-sales'
   }
 
   if (loading) {
@@ -185,55 +280,11 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
     ? Math.ceil((new Date(subscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0
 
+  const canCancelSubscription = (isActive || isTrialing) && !isCancelled
+
   return (
     <div className="space-y-6">
-      {/* Status Alerts */}
-      {isTrialing && trialDaysRemaining > 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            You're currently on a <strong>14-day free trial</strong> of the {currentTier?.name} plan. 
-            {trialDaysRemaining} days remaining. No payment required until {new Date(subscription.trial_end).toLocaleDateString()}.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isFreeState && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            You're currently on the <strong>Free tier</strong> with limited access. 
-            Choose a plan below to unlock all features with a 14-day free trial.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isPastDue && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Your payment failed. Please update your payment method to continue using {currentTier?.name}.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isOnHold && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Your subscription is on hold. Please update your payment method to reactivate.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Current Plan Card */}
+      {/* Current Plan */}
       <Card>
         <CardHeader>
           <CardTitle>Current Plan</CardTitle>
@@ -246,10 +297,10 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                 <h3 className="text-2xl font-bold capitalize">
                   {isFreeState ? 'Free Tier' : `${currentTier?.name} Plan`}
                 </h3>
-                {!isFreeState && currentTier?.price_monthly > 0 && (
+                {!isFreeState && currentTier?.price_monthly && currentTier.price_monthly > 0 && (
                   <p className="text-muted-foreground">
                     ${(currentTier.price_monthly / 100).toFixed(2)}/month
-                    {subscription?.billing_cycle === 'yearly' && (
+                    {subscription?.billing_cycle === 'yearly' && currentTier?.price_yearly && (
                       <span className="ml-2 text-sm">
                         (billed ${(currentTier.price_yearly / 100).toFixed(2)}/year)
                       </span>
@@ -261,18 +312,43 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                 variant={
                   isActive ? 'default' : 
                   isTrialing ? 'primary' : 
-                  isCancelled ? 'default' : 
                   isPastDue || isOnHold ? 'danger' : 
                   'default'
                 }
               >
-                {isTrialing ? `Trial (${trialDaysRemaining}d left)` : 
-                 isFreeState ? 'Free Tier' : 
+                {isTrialing ? `Trial (${trialDaysRemaining}d)` : 
+                 isFreeState ? 'Free' : 
+                 isCancelled ? 'Cancelling' :
                  status}
               </Badge>
             </div>
 
-            {/* Billing Period Info */}
+            {/* Cancellation Warning */}
+            {isCancelled && subscription?.current_period_end && (
+              <div className="flex items-start gap-3 p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-orange-900 dark:text-orange-100">
+                    Subscription Ending
+                  </p>
+                  <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                    Your subscription will end on {new Date(subscription.current_period_end).toLocaleDateString()}. 
+                    You'll still have access until then.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={handleReactivateSubscription}
+                    disabled={actionLoading === 'reactivate'}
+                  >
+                    {actionLoading === 'reactivate' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Reactivate Subscription
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {subscription?.current_period_end && !isFreeState && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
                 <div>
@@ -283,7 +359,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">
-                    {isCancelled ? 'Access Until' : 'Next Billing Date'}
+                    {isCancelled ? 'Access Until' : 'Next Billing'}
                   </p>
                   <p className="font-medium">
                     {new Date(subscription.current_period_end).toLocaleDateString()}
@@ -292,134 +368,142 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
               </div>
             )}
 
-            {/* Plan Features */}
-            <div className="pt-4 border-t">
-              <h4 className="font-medium mb-3">
-                {isFreeState ? 'Free Tier Limits' : 'Current Plan Features'}
-              </h4>
-              <ul className="space-y-2">
-                {isFreeState ? (
-                  <>
-                    <li className="flex items-center text-sm text-muted-foreground">
-                      <Check className="h-4 w-4 mr-2" />
-                      1 test suite
-                    </li>
-                    <li className="flex items-center text-sm text-muted-foreground">
-                      <Check className="h-4 w-4 mr-2" />
-                      10 test cases per suite
-                    </li>
-                    <li className="flex items-center text-sm text-muted-foreground">
-                      <Check className="h-4 w-4 mr-2" />
-                      Basic features only
-                    </li>
-                  </>
-                ) : (
-                  <>
-                    <li className="flex items-center text-sm">
-                      <Check className="h-4 w-4 mr-2 text-primary" />
-                      {currentTier?.limits?.test_suites === -1 
-                        ? 'Unlimited test suites' 
-                        : `Up to ${currentTier?.limits?.test_suites} test suites`}
-                    </li>
-                    <li className="flex items-center text-sm">
-                      <Check className="h-4 w-4 mr-2 text-primary" />
-                      {currentTier?.limits?.test_cases_per_suite === -1 
-                        ? 'Unlimited test cases per suite' 
-                        : `${currentTier?.limits?.test_cases_per_suite} test cases per suite`}
-                    </li>
-                    {currentTier?.limits?.ai_features && (
-                      <li className="flex items-center text-sm">
-                        <Check className="h-4 w-4 mr-2 text-primary" />
-                        AI-powered features
-                      </li>
-                    )}
-                    {currentTier?.limits?.has_collaboration && (
-                      <li className="flex items-center text-sm">
-                        <Check className="h-4 w-4 mr-2 text-primary" />
-                        Team collaboration
-                      </li>
-                    )}
-                    {currentTier?.limits?.support_response_hours !== undefined && (
-                      <li className="flex items-center text-sm">
-                        <Check className="h-4 w-4 mr-2 text-primary" />
-                        {currentTier.limits.support_response_hours === 0 
-                          ? '24/7 premium support'
-                          : currentTier.limits.support_response_hours === -1
-                          ? 'Community support'
-                          : `${currentTier.limits.support_response_hours}hr support response`}
-                      </li>
-                    )}
-                  </>
-                )}
-              </ul>
-            </div>
-
             {/* Action Buttons */}
-            <div className="pt-4 flex flex-wrap gap-2">
-              {(isActive || isTrialing) && !isCancelled && (
-                <>
-                  <Button 
-                    onClick={handleUpdatePaymentMethod}
-                    disabled={actionLoading}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Update Payment Method
-                  </Button>
-                  <Button 
-                    onClick={handleCancelSubscription}
-                    disabled={actionLoading}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel Subscription
-                  </Button>
-                </>
-              )}
-              
-              {isCancelled && subscription?.current_period_end && (
-                <Button 
-                  onClick={handleReactivateSubscription}
-                  disabled={actionLoading}
-                  className="w-full"
+            {canCancelSubscription && (
+              <div className="pt-4 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCancelDialog(true)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/10"
                 >
-                  {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Reactivate Subscription
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel Subscription
                 </Button>
-              )}
-              
-              {(isPastDue || isOnHold) && (
-                <Button 
-                  onClick={handleUpdatePaymentMethod}
-                  disabled={actionLoading}
-                  className="w-full"
-                >
-                  {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Update Payment Method
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Payment History Card */}
+      {/* Cancel Confirmation Dialog */}
+      {showCancelDialog && (
+        <Card className="border-2 border-red-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-900 dark:text-red-100">
+              <AlertTriangle className="w-5 h-5" />
+              Cancel Subscription?
+            </CardTitle>
+            <CardDescription>
+              Are you sure you want to cancel your subscription?
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-lg">
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-start gap-2">
+                  <X className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                  <span>You'll lose access to premium features at the end of your billing period</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>You can reactivate anytime before then</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>No charges after {subscription?.current_period_end && new Date(subscription.current_period_end).toLocaleDateString()}</span>
+                </li>
+              </ul>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowCancelDialog(false)}
+                disabled={!!actionLoading}
+                className="flex-1"
+              >
+                Keep Subscription
+              </Button>
+              <Button
+                variant="error"
+                onClick={handleCancelSubscription}
+                disabled={actionLoading === 'cancel'}
+                className="flex-1"
+              >
+                {actionLoading === 'cancel' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Yes, Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Method */}
+      {!isFreeState && subscription && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment Method</CardTitle>
+            <CardDescription>Manage your payment information</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-4">
+                <div className="p-2 rounded-lg bg-muted">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-medium">Payment Method on File</p>
+                  <p className="text-sm text-muted-foreground">
+                    {subscription.payment_method_last4 ? (
+                      <>
+                        {subscription.payment_method_brand && (
+                          <span className="capitalize">{subscription.payment_method_brand} </span>
+                        )}
+                        •••• •••• •••• {subscription.payment_method_last4}
+                      </>
+                    ) : (
+                      'Managed by payment provider'
+                    )}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUpdatePaymentMethod}
+                disabled={actionLoading === 'payment'}
+              >
+                {actionLoading === 'payment' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Update
+              </Button>
+            </div>
+            {(isPastDue || isOnHold) && (
+              <div className="mt-4 flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-red-900 dark:text-red-100">
+                    Payment Issue
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                    Your last payment failed. Please update your payment method to continue your subscription.
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment History */}
       {payments.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Payment History</CardTitle>
-                <CardDescription>Your recent transactions</CardDescription>
+                <CardDescription>Recent transactions</CardDescription>
               </div>
-              <Button
-                onClick={fetchData}
-                variant="outline"
-                size="sm"
-              >
+              <Button onClick={fetchData} variant="outline" size="sm">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
@@ -430,7 +514,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
               {payments.map((payment) => (
                 <div
                   key={payment.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                  className="flex items-center justify-between p-4 border rounded-lg"
                 >
                   <div className="flex items-center gap-4">
                     <div className={`p-2 rounded-lg ${
@@ -439,9 +523,9 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                         : 'bg-red-100 dark:bg-red-900/20'
                     }`}>
                       {payment.status === 'succeeded' ? (
-                        <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        <Check className="w-5 h-5 text-green-600" />
                       ) : (
-                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                        <AlertCircle className="w-5 h-5 text-red-600" />
                       )}
                     </div>
                     <div>
@@ -463,25 +547,21 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         </Card>
       )}
 
-      {/* Available Plans Card */}
+      {/* Available Plans */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            {isFreeState ? 'Choose Your Plan' : 'Available Plans'}
-          </CardTitle>
+          <CardTitle>{isFreeState ? 'Choose Your Plan' : 'Available Plans'}</CardTitle>
           <CardDescription>
-            {isFreeState 
-              ? 'Start your 14-day free trial - no credit card required'
-              : 'Upgrade or downgrade your subscription'
-            }
+            {isFreeState ? 'Start your 14-day free trial' : 'Upgrade or change your plan'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {tiers
-              .filter((tier: any) => tier.name !== 'Free' && tier.name !== 'Enterprise')
+              .filter((tier: any) => tier.name.toLowerCase() !== 'free')
               .map((tier: any) => {
                 const isCurrentPlan = tier.id === currentTier?.id && !isFreeState
+                const isEnterprise = tier.name.toLowerCase() === 'enterprise'
                 
                 return (
                   <Card 
@@ -492,84 +572,103 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                       <div className="flex items-start justify-between">
                         <CardTitle className="capitalize">{tier.name}</CardTitle>
                         {tier.name.toLowerCase() === 'pro' && (
-                          <Badge variant="primary">Most Popular</Badge>
+                          <Badge variant="primary">Popular</Badge>
                         )}
                       </div>
                       <div className="space-y-1">
-                        <div className="text-3xl font-bold">
-                          ${(tier.price_monthly / 100).toFixed(0)}
-                          <span className="text-sm font-normal text-muted-foreground">/mo</span>
-                        </div>
-                        {tier.price_yearly && (
-                          <p className="text-sm text-muted-foreground">
-                            or ${(tier.price_yearly / 100).toFixed(0)}/year (save 17%)
-                          </p>
+                        {isEnterprise ? (
+                          <div className="text-3xl font-bold">Custom</div>
+                        ) : (
+                          <>
+                            <div className="text-3xl font-bold">
+                              ${tier.price_monthly ? (tier.price_monthly / 100).toFixed(0) : '0'}
+                              <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                            </div>
+                            {tier.price_yearly && (
+                              <p className="text-sm text-muted-foreground">
+                                or ${(tier.price_yearly / 100).toFixed(0)}/year (save 17%)
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <ul className="space-y-2 text-sm">
                         <li className="flex items-center">
-                          <Check className="h-4 w-4 mr-2 text-primary" />
-                          {tier.limits.test_suites === -1 
-                            ? 'Unlimited' 
-                            : `Up to ${tier.limits.test_suites}`} test suites
+                          <Check className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
+                          {tier.limits?.test_suites === -1 ? 'Unlimited' : tier.limits?.test_suites || '∞'} test suites
                         </li>
                         <li className="flex items-center">
-                          <Check className="h-4 w-4 mr-2 text-primary" />
-                          {tier.limits.test_cases_per_suite} test cases per suite
+                          <Check className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
+                          {tier.limits?.test_cases_per_suite === -1 ? 'Unlimited' : tier.limits?.test_cases_per_suite || '∞'} test cases/suite
                         </li>
-                        {tier.limits.ai_features && (
+                        {tier.limits?.ai_features && (
                           <li className="flex items-center">
-                            <Check className="h-4 w-4 mr-2 text-primary" />
+                            <Check className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
                             AI-powered features
                           </li>
                         )}
-                        {tier.limits.has_collaboration && (
+                        {tier.limits?.has_collaboration && (
                           <li className="flex items-center">
-                            <Check className="h-4 w-4 mr-2 text-primary" />
+                            <Check className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
                             Team collaboration
                           </li>
                         )}
-                        <li className="flex items-center">
-                          <Check className="h-4 w-4 mr-2 text-primary" />
-                          {tier.limits.support_response_hours === 0 
-                            ? '24/7 premium support'
-                            : `${tier.limits.support_response_hours}hr support`}
-                        </li>
+                        {isEnterprise && (
+                          <>
+                            <li className="flex items-center">
+                              <Check className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
+                              Dedicated support
+                            </li>
+                            <li className="flex items-center">
+                              <Check className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
+                              Custom integrations
+                            </li>
+                            <li className="flex items-center">
+                              <Check className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
+                              SLA guarantees
+                            </li>
+                          </>
+                        )}
                       </ul>
-                      <Button 
-                        className="w-full"
-                        variant={isCurrentPlan ? 'ghost' : 'outline'}
-                        disabled={isCurrentPlan}
-                      >
-                        {isCurrentPlan 
-                          ? 'Current Plan' 
-                          : isFreeState 
-                          ? 'Start Free Trial' 
-                          : tier.price_monthly > (currentTier?.price_monthly || 0)
-                          ? 'Upgrade'
-                          : 'Downgrade'}
-                      </Button>
+                      <div className="space-y-2">
+                        {isEnterprise ? (
+                          <Button 
+                            className="w-full"
+                            variant="outline"
+                            onClick={handleContactSales}
+                          >
+                            Contact Sales
+                          </Button>
+                        ) : (
+                          <>
+                            <Button 
+                              className="w-full"
+                              variant={isCurrentPlan ? 'ghost' : 'primary'}
+                              disabled={isCurrentPlan || !!actionLoading}
+                              onClick={() => handleSubscribe(tier.id, 'monthly')}
+                            >
+                              {actionLoading === tier.id && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                              {isCurrentPlan ? 'Current Plan' : isFreeState ? 'Start Trial' : 'Subscribe Monthly'}
+                            </Button>
+                            {tier.price_yearly && !isCurrentPlan && (
+                              <Button 
+                                className="w-full"
+                                variant="outline"
+                                disabled={!!actionLoading}
+                                onClick={() => handleSubscribe(tier.id, 'yearly')}
+                              >
+                                Subscribe Yearly (Save 17%)
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 )
               })}
-          </div>
-
-          {/* Enterprise Option */}
-          <div className="mt-6 p-6 border rounded-lg bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">Enterprise</h3>
-                <p className="text-sm text-muted-foreground">
-                  Custom solutions for large organizations
-                </p>
-              </div>
-              <Button variant="outline">
-                Contact Sales
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>

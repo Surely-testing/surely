@@ -8,6 +8,7 @@ import { Filter } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ScheduleTable } from '@/components/reports/ScheduleTable';
 import { ReportScheduleWithReport } from '@/types/report.types';
+import { ScheduleGrid } from '@/components/reports/ScheduleGrid';
 
 type ViewMode = 'grid' | 'table';
 
@@ -91,16 +92,29 @@ export function SchedulesTabContent({
   return (
     <div className="pt-6">
       {filteredSchedules.length > 0 && (
-        <ScheduleTable
-          schedules={filteredSchedules}
-          onToggle={onToggle}
-          onDelete={onDelete}
-          onRunNow={onRunNow}
-          onEdit={onEdit}
-          viewMode={viewMode}
-          selectedSchedules={selectedScheduleIds}
-          onSelectionChange={onSelectionChange}
-        />
+        <>
+          {viewMode === 'grid' ? (
+            <ScheduleGrid
+              schedules={filteredSchedules}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              onRunNow={onRunNow}
+              onEdit={onEdit}
+              selectedSchedules={selectedScheduleIds}
+              onSelectionChange={onSelectionChange}
+            />
+          ) : (
+            <ScheduleTable
+              schedules={filteredSchedules}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              onRunNow={onRunNow}
+              onEdit={onEdit}
+              selectedSchedules={selectedScheduleIds}
+              onSelectionChange={onSelectionChange}
+            />
+          )}
+        </>
       )}
     </div>
   );

@@ -1,19 +1,19 @@
 // ============================================
 // components/suites/SuiteMembersList.tsx
+// Using custom Table components with responsive behavior
 // ============================================
 'use client';
 
 import React, { useState } from 'react';
 import {
   Table,
+  TableHeader,
+  TableHeaderCell,
   TableRow,
-  TableGrid,
   TableCell,
   TableEmpty,
-  TableHeaderText,
-  TableDescriptionText,
+  TableAvatar,
 } from '@/components/ui/Table';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useUpdateMemberRole, useRemoveMember } from '@/lib/hooks/useMembers';
 import { SuiteMember } from '@/types/member.types';
@@ -52,60 +52,74 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
 
   return (
     <Table>
+      {/* Table Header */}
+      <TableHeader
+        columns={[
+          <TableHeaderCell key="member" minWidth="min-w-[240px]">Member</TableHeaderCell>,
+          <TableHeaderCell key="role" minWidth="min-w-[140px]">Role</TableHeaderCell>,
+          <TableHeaderCell key="actions" minWidth="min-w-[140px]" className="text-right">Actions</TableHeaderCell>,
+        ]}
+      />
+
+      {/* Table Body */}
       {members.map((member) => (
         <TableRow key={member.id}>
-          <TableGrid columns={3}>
-            <TableCell className="col-span-1">
-              <div className="flex items-center gap-3">
-                {member.avatar_url ? (
-                  <img
-                    src={member.avatar_url}
-                    alt={member.name}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                    <span className="text-primary-foreground font-semibold">
-                      {member.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <TableHeaderText>{member.name}</TableHeaderText>
-                  <TableDescriptionText>{member.email}</TableDescriptionText>
-                </div>
-              </div>
-            </TableCell>
+          {/* No checkbox column - just skip it */}
+          <div className="w-12 border-r border-border bg-card" />
 
-            <TableCell>
-              {editingMember === member.id ? (
-                <select
-                  value={member.role}
-                  onChange={(e) => handleRoleChange(member.id, e.target.value as 'admin' | 'member')}
-                  className="w-32 px-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-                  disabled={updateRoleMutation.isPending}
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
-              ) : (
-                <Badge variant={member.role === 'admin' ? 'warning' : 'default'}>
+          {/* Member */}
+          <TableCell minWidth="min-w-[240px]">
+            <div className="flex items-center gap-3">
+              <TableAvatar
+                src={member.avatar_url || undefined}
+                alt={member.name}
+                fallback={member.name.charAt(0).toUpperCase()}
+              />
+              <div className="min-w-0">
+                <div className="font-medium text-sm">{member.name}</div>
+                <div className="text-xs text-muted-foreground truncate">{member.email}</div>
+              </div>
+            </div>
+          </TableCell>
+
+          {/* Role */}
+          <TableCell minWidth="min-w-[140px]">
+            {editingMember === member.id ? (
+              <select
+                value={member.role}
+                onChange={(e) => handleRoleChange(member.id, e.target.value as 'admin' | 'member')}
+                className="w-32 px-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                disabled={updateRoleMutation.isPending}
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            ) : (
+              <div className="flex items-center h-full py-1">
+                <div className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap w-24 ${
+                  member.role === 'admin' 
+                    ? 'bg-yellow-400 text-yellow-900' 
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
                   {member.role === 'admin' ? (
                     <>
-                      <Crown className="w-3 h-3 mr-1" />
-                      Admin
+                      <Crown className="w-3.5 h-3.5" />
+                      <span>Admin</span>
                     </>
                   ) : (
                     <>
-                      <User className="w-3 h-3 mr-1" />
-                      Member
+                      <User className="w-3.5 h-3.5" />
+                      <span>Member</span>
                     </>
                   )}
-                </Badge>
-              )}
-            </TableCell>
+                </div>
+              </div>
+            )}
+          </TableCell>
 
-            <TableCell className="flex justify-end gap-2">
+          {/* Actions */}
+          <TableCell minWidth="min-w-[140px]">
+            <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -122,8 +136,8 @@ export function SuiteMembersList({ members, suiteId }: SuiteMembersListProps) {
               >
                 <Trash className="w-4 h-4 text-error" />
               </Button>
-            </TableCell>
-          </TableGrid>
+            </div>
+          </TableCell>
         </TableRow>
       ))}
     </Table>

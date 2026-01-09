@@ -13,14 +13,6 @@ import { ArchiveTrashTable } from './ArchiveTrashTable'
 import { BulkActionsBar, type BulkAction, type ActionOption } from '@/components/shared/bulk-action/BulkActionBar'
 import { Pagination } from '@/components/shared/Pagination'
 import { Tables } from '@/types/database.types'
-import { Button } from '@/components/ui/Button'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/Select'
 
 interface ArchiveTrashViewProps {
     suiteId: string
