@@ -1060,6 +1060,68 @@ export type Database = {
           },
         ]
       }
+      environments: {
+        Row: {
+          base_url: string
+          created_at: string | null
+          created_by: string
+          credentials: Json | null
+          description: string | null
+          headers: Json | null
+          id: string
+          is_active: boolean
+          name: string
+          suite_id: string
+          timeout_seconds: number | null
+          type: string
+          updated_at: string | null
+          variables: Json | null
+          viewport: Json | null
+        }
+        Insert: {
+          base_url: string
+          created_at?: string | null
+          created_by: string
+          credentials?: Json | null
+          description?: string | null
+          headers?: Json | null
+          id?: string
+          is_active?: boolean
+          name: string
+          suite_id: string
+          timeout_seconds?: number | null
+          type?: string
+          updated_at?: string | null
+          variables?: Json | null
+          viewport?: Json | null
+        }
+        Update: {
+          base_url?: string
+          created_at?: string | null
+          created_by?: string
+          credentials?: Json | null
+          description?: string | null
+          headers?: Json | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          suite_id?: string
+          timeout_seconds?: number | null
+          type?: string
+          updated_at?: string | null
+          variables?: Json | null
+          viewport?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "environments_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           created_at: string | null
@@ -1707,6 +1769,8 @@ export type Database = {
           dodo_subscription_id: string | null
           had_paid_plan: boolean | null
           id: string
+          payment_method_brand: string | null
+          payment_method_last4: string | null
           previous_tier_id: string | null
           status: string
           stripe_customer_id: string | null
@@ -1728,6 +1792,8 @@ export type Database = {
           dodo_subscription_id?: string | null
           had_paid_plan?: boolean | null
           id?: string
+          payment_method_brand?: string | null
+          payment_method_last4?: string | null
           previous_tier_id?: string | null
           status?: string
           stripe_customer_id?: string | null
@@ -1749,6 +1815,8 @@ export type Database = {
           dodo_subscription_id?: string | null
           had_paid_plan?: boolean | null
           id?: string
+          payment_method_brand?: string | null
+          payment_method_last4?: string | null
           previous_tier_id?: string | null
           status?: string
           stripe_customer_id?: string | null

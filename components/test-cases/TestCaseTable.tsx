@@ -1,11 +1,10 @@
 // ============================================
 // components/test-cases/TestCaseTable.tsx
-// Using custom Table components with responsive behavior
+// Updated with Test Execution Integration
 // ============================================
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { logger } from '@/lib/utils/logger';
 import { 
   MoreVertical, 
   TestTube, 
@@ -19,7 +18,8 @@ import {
   Trash2,
   Clock,
   Link2,
-  Eye
+  Eye,
+  Edit
 } from 'lucide-react'
 import {
   Table,
@@ -201,7 +201,7 @@ export function TestCaseTable({
         onSelectionChange([])
       }
     } catch (error) {
-      logger.log('Bulk action failed:', error)
+      console.error('Bulk action failed:', error)
     } finally {
       setLoadingActions(prev => prev.filter(a => a !== actionId))
     }
@@ -291,16 +291,32 @@ export function TestCaseTable({
 
               {/* Priority */}
               <TableCell>
-                <Badge variant={getPriorityVariant(testCase.priority)} size="sm">
-                  {testCase.priority || 'None'}
-                </Badge>
+                <div className="flex items-center h-full py-1">
+                  <div className={`
+                    inline-flex items-center justify-center px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap w-20
+                    ${getPriorityVariant(testCase.priority) === 'danger' ? 'bg-red-500 text-white' : ''}
+                    ${getPriorityVariant(testCase.priority) === 'warning' ? 'bg-orange-500 text-white' : ''}
+                    ${getPriorityVariant(testCase.priority) === 'info' ? 'bg-blue-500 text-white' : ''}
+                    ${getPriorityVariant(testCase.priority) === 'success' ? 'bg-green-500 text-white' : ''}
+                    ${getPriorityVariant(testCase.priority) === 'default' ? 'bg-gray-400 text-gray-900' : ''}
+                  `}>
+                    {testCase.priority || 'None'}
+                  </div>
+                </div>
               </TableCell>
 
               {/* Status */}
               <TableCell>
-                <Badge variant={getStatusVariant(testCase.status)} size="sm">
-                  {testCase.status || 'Active'}
-                </Badge>
+                <div className="flex items-center h-full py-1">
+                  <div className={`
+                    inline-flex items-center justify-center px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap w-20
+                    ${getStatusVariant(testCase.status) === 'success' ? 'bg-green-500 text-white' : ''}
+                    ${getStatusVariant(testCase.status) === 'default' ? 'bg-gray-400 text-gray-900' : ''}
+                    ${getStatusVariant(testCase.status) === 'info' ? 'bg-blue-500 text-white' : ''}
+                  `}>
+                    {testCase.status || 'Active'}
+                  </div>
+                </div>
               </TableCell>
 
               {/* Last Result */}
@@ -383,7 +399,7 @@ export function TestCaseTable({
                         Run Test
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEdit?.(testCase.id)}>
-                        <Copy className="w-4 h-4" />
+                        <Edit className="w-4 h-4" />
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onDuplicate?.(testCase.id)}>
