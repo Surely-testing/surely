@@ -4,11 +4,11 @@
 // ============================================
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-    X, FileText, Calendar, User, Tag, Play, Edit, Copy, Trash2, Archive,
+    X, FileText, Calendar, User, Tag, Play, Database, Edit, Copy, Trash2, Archive,
     CheckCircle2, XCircle, AlertCircle, Clock, Share2, Check, Info,
     ListOrdered, Settings, TrendingUp, MessageSquare, Activity, ExternalLink,
     Plus, ChevronDown, ChevronUp, Eye
@@ -615,9 +615,40 @@ export function DetailsDrawer({
                                             </div>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h2 className="text-xl md:text-2xl font-bold text-foreground break-words leading-tight">
-                                                {formData.title}
-                                            </h2>
+                                            {editingField === 'title' ? (
+                                                <input
+                                                    type="text"
+                                                    value={tempValue}
+                                                    onChange={(e) => setTempValue(e.target.value)}
+                                                    onBlur={() => {
+                                                        if (tempValue.trim()) {
+                                                            handleFieldUpdate('title', tempValue)
+                                                        }
+                                                        setEditingField(null)
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && tempValue.trim()) {
+                                                            handleFieldUpdate('title', tempValue)
+                                                            setEditingField(null)
+                                                        } else if (e.key === 'Escape') {
+                                                            setEditingField(null)
+                                                        }
+                                                    }}
+                                                    autoFocus
+                                                    className="w-full text-xl md:text-2xl font-bold bg-transparent border-b-2 border-primary pb-1 text-foreground focus:outline-none"
+                                                />
+                                            ) : (
+                                                <h2
+                                                    onClick={() => {
+                                                        setEditingField('title')
+                                                        setTempValue(formData.title)
+                                                    }}
+                                                    className="text-xl md:text-2xl font-bold text-foreground break-words leading-tight cursor-pointer hover:text-primary transition-colors"
+                                                    title="Click to edit title"
+                                                >
+                                                    {formData.title}
+                                                </h2>
+                                            )}
                                             <div className="flex items-center flex-wrap gap-3 mt-2 text-sm text-muted-foreground">
                                                 <div className="flex items-center gap-1">
                                                     <FileText className="h-4 w-4" />
@@ -990,73 +1021,142 @@ export function DetailsDrawer({
                                                         </button>
                                                     </div>
                                                 </div>
+
                                                 {!collapsedSections.has('steps') && (
                                                     <div className="space-y-3">
                                                         {formData.steps && formData.steps.length > 0 ? (
-                                                            <>
-                                                                {formData.steps.map((step: any, idx: number) => {
-                                                                    const stepText = typeof step === 'string' ? step : (step?.step || step?.action || '')
-                                                                    const isEditing = editingField === `step-${idx}`
+                                                            formData.steps.map((step: any, idx: number) => {
+                                                                // Extract step data
+                                                                const stepAction = step.action || 'navigate'
+                                                                const stepDescription = step.description || ''
+                                                                const stepSelector = step.selector || ''
+                                                                const stepValue = step.value || ''
+                                                                const stepUrl = step.url || ''
+                                                                const stepTimeout = step.timeout || 30000
+                                                                const stepAssertionType = step.assertionType || 'exists'
+                                                                const stepExpectedValue = step.expectedValue || ''
+                                                                const useTestData = step.useTestData || false
+                                                                const testDataRef = step.testDataRef
 
-                                                                    return (
-                                                                        <div key={idx} className="border border-border rounded-lg p-3 bg-card hover:shadow-sm transition-shadow">
-                                                                            <div className="flex items-start gap-3">
-                                                                                <span className="flex-shrink-0 w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-1">
-                                                                                    {idx + 1}
-                                                                                </span>
-                                                                                <div className="flex-1 min-w-0">
-                                                                                    {isEditing ? (
-                                                                                        <textarea
-                                                                                            value={tempValue}
-                                                                                            onChange={(e) => setTempValue(e.target.value)}
-                                                                                            onBlur={() => {
-                                                                                                handleStepChange(idx, 'step', tempValue)
-                                                                                                setEditingField(null)
-                                                                                            }}
-                                                                                            onKeyDown={(e) => {
-                                                                                                if (e.key === 'Enter' && e.ctrlKey) {
-                                                                                                    handleStepChange(idx, 'step', tempValue)
-                                                                                                    setEditingField(null)
-                                                                                                } else if (e.key === 'Escape') {
-                                                                                                    setEditingField(null)
-                                                                                                }
-                                                                                            }}
-                                                                                            autoFocus
-                                                                                            rows={3}
-                                                                                            className="w-full text-sm text-foreground bg-background border border-border rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none resize-none"
-                                                                                            placeholder="Describe the test step..."
-                                                                                        />
-                                                                                    ) : (
-                                                                                        <button
-                                                                                            onClick={() => {
-                                                                                                setEditingField(`step-${idx}`)
-                                                                                                setTempValue(stepText)
-                                                                                            }}
-                                                                                            className="w-full text-left text-sm text-foreground hover:bg-muted rounded p-2 transition-colors"
-                                                                                        >
-                                                                                            {stepText || <span className="text-muted-foreground italic">Click to add step description...</span>}
-                                                                                        </button>
-                                                                                    )}
-                                                                                    {isEditing && (
-                                                                                        <p className="text-xs text-muted-foreground mt-1">
-                                                                                            Press Ctrl+Enter to save, Esc to cancel
-                                                                                        </p>
+                                                                return (
+                                                                    <div key={idx} className="border border-border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow">
+                                                                        {/* Step Header */}
+                                                                        <div className="flex items-start gap-3 mb-3">
+                                                                            <span className="flex-shrink-0 w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-1">
+                                                                                {idx + 1}
+                                                                            </span>
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center gap-2 mb-2">
+                                                                                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-primary/10 text-primary">
+                                                                                        {stepAction.toUpperCase()}
+                                                                                    </span>
+                                                                                    {useTestData && testDataRef && (
+                                                                                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-info/10 text-info">
+                                                                                            📊 {testDataRef.typeName}
+                                                                                        </span>
                                                                                     )}
                                                                                 </div>
-                                                                                {!isEditing && (
-                                                                                    <button
-                                                                                        onClick={() => handleRemoveStep(idx)}
-                                                                                        className="flex-shrink-0 p-1.5 text-error hover:bg-error/10 rounded transition-colors"
-                                                                                        title="Remove step"
-                                                                                    >
-                                                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                                                    </button>
-                                                                                )}
+
+                                                                                {/* Description */}
+                                                                                <p className="text-sm font-medium text-foreground mb-2">
+                                                                                    {stepDescription || <span className="text-muted-foreground italic">No description</span>}
+                                                                                </p>
+
+                                                                                {/* Step Attributes */}
+                                                                                <div className="space-y-2 text-xs">
+                                                                                    {/* URL (for navigate action) */}
+                                                                                    {stepAction === 'navigate' && stepUrl && (
+                                                                                        <div className="flex items-start gap-2">
+                                                                                            <span className="text-muted-foreground font-medium min-w-[80px]">URL:</span>
+                                                                                            <code className="flex-1 bg-muted px-2 py-1 rounded font-mono text-foreground break-all">
+                                                                                                {stepUrl}
+                                                                                            </code>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Selector (for click, fill, assert, etc.) */}
+                                                                                    {['click', 'fill', 'select', 'hover', 'scroll', 'assert'].includes(stepAction) && stepSelector && (
+                                                                                        <div className="flex items-start gap-2">
+                                                                                            <span className="text-muted-foreground font-medium min-w-[80px]">Selector:</span>
+                                                                                            <code className="flex-1 bg-muted px-2 py-1 rounded font-mono text-foreground break-all">
+                                                                                                {stepSelector}
+                                                                                            </code>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Value (for fill action) */}
+                                                                                    {stepAction === 'fill' && (
+                                                                                        <div className="flex items-start gap-2">
+                                                                                            <span className="text-muted-foreground font-medium min-w-[80px]">Value:</span>
+                                                                                            {useTestData && testDataRef ? (
+                                                                                                <span className="flex-1 bg-info/10 px-2 py-1 rounded text-info">
+                                                                                                    {testDataRef.itemValue}
+                                                                                                </span>
+                                                                                            ) : (
+                                                                                                <code className="flex-1 bg-muted px-2 py-1 rounded font-mono text-foreground break-all">
+                                                                                                    {stepValue || <span className="text-muted-foreground italic">No value</span>}
+                                                                                                </code>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Assertion Type & Expected Value */}
+                                                                                    {stepAction === 'assert' && (
+                                                                                        <>
+                                                                                            <div className="flex items-start gap-2">
+                                                                                                <span className="text-muted-foreground font-medium min-w-[80px]">Assertion:</span>
+                                                                                                <span className="flex-1 bg-muted px-2 py-1 rounded text-foreground">
+                                                                                                    {stepAssertionType}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            {stepExpectedValue && (
+                                                                                                <div className="flex items-start gap-2">
+                                                                                                    <span className="text-muted-foreground font-medium min-w-[80px]">Expected:</span>
+                                                                                                    <code className="flex-1 bg-muted px-2 py-1 rounded font-mono text-foreground break-all">
+                                                                                                        {stepExpectedValue}
+                                                                                                    </code>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </>
+                                                                                    )}
+
+                                                                                    {/* Timeout */}
+                                                                                    {stepTimeout && stepTimeout !== 30000 && (
+                                                                                        <div className="flex items-start gap-2">
+                                                                                            <span className="text-muted-foreground font-medium min-w-[80px]">Timeout:</span>
+                                                                                            <span className="flex-1 text-foreground">
+                                                                                                {stepTimeout}ms
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Test Data Reference Details */}
+                                                                                    {useTestData && testDataRef && (
+                                                                                        <div className="mt-2 p-2 bg-info/5 border border-info/20 rounded">
+                                                                                            <div className="flex items-center gap-1 text-info mb-1">
+                                                                                                <Database className="h-3 w-3" />
+                                                                                                <span className="font-medium">Using Test Data</span>
+                                                                                            </div>
+                                                                                            <div className="text-xs text-muted-foreground">
+                                                                                                Type: {testDataRef.typeName} • Item ID: {testDataRef.itemId.slice(0, 8)}...
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
+
+                                                                            {/* Remove Button */}
+                                                                            <button
+                                                                                onClick={() => handleRemoveStep(idx)}
+                                                                                className="flex-shrink-0 p-1.5 text-error hover:bg-error/10 rounded transition-colors"
+                                                                                title="Remove step"
+                                                                            >
+                                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                            </button>
                                                                         </div>
-                                                                    )
-                                                                })}
-                                                            </>
+                                                                    </div>
+                                                                )
+                                                            })
                                                         ) : (
                                                             <div className="text-center py-6">
                                                                 <ListOrdered className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
@@ -1594,7 +1694,7 @@ export function DetailsDrawer({
                                         }}
                                         className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
                                     >
-                                        <Copy className="w-4 h-4" /> 
+                                        <Copy className="w-4 h-4" />
                                     </button>
                                 )}
                                 {onArchive && (

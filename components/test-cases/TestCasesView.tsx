@@ -1,7 +1,10 @@
+// ============================================
+// TestCasesView.tsx - Complete Integration with Test Execution
+// ============================================
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, RefreshCw, Upload, Sparkles, Play, GitBranch, Filter } from 'lucide-react'
+import { Plus, RefreshCw, Upload, Sparkles, Play, GitBranch, Filter, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { logger } from '@/lib/utils/logger'
@@ -15,11 +18,14 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { useAI } from '@/components/ai/AIAssistantProvider'
 import { TestCaseControlBar } from './views/TestCaseControlBar'
 import { TestCaseDialogs } from './views/TestCaseDialogs'
+import { RunTestsModal } from '../test-runs/runTestsModal'
+import { EnvironmentSettings } from '../test-runs/EnvironmentSettings'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/Dropdown'
 import type { TestCase } from '@/types/test-case.types'
 import type { ActionOption } from '@/components/shared/bulk-action/BulkActionBar'
@@ -28,8 +34,6 @@ import type {
   SortField,
   SortOrder,
   GroupBy,
-  DialogState,
-  BulkDialogState,
   TestCasesViewProps,
 } from '@/types/test-case-view.types'
 import {
@@ -45,7 +49,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const { supabase, user } = useSupabase()
   const { setIsOpen, sendMessage } = useAI()
   
-  // Use bulk actions hook
   const { execute: executeBulkAction, isExecuting } = useBulkActions('test_cases', suiteId)
 
   // State
@@ -56,7 +59,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const [isLoading, setIsLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    // Load from localStorage or default to 'grid'
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('testCasesViewMode')
       return (saved as ViewMode) || 'grid'
@@ -68,7 +70,11 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
 
-  // Dialog states - ONLY for single-item operations
+  // Test Execution State
+  const [isRunTestsModalOpen, setIsRunTestsModalOpen] = useState(false)
+  const [showEnvironmentSettings, setShowEnvironmentSettings] = useState(false)
+
+  // Dialog states
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; itemIds: string[] }>({ 
     open: false, 
     itemIds: [] 
@@ -97,7 +103,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     }
   }
 
-  // Sync all test case statuses from latest test run results
   const syncAllTestCaseStatuses = async () => {
     try {
       const { data: currentTestCases, error: tcError } = await supabase
@@ -140,38 +145,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       }
     } catch (error: any) {
       logger.log('Error syncing test case statuses:', error)
-    }
-  }
-
-  // Sync individual test case status
-  const syncTestCaseStatus = async (testCaseId: string) => {
-    try {
-      const { data: latestRun, error: fetchError } = await supabase
-        .from('test_run_results')
-        .select('status')
-        .eq('test_case_id', testCaseId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError
-
-      if (latestRun) {
-        const { error: updateError } = await supabase
-          .from('test_cases')
-          .update({ last_result: latestRun.status })
-          .eq('id', testCaseId)
-
-        if (updateError) throw updateError
-
-        setTestCases(prev => prev.map(tc => 
-          tc.id === testCaseId 
-            ? { ...tc, last_result: latestRun.status }
-            : tc
-        ))
-      }
-    } catch (error: any) {
-      logger.log('Error syncing test case status:', error)
     }
   }
 
@@ -266,6 +239,29 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     }
   }, [suiteId, supabase])
 
+  // Show environment settings view
+  if (showEnvironmentSettings) {
+    return (
+      <div className="space-y-4 md:space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Environment Settings
+            </h1>
+          </div>
+          <button
+            onClick={() => setShowEnvironmentSettings(false)}
+            className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+          >
+            Back to Test Cases
+          </button>
+        </div>
+        <EnvironmentSettings suiteId={suiteId} />
+      </div>
+    )
+  }
+
+  // Show create form
   if (isCreateModalOpen) {
     return (
       <div className="space-y-4 md:space-y-6">
@@ -294,14 +290,19 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     option?: ActionOption | null
   ) => {
     try {
-      // NOTE: BulkActionsBar already handles confirmation dialogs,
-      // so we just execute the action directly here
+      // Handle run action specially - show modal
+      if (actionId === 'run') {
+        setSelectedIds(testCaseIds)
+        setIsRunTestsModalOpen(true)
+        return
+      }
+
+      // Map other actions
       const actionMap: Record<string, { action: string; options?: any }> = {
         'delete': { action: 'delete' },
         'pass': { action: 'pass' },
         'fail': { action: 'fail' },
         'block': { action: 'block' },
-        'run': { action: 'run' },
         'reset': { action: 'reset' },
         'archive': { action: 'archive' },
         'activate': { action: 'activate' },
@@ -336,12 +337,10 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     router.push(`/dashboard/test-cases/${testCaseId}/edit`)
   }
 
-  // Single-item delete - shows dialog
   const handleDelete = async (testCaseId: string) => {
     setDeleteDialog({ open: true, itemIds: [testCaseId] })
   }
 
-  // Confirm single-item delete
   const confirmDelete = async () => {
     if (deleteDialog.itemIds.length === 0) return
     
@@ -356,12 +355,10 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     )
   }
 
-  // Single-item archive - shows dialog
   const handleArchive = async (testCaseId: string) => {
     setArchiveDialog({ open: true, itemIds: [testCaseId] })
   }
 
-  // Confirm single-item archive
   const confirmArchive = async () => {
     if (archiveDialog.itemIds.length === 0) return
     
@@ -404,8 +401,17 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     }
   }
 
-  const handleRun = (testCaseId: string) => {
-    router.push(`/dashboard/test-runs/new?testCaseId=${testCaseId}`)
+  const handleRunSingle = (testCaseId: string) => {
+    setSelectedIds([testCaseId])
+    setIsRunTestsModalOpen(true)
+  }
+
+  const handleRunBulk = () => {
+    if (selectedIds.length === 0) {
+      toast.error('Please select test cases to run')
+      return
+    }
+    setIsRunTestsModalOpen(true)
   }
 
   const handleSelectAll = () => {
@@ -420,7 +426,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     setSelectedIds(newSelectedIds)
   }
 
-  // Handler to persist view mode changes
   const handleViewModeChange = (newViewMode: ViewMode) => {
     setViewMode(newViewMode)
     if (typeof window !== 'undefined') {
@@ -443,7 +448,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     }, 100)
   }
 
-  // Manual refresh with sync
   const handleRefresh = async () => {
     await fetchTestCases()
     await syncAllTestCaseStatuses()
@@ -461,13 +465,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
             <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
             <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
             <div className="h-10 w-10 bg-muted animate-pulse rounded-lg" />
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
-          <div className="h-4 w-32 bg-muted animate-pulse rounded" />
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-64 bg-muted animate-pulse rounded-lg" />
-            <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
           </div>
         </div>
         <div className="space-y-4">
@@ -508,9 +505,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             Test Cases
           </h1>
-          <span className="text-sm text-muted-foreground">
-            (0)
-          </span>
+          <span className="text-sm text-muted-foreground">(0)</span>
         </div>
         <EmptyState
           icon={FileQuestion}
@@ -526,7 +521,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   return (
     <>
       <div className="space-y-4 md:space-y-6">
-        {/* Header with Action Buttons */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
@@ -562,6 +556,16 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                     <GitBranch className="h-4 w-4 mr-2" />
                     Traceability
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleRunBulk} disabled={selectedIds.length === 0}>
+                    <Play className="h-4 w-4 mr-2" />
+                    Run Selected ({selectedIds.length})
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowEnvironmentSettings(true)}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Environments
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -596,7 +600,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           </div>
         </div>
 
-        {/* Control Bar */}
         <TestCaseControlBar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -621,7 +624,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           onClearFilters={clearFilters}
         />
 
-        {/* Stats Bar */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {sorted.length} of {testCases.length} test cases
@@ -630,7 +632,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
           </p>
         </div>
 
-        {/* Content Area */}
         {sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center px-4">
             <Filter className="h-12 w-12 text-muted-foreground mb-3" />
@@ -658,7 +659,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
               onDelete={handleDelete}
               onArchive={handleArchive}
               onDuplicate={handleDuplicate}
-              onRun={handleRun}
+              onRun={handleRunSingle}
               selectedIds={selectedIds}
               onSelectionChange={handleSelectionChange}
             />
@@ -671,7 +672,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
               onDelete={handleDelete}
               onArchive={handleArchive}
               onDuplicate={handleDuplicate}
-              onRun={handleRun}
+              onRun={handleRunSingle}
               selectedIds={selectedIds}
               onSelectionChange={handleSelectionChange}
             />
@@ -697,7 +698,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                     onDelete={handleDelete}
                     onArchive={handleArchive}
                     onDuplicate={handleDuplicate}
-                    onRun={handleRun}
+                    onRun={handleRunSingle}
                     selectedIds={selectedIds}
                     onSelectionChange={handleSelectionChange}
                   />
@@ -710,7 +711,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                     onDelete={handleDelete}
                     onArchive={handleArchive}
                     onDuplicate={handleDuplicate}
-                    onRun={handleRun}
+                    onRun={handleRunSingle}
                     selectedIds={selectedIds}
                     onSelectionChange={handleSelectionChange}
                   />
@@ -721,7 +722,6 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         )}
       </div>
 
-      {/* Dialogs - ONLY for single-item operations from row actions */}
       <TestCaseDialogs
         deleteDialog={{ 
           open: deleteDialog.open, 
@@ -747,6 +747,20 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         bulkArchiveDialog={{ open: false, count: 0 }}
         onBulkArchiveDialogChange={() => {}}
         onConfirmBulkArchive={() => {}}
+      />
+
+      <RunTestsModal
+        isOpen={isRunTestsModalOpen}
+        onClose={() => {
+          setIsRunTestsModalOpen(false)
+        }}
+        testCaseIds={selectedIds}
+        suiteId={suiteId}
+        onSuccess={() => {
+          setSelectedIds([])
+          fetchTestCases()
+          setIsRunTestsModalOpen(false)
+        }}
       />
     </>
   )

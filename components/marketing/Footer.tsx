@@ -3,11 +3,35 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Mail, Linkedin, Twitter, Github } from "lucide-react";
+import { Mail, Linkedin } from "lucide-react";
 import { LOGO_URL } from "@/config/logo";
 
 const Footer: React.FC = () => {
     const currentYear = new Date().getFullYear();
+
+    // Configuration - easily enable/disable social links
+    const SOCIAL_LINKS = {
+        linkedin: {
+            enabled: true,
+            url: "https://linkedin.com/company/surely",
+            label: "LinkedIn"
+        },
+        twitter: {
+            enabled: false, // Enable when you have active presence
+            url: "https://twitter.com/surelyqa",
+            label: "Twitter"
+        },
+        github: {
+            enabled: false, // Enable when you have public repos
+            url: "https://github.com/surely-testing",
+            label: "GitHub"
+        },
+        email: {
+            enabled: true,
+            url: "/contact",
+            label: "Email us"
+        }
+    };
 
     return (
         <footer className="bg-muted py-8 sm:py-12 md:py-16 transition-colors duration-200">
@@ -21,7 +45,7 @@ const Footer: React.FC = () => {
                             <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex-shrink-0">
                                 <Image 
                                     src={LOGO_URL} 
-                                    alt="Assura Logo" 
+                                    alt="Surely Logo" 
                                     fill
                                     className="object-contain"
                                 />
@@ -33,42 +57,29 @@ const Footer: React.FC = () => {
                             Empowering teams to deliver exceptional software through intelligent quality assurance and testing automation.
                         </p>
 
-                        {/* Social Links */}
+                        {/* Social Links - Only show enabled ones */}
                         <div className="flex gap-3">
-                            <Link 
-                                href="https://linkedin.com/company/assura"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bg-background hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-blue-200 dark:border-blue-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md touch-manipulation active:scale-95"
-                                aria-label="LinkedIn"
-                            >
-                                <Linkedin className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400" />
-                            </Link>
-                            <Link 
-                                href="https://twitter.com/assuraqa"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bg-background hover:bg-sky-50 dark:hover:bg-sky-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-sky-200 dark:border-sky-600 hover:border-sky-300 dark:hover:border-sky-500 hover:shadow-md touch-manipulation active:scale-95"
-                                aria-label="Twitter"
-                            >
-                                <Twitter className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-sky-600 dark:hover:text-sky-400" />
-                            </Link>
-                            <Link 
-                                href="https://github.com/assura"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bg-background hover:bg-slate-50 dark:hover:bg-slate-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md touch-manipulation active:scale-95"
-                                aria-label="GitHub"
-                            >
-                                <Github className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-slate-600 dark:hover:text-slate-400" />
-                            </Link>
-                            <Link 
-                                href="/contact"
-                                className="bg-background hover:bg-orange-50 dark:hover:bg-orange-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-orange-200 dark:border-orange-600 hover:border-orange-300 dark:hover:border-orange-500 hover:shadow-md touch-manipulation active:scale-95"
-                                aria-label="Email us"
-                            >
-                                <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400" />
-                            </Link>
+                            {SOCIAL_LINKS.linkedin.enabled && (
+                                <Link 
+                                    href={SOCIAL_LINKS.linkedin.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-background hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-blue-200 dark:border-blue-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md touch-manipulation active:scale-95"
+                                    aria-label={SOCIAL_LINKS.linkedin.label}
+                                >
+                                    <Linkedin className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400" />
+                                </Link>
+                            )}
+                            
+                            {SOCIAL_LINKS.email.enabled && (
+                                <Link 
+                                    href={SOCIAL_LINKS.email.url}
+                                    className="bg-background hover:bg-orange-50 dark:hover:bg-orange-900/20 p-2.5 sm:p-3 rounded-lg transition-all duration-200 border border-orange-200 dark:border-orange-600 hover:border-orange-300 dark:hover:border-orange-500 hover:shadow-md touch-manipulation active:scale-95"
+                                    aria-label={SOCIAL_LINKS.email.label}
+                                >
+                                    <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400" />
+                                </Link>
+                            )}
                         </div>
                     </div>
 
@@ -169,7 +180,7 @@ const Footer: React.FC = () => {
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-6">
                         {/* Copyright */}
                         <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
-                            © {currentYear} Assura. All rights reserved.
+                            © {currentYear} Surely. All rights reserved.
                         </p>
 
                         {/* Legal Links */}

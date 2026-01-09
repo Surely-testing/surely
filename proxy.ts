@@ -1,23 +1,31 @@
 // ============================================
-// FILE: middleware.ts (EDGE-OPTIMIZED + RLS FIX + API ROUTES)
+// FILE: proxy.ts (Next.js 15+ Proxy Format)
 // System role + Organization role routing
 // ============================================
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Edge Runtime Configuration
-export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
-}
-
 // ============================================
 // ROUTE MATRIX - Single Source of Truth
 // ============================================
 const ROUTES = {
-  // Public - no auth required
-  PUBLIC: ['/', '/features', '/pricing', '/about', '/contact'],
+  // Public - no auth required (marketing pages)
+  PUBLIC: [
+    '/',
+    '/features',
+    '/pricing',
+    '/about',
+    '/contact',
+    '/contact-sales',
+    '/events',
+    '/careers',
+    '/blog',
+    '/help',
+    '/privacy',
+    '/terms',
+    '/security',
+    '/reviews',
+  ],
   
   // Auth pages - redirect to role-specific dashboard if authenticated
   AUTH: ['/login', '/signup'],
@@ -52,7 +60,7 @@ const ROUTES = {
   SHARED: ['/onboarding'],
 } as const
 
-// System role hierarchy (lower index = higher privilege)
+// System role hierarchy
 type SystemRole = 'system_admin' | 'user'
 type OrgRole = 'owner' | 'admin' | 'member' | 'viewer' | null
 
@@ -90,9 +98,9 @@ function getRouteType(path: string) {
 }
 
 // ============================================
-// MAIN MIDDLEWARE
+// MAIN PROXY HANDLER (Named Export)
 // ============================================
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
   const routeType = getRouteType(path)
   
@@ -102,8 +110,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // CRITICAL: Allow API routes to handle their own authentication
-  // API routes should check auth internally and return proper JSON responses
   if (path.startsWith('/api/')) {
+    return NextResponse.next()
+  }
+
+  // CRITICAL: Public routes should pass through WITHOUT auth checks
+  // This prevents any authentication flow from being triggered
+  if (routeType === 'public') {
     return NextResponse.next()
   }
 
@@ -135,26 +148,23 @@ export async function middleware(request: NextRequest) {
   )
 
   // ============================================
-  // AUTHENTICATION CHECK - RLS FIX
+  // AUTHENTICATION CHECK
   // ============================================
-  // CRITICAL: Get session first to ensure auth context is properly set for RLS
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
   if (sessionError) {
-    console.error('Session error in middleware:', sessionError)
+    console.error('Session error in proxy:', sessionError)
   }
 
-  // Now get user
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  // Log auth errors
   if (authError) {
-    console.error('Auth error in middleware:', authError)
+    console.error('Auth error in proxy:', authError)
   }
 
-  // PUBLIC/AUTH ROUTES - No authentication
+  // AUTH ROUTES - Allow if not authenticated, redirect if authenticated
   if (!user) {
-    if (routeType === 'public' || routeType === 'auth') {
+    if (routeType === 'auth') {
       return response
     }
     // Block protected/shared routes
@@ -162,7 +172,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // ============================================
-  // AUTHENTICATED - Fetch Profile (RLS-Safe Query)
+  // AUTHENTICATED - Fetch Profile
   // ============================================
   let profile = null
   let profileError = null
@@ -172,12 +182,11 @@ export async function middleware(request: NextRequest) {
       .from('profiles')
       .select('registration_completed, status, system_role, organization_role, organization_id')
       .eq('id', user.id)
-      .maybeSingle() // Use maybeSingle to handle missing rows gracefully
+      .maybeSingle()
 
     profile = data
     profileError = error
 
-    // Log profile fetch errors with detailed info
     if (error) {
       console.error('Profile fetch error:', {
         code: error.code,
@@ -205,17 +214,13 @@ export async function middleware(request: NextRequest) {
       path: path,
     })
     
-    // Allow through on auth routes - profile might be created after
     if (path.startsWith('/auth/')) {
       console.log('Allowing auth route without profile:', path)
       return response
     }
     
-    // Check if it's specifically an RLS error
     if (profileError?.code === 'PGRST116' || profileError?.message?.includes('RLS')) {
       console.error('❌ RLS is blocking profile fetch! Check your RLS policies.')
-      console.error('Run this SQL to verify policies:')
-      console.error('SELECT * FROM pg_policies WHERE tablename = \'profiles\';')
     }
     
     return NextResponse.redirect(
@@ -223,7 +228,6 @@ export async function middleware(request: NextRequest) {
     )
   }
 
-  // Log successful profile fetch (only in development)
   if (process.env.NODE_ENV === 'development') {
     console.log('✓ Profile fetched:', {
       userId: user.id,
@@ -264,8 +268,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(defaultRoute, request.url))
   }
 
-  // RULE 4: Public routes → allow (authenticated users can view)
-  if (routeType === 'public' || routeType === 'shared') {
+  // RULE 4: Shared routes → allow
+  if (routeType === 'shared') {
     return response
   }
 
@@ -286,14 +290,12 @@ export async function middleware(request: NextRequest) {
 
   // RULE 7: Organization admin routes → organization_role check
   if (typeof routeType === 'object' && routeType.type === 'organization') {
-    // Check if user has owner or admin org role
     if (orgRole !== 'owner' && orgRole !== 'admin') {
       return NextResponse.redirect(
         new URL(`${defaultRoute}?error=Organization%20admin%20access%20required`, request.url)
       )
     }
     
-    // Validate organization_id exists
     if (!profile.organization_id) {
       return NextResponse.redirect(
         new URL(`${defaultRoute}?error=No%20organization%20assigned`, request.url)
@@ -313,53 +315,43 @@ export async function middleware(request: NextRequest) {
 }
 
 // ============================================
-// RULE MATRIX SUMMARY
+// Default Export (Alternative Format)
+// ============================================
+export default proxy
+
+// ============================================
+// Configuration
+// ============================================
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
+
+// ============================================
+// KEY CHANGES
 // ============================================
 /*
-┌─────────────────────────┬──────────┬──────────┬─────────────┬──────────────────┐
-│ Route Type              │ No Auth  │ User     │ Org Admin   │ System Admin     │
-├─────────────────────────┼──────────┼──────────┼─────────────┼──────────────────┤
-│ PUBLIC                  │ ✓ Allow  │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
-│ AUTH (login/signup)     │ ✓ Allow  │ → dash   │ → dash      │ → admin          │
-│ BYPASS (callbacks)      │ ✓ Allow  │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
-│ API ROUTES (/api/*)     │ ✓ Allow  │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
-│ SHARED (onboarding)     │ → /login │ ✓ Allow  │ ✓ Allow     │ ✓ Bypass         │
-│ USER (/dashboard, etc)  │ → /login │ ✓ Allow  │ ✓ Allow     │ ✓ Allow          │
-│ /org-admin/*            │ → /login │ ✗ Deny   │ ✓ Allow*    │ ✓ Allow          │
-│ /admin/* (system)       │ → /login │ ✗ Deny   │ ✗ Deny      │ ✓ Allow          │
-│ Unknown routes          │ → /login │ → dash   │ → dash      │ → admin          │
-└─────────────────────────┴──────────┴──────────┴─────────────┴──────────────────┘
+NEXT.JS 15 PROXY FORMAT:
+------------------------
+1. Function renamed from "middleware" to "proxy"
+2. Added both named export and default export
+3. Config remains the same
 
-API ROUTES:
------------
-API routes (/api/*) are now excluded from middleware auth checks.
-They handle their own authentication and return proper JSON responses.
-This prevents redirect loops and HTML error pages.
+PUBLIC ROUTE FIX:
+-----------------
+Public routes now bypass ALL auth checks before Supabase client
+is even initialized.
 
-RLS TROUBLESHOOTING:
---------------------
-If you see "Profile not found" with RLS enabled:
+MIGRATION STEPS:
+----------------
+1. Delete your old middleware.ts file (if it exists)
+2. Use this as your proxy.ts file
+3. Restart your dev server
+4. Test public routes (/features, /pricing, etc.)
 
-1. Check your RLS policies are active:
-   SELECT * FROM pg_policies WHERE tablename = 'profiles';
-
-2. Verify the SELECT policy allows authenticated users:
-   CREATE POLICY "Users can view own profile"
-   ON public.profiles FOR SELECT TO authenticated
-   USING (auth.uid() = id);
-
-3. Test the policy manually:
-   SELECT auth.uid(); -- Should return your user ID
-   SELECT * FROM profiles WHERE id = auth.uid();
-
-4. If still failing, temporarily disable RLS for testing:
-   ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
-   -- Test your app
-   ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
-KEY FIX: This version calls getSession() before getUser() to ensure
-the auth context is fully established for RLS policies.
-
-API FIX: Added early return for /api/* routes to allow them to handle
-their own authentication and return proper JSON responses.
+If you still have middleware.ts and proxy.ts:
+- Keep ONLY proxy.ts
+- Delete middleware.ts
+- Next.js 15 uses proxy.ts as the new convention
 */
