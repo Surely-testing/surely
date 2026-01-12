@@ -4,7 +4,6 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { BugWithCreator, BugSeverity, BugStatus } from '@/types/bug.types';
 import { Grid, List, Code, Search, AlertTriangle, Filter, Plus, Sparkles, Upload, Bug } from 'lucide-react';
