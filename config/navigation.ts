@@ -1,5 +1,6 @@
 // ============================================
 // FILE: config/navigation.ts
+// Updated with Tests dropdown grouping
 // ============================================
 import {
   LayoutDashboard,
@@ -17,6 +18,7 @@ import {
   Wrench,
   FileJson,
   ClipboardList,
+  PlayCircle,
 } from 'lucide-react'
 
 export type NavItem = {
@@ -26,6 +28,7 @@ export type NavItem = {
   disabled?: boolean
   external?: boolean
   label?: string
+  items?: NavItem[] // For dropdown items
 }
 
 export type NavSection = {
@@ -68,9 +71,26 @@ export const suiteNavigation: NavSection[] = [
         icon: LayoutDashboard,
       },
       {
-        title: 'Test Cases',
-        href: '/dashboard/test-cases',
-        icon: ClipboardList,
+        title: 'Tests',
+        href: '/dashboard/tests', // This won't be used, just for active state
+        icon: FlaskConical,
+        items: [
+          {
+            title: 'Test Cases',
+            href: '/dashboard/test-cases',
+            icon: ClipboardList,
+          },
+          {
+            title: 'Test Runs',
+            href: '/dashboard/test-runs',
+            icon: PlayCircle,
+          },
+          {
+            title: 'Test Data',
+            href: '/dashboard/test-data',
+            icon: FileJson,
+          },
+        ],
       },
       {
         title: 'Bugs',
@@ -86,11 +106,6 @@ export const suiteNavigation: NavSection[] = [
         title: 'Reports',
         href: '/dashboard/reports',
         icon: BarChart3,
-      },
-      {
-        title: 'Test Data',
-        href: '/dashboard/test-data',
-        icon: FileJson,
       },
       {
         title: 'Recordings',

@@ -24,7 +24,7 @@ const poppins = Poppins({
 });
 
 // Base configuration
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://surely.app";
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://testsurely.com";
 const logoUrl = process.env.NEXT_PUBLIC_CLOUDINARY_LOGO_URL || "/logo.svg";
 const ogImage = process.env.NEXT_PUBLIC_CLOUDINARY_OG_IMAGE || logoUrl;
 

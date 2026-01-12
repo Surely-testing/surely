@@ -1,11 +1,11 @@
 // ============================================
-// Test Run Form - FIXED (Removed duplicate logic)
+// Test Run Form - UPDATED: Handles pre-selected test cases from navigation
 // ============================================
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { Play, ArrowLeft, Calendar, Settings, FileText } from 'lucide-react';
+import { Play, ArrowLeft, Calendar, Settings, FileText, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils/cn';
 import { createClient } from '@/lib/supabase/client';
@@ -17,6 +17,7 @@ import { logger } from '@/lib/utils/logger';
 interface TestRunFormProps {
   suiteId: string;
   initialData?: TestRun;
+  preSelectedTestCaseIds?: string[]; // NEW: Accept pre-selected test cases
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -24,6 +25,7 @@ interface TestRunFormProps {
 export default function TestRunForm({
   suiteId,
   initialData,
+  preSelectedTestCaseIds = [], // NEW: Default to empty array
   onSuccess,
   onCancel
 }: TestRunFormProps) {
@@ -58,7 +60,7 @@ export default function TestRunForm({
       // Format date for datetime-local input
       if (initialData.scheduled_date) {
         const date = new Date(initialData.scheduled_date);
-        const formatted = date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
+        const formatted = date.toISOString().slice(0, 16);
         setValue('scheduled_date', formatted);
       }
     }
@@ -68,13 +70,22 @@ export default function TestRunForm({
     loadData();
   }, [suiteId]);
 
+  // NEW: Handle pre-selected test cases from navigation
+  useEffect(() => {
+    if (preSelectedTestCaseIds.length > 0 && !initialData) {
+      setSelectedTestCases(preSelectedTestCaseIds);
+      // Show a notification
+      toast.info(`${preSelectedTestCaseIds.length} test case(s) pre-selected`, {
+        description: 'Configure your test run settings below'
+      });
+    }
+  }, [preSelectedTestCaseIds, initialData]);
+
   useEffect(() => {
     if (initialData?.id) {
       loadExistingRelationships();
     }
   }, [initialData]);
-
-  // REMOVED THE DUPLICATE useEffect THAT WAS CAUSING ISSUES
 
   const loadData = async () => {
     try {
@@ -115,7 +126,6 @@ export default function TestRunForm({
         }
       });
 
-      // Remove duplicates using Set
       setSelectedSprints([...new Set(sprintIds)]);
       setSelectedTestCases([...new Set(testCaseIds)]);
     } catch (error) {
@@ -124,7 +134,6 @@ export default function TestRunForm({
   };
 
   const handleSprintSelection = (sprintIds: string[]) => {
-    // Remove duplicates
     const uniqueSprintIds = [...new Set(sprintIds)];
     setSelectedSprints(uniqueSprintIds);
 
@@ -140,7 +149,6 @@ export default function TestRunForm({
       return !Array.from(allSprintTestCaseIds).includes(tcId);
     });
 
-    // Combine sprint test cases with orphaned selections (no duplicates due to Set)
     setSelectedTestCases([...Array.from(allSprintTestCaseIds), ...orphanedTestCaseIds]);
   };
 
@@ -151,7 +159,6 @@ export default function TestRunForm({
   const createRelationships = async (testRunId: string, userId: string) => {
     const relationshipsToCreate = [];
 
-    // Link sprints (remove duplicates)
     const uniqueSprints = [...new Set(selectedSprints)];
     for (const sprintId of uniqueSprints) {
       relationshipsToCreate.push({
@@ -165,7 +172,6 @@ export default function TestRunForm({
       });
     }
 
-    // Link test cases (remove duplicates)
     const uniqueTestCases = [...new Set(selectedTestCases)];
     for (const testCaseId of uniqueTestCases) {
       relationshipsToCreate.push({
@@ -280,6 +286,16 @@ export default function TestRunForm({
         <h2 className="text-2xl font-bold text-foreground">
           {initialData ? 'Edit Test Run' : 'Create Test Run'}
         </h2>
+        {/* NEW: Show info when test cases are pre-selected */}
+        {preSelectedTestCaseIds.length > 0 && !initialData && (
+          <div className="mt-3 flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-blue-700 dark:text-blue-300">
+              <p className="font-medium">Pre-selected test cases</p>
+              <p className="mt-0.5">{preSelectedTestCaseIds.length} test case(s) have been pre-selected from your previous selection.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -475,7 +491,6 @@ function SprintSelector({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        {/* FIXED: Show selectedSprints.length instead of sprints.length */}
         <label className="text-sm font-medium">Sprints ({selectedSprints.length})</label>
         <button
           type="button"
@@ -548,6 +563,11 @@ function TestCaseSelector({
     onSelectionChange(newSelection);
   };
 
+  // NEW: Count manually selected test cases (not from sprints)
+  const manuallySelectedCount = selectedTestCases.filter((id: string) =>
+    availableTestCases.some((tc: any) => tc.id === id)
+  ).length;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -594,15 +614,11 @@ function TestCaseSelector({
         </div>
       )}
 
-      {selectedTestCases.filter((id: string) =>
-        availableTestCases.some((tc: any) => tc.id === id)
-      ).length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            {selectedTestCases.filter((id: string) =>
-              availableTestCases.some((tc: any) => tc.id === id)
-            ).length} additional test case(s) selected
-          </div>
-        )}
+      {manuallySelectedCount > 0 && (
+        <div className="text-xs text-muted-foreground">
+          {manuallySelectedCount} additional test case(s) selected
+        </div>
+      )}
     </div>
   );
 }

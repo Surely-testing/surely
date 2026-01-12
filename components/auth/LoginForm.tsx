@@ -17,7 +17,7 @@ const LoginForm = () => {
   const { supabase } = useSupabase()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -26,9 +26,9 @@ const LoginForm = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
-    setFormData({ 
-      ...formData, 
-      [name]: type === 'checkbox' ? checked : value 
+    setFormData({
+      ...formData,
+      [name]: type === 'checkbox' ? checked : value
     })
   }
 
@@ -45,12 +45,15 @@ const LoginForm = () => {
       if (signInError) throw signInError
 
       if (data.user) {
-        // ✅ Simple redirect - let middleware and dashboard layout handle the rest
         const { data: profile } = await supabase
           .from('profiles')
           .select('registration_completed')
           .eq('id', data.user.id)
           .single()
+
+        // Get the redirect URL from query params
+        const searchParams = new URLSearchParams(window.location.search)
+        const redirectUrl = searchParams.get('redirect')
 
         if (profile && !profile.registration_completed) {
           toast.success('Welcome! Let\'s complete your setup', {
@@ -59,11 +62,12 @@ const LoginForm = () => {
           router.push('/onboarding')
         } else {
           toast.success('Welcome back!', {
-            description: 'Redirecting to your dashboard...',
+            description: 'Redirecting...',
           })
-          router.push('/dashboard')
+          // Use redirect URL if it exists, otherwise default to dashboard
+          router.push(redirectUrl || '/dashboard')
         }
-        
+
         router.refresh()
       }
     } catch (err: any) {
@@ -219,7 +223,7 @@ const LoginForm = () => {
               className={`
                 transition-all duration-300 ease-in-out
                 ${isLoading
-                  ? 'w-12 h-12 rounded-full bg-primary shadow-md flex items-center justify-center' 
+                  ? 'w-12 h-12 rounded-full bg-primary shadow-md flex items-center justify-center'
                   : 'w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg px-6 py-3 shadow-glow-sm hover:shadow-glow-md hover:-translate-y-0.5'
                 }
                 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
@@ -239,8 +243,8 @@ const LoginForm = () => {
       <div className="pt-6 border-t border-border">
         <p className="text-center text-sm sm:text-base text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link 
-            href="/register" 
+          <Link
+            href="/register"
             className="text-primary hover:text-primary/80 font-semibold transition-colors"
           >
             Create one now

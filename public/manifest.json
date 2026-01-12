@@ -1,0 +1,200 @@
+{
+  "name": "Surely - AI-Powered Quality Assurance Platform",
+  "short_name": "Surely",
+  "description": "Transform your testing workflow with AI-powered automation, intelligent bug tracking, and real-time insights. Join thousands of teams shipping better software faster.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "background_color_dark": "#18181b",
+  "theme_color": "#326FF7",
+  "theme_color_dark": "#18181b",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["productivity", "business", "developer tools"],
+  "dir": "ltr",
+  "lang": "en-US",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/surely_16x16.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_48x48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_64x64.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_150x150.png",
+      "sizes": "150x150",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_180x180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/surely_256x256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/surely_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/surely_1024x1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "apple touch icon"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/surely_social_1200x1200.webp",
+      "sizes": "1200x1200",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Surely Dashboard - Test Management"
+    },
+    {
+      "src": "/surely_social_600x600.webp",
+      "sizes": "600x600",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Surely Mobile View"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Go to main dashboard",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/surely_96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Test Suites",
+      "short_name": "Suites",
+      "description": "View test suites",
+      "url": "/dashboard/suites",
+      "icons": [
+        {
+          "src": "/surely_96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Bugs",
+      "short_name": "Bugs",
+      "description": "Track and manage bugs",
+      "url": "/dashboard/bugs",
+      "icons": [
+        {
+          "src": "/surely_96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "New Test",
+      "short_name": "New Test",
+      "description": "Create new test",
+      "url": "/dashboard/create-suite",
+      "icons": [
+        {
+          "src": "/surely_96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/dashboard/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "media",
+          "accept": ["image/*", "video/*"]
+        }
+      ]
+    }
+  },
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
+  "related_applications": [],
+  "display_override": ["window-controls-overlay", "standalone", "browser"]
+}

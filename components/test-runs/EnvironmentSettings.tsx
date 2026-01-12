@@ -1,10 +1,10 @@
 // ============================================
-// 2. EnvironmentSettings.tsx - FIXED
+// EnvironmentSettings.tsx - UPDATED: Added Set as Default toggle
 // ============================================
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Trash2, Globe, Loader2, Save, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Globe, Loader2, Save, AlertCircle, Star } from 'lucide-react'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database.types'
@@ -60,6 +60,7 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
         base_url: 'https://example.com',
         created_by: user.id,
         is_active: true,
+        is_default: false,
       }
 
       const { data, error } = await supabase
@@ -130,6 +131,42 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
     await handleUpdateEnvironment(env.id, { is_active: !env.is_active })
   }
 
+  const handleToggleDefault = async (env: Environment) => {
+    // If trying to set as default
+    if (env.is_default !== true) {
+      try {
+        // First, unset all other defaults
+        const { error: unsetError } = await supabase
+          .from('environments')
+          .update({ is_default: false })
+          .eq('suite_id', suiteId)
+          .neq('id', env.id)
+
+        if (unsetError) throw unsetError
+
+        // Update local state to unset all others
+        setEnvironments(prev => prev.map(e => 
+          e.id === env.id ? e : { ...e, is_default: false }
+        ))
+
+        // Now set this one as default
+        await handleUpdateEnvironment(env.id, { is_default: true, is_active: true })
+        
+        toast.success('Default environment updated', {
+          description: `${env.name} is now the default environment`
+        })
+      } catch (error: any) {
+        console.error('Error setting default:', error)
+        toast.error('Failed to set default environment', { description: error.message })
+      }
+    } else {
+      // Trying to unset default - don't allow if it's the only one
+      toast.error('Cannot unset default environment', {
+        description: 'At least one environment must be set as default'
+      })
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -147,7 +184,7 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
             Test Environments
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure environments where your tests will run
+            Configure environments where your tests will run. Set one as default for all test executions.
           </p>
         </div>
         <button
@@ -207,6 +244,12 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
                         }`}>
                           {env.type}
                         </span>
+                        {env.is_default === true && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Star className="w-3 h-3 fill-current" />
+                            Default
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
                         {env.description || 'No description'}
@@ -225,9 +268,7 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
-                      Name
-                    </label>
+                    <label className="block text-sm font-medium mb-2">Name</label>
                     <input
                       type="text"
                       value={env.name}
@@ -244,9 +285,7 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
-                      Type
-                    </label>
+                    <label className="block text-sm font-medium mb-2">Type</label>
                     <select
                       value={env.type}
                       onChange={(e) => handleUpdateEnvironment(env.id, { type: e.target.value })}
@@ -262,9 +301,7 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Base URL
-                  </label>
+                  <label className="block text-sm font-medium mb-2">Base URL</label>
                   <input
                     type="url"
                     value={env.base_url}
@@ -281,9 +318,7 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Description (Optional)
-                  </label>
+                  <label className="block text-sm font-medium mb-2">Description (Optional)</label>
                   <textarea
                     value={env.description || ''}
                     onChange={(e) => {
@@ -299,17 +334,35 @@ export function EnvironmentSettings({ suiteId }: EnvironmentSettingsProps) {
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-border">
+                <div className="space-y-3 pt-4 border-t border-border">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={env.is_active}
+                      checked={env.is_active ?? false}
                       onChange={() => handleToggleActive(env)}
                       className="w-4 h-4 text-primary rounded"
                     />
                     <span className="text-sm text-foreground">
                       Active (available for test runs)
                     </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="default-environment"
+                      checked={env.is_default ?? false}
+                      onChange={() => handleToggleDefault(env)}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-sm text-foreground font-medium">
+                        Set as Default Environment
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        (Used for all test executions)
+                      </span>
+                    </div>
                   </label>
 
                   {isSaving && (

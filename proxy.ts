@@ -26,24 +26,24 @@ const ROUTES = {
     '/security',
     '/reviews',
   ],
-  
+
   // Auth pages - redirect to role-specific dashboard if authenticated
   AUTH: ['/login', '/signup'],
-  
+
   // Always accessible (bypass all checks)
   BYPASS: ['/auth/callback', '/verify-email', '/auth/reactivate', '/select-account-type'],
-  
+
   // System role protected routes
   SYSTEM: {
     system_admin: ['/admin'],
   },
-  
+
   // Organization role protected routes
   ORGANIZATION: {
     owner: ['/org-admin'],
     admin: ['/org-admin'],
   },
-  
+
   // Shared routes (all authenticated users)
   USER: [
     '/dashboard',
@@ -55,7 +55,7 @@ const ROUTES = {
     '/create-suite',
     '/test-suites',
   ],
-  
+
   // Special routes
   SHARED: ['/onboarding'],
 } as const
@@ -83,17 +83,17 @@ function getRouteType(path: string) {
   if (matchesPath(path, ROUTES.AUTH)) return 'auth'
   if (matchesPath(path, ROUTES.SHARED)) return 'shared'
   if (matchesPath(path, ROUTES.USER)) return 'user'
-  
+
   // Check system admin routes
   if (matchesPath(path, ROUTES.SYSTEM.system_admin)) {
     return { type: 'system', role: 'system_admin' as const }
   }
-  
+
   // Check organization admin routes
   if (matchesPath(path, ROUTES.ORGANIZATION.owner)) {
     return { type: 'organization', role: 'owner' as const }
   }
-  
+
   return 'unknown'
 }
 
@@ -103,7 +103,7 @@ function getRouteType(path: string) {
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
   const routeType = getRouteType(path)
-  
+
   // Early return for bypass routes
   if (routeType === 'bypass') {
     return NextResponse.next()
@@ -167,8 +167,10 @@ export async function proxy(request: NextRequest) {
     if (routeType === 'auth') {
       return response
     }
-    // Block protected/shared routes
-    return NextResponse.redirect(new URL('/login', request.url))
+    // Block protected/shared routes - PRESERVE ORIGINAL URL
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('redirect', request.url)
+    return NextResponse.redirect(loginUrl)
   }
 
   // ============================================
@@ -213,16 +215,16 @@ export async function proxy(request: NextRequest) {
       errorMessage: profileError?.message,
       path: path,
     })
-    
+
     if (path.startsWith('/auth/')) {
       console.log('Allowing auth route without profile:', path)
       return response
     }
-    
+
     if (profileError?.code === 'PGRST116' || profileError?.message?.includes('RLS')) {
       console.error('❌ RLS is blocking profile fetch! Check your RLS policies.')
     }
-    
+
     return NextResponse.redirect(
       new URL(`/login?error=Profile%20not%20found&code=${profileError?.code || 'unknown'}`, request.url)
     )
@@ -248,7 +250,7 @@ export async function proxy(request: NextRequest) {
   // ============================================
   // RULE MATRIX APPLICATION
   // ============================================
-  
+
   // RULE 1: Inactive accounts → reactivation page
   if (profile.status === 'inactive' && !path.startsWith('/auth/reactivate')) {
     return NextResponse.redirect(
@@ -295,13 +297,13 @@ export async function proxy(request: NextRequest) {
         new URL(`${defaultRoute}?error=Organization%20admin%20access%20required`, request.url)
       )
     }
-    
+
     if (!profile.organization_id) {
       return NextResponse.redirect(
         new URL(`${defaultRoute}?error=No%20organization%20assigned`, request.url)
       )
     }
-    
+
     return response
   }
 
