@@ -1,12 +1,12 @@
 // ============================================
 // FILE: components/test-runs/TestRunsGrid.tsx
-// Test Runs Grid View Component - Without duplicate Select All
+// Updated: Added execution handlers (Manual/Automated)
 // ============================================
 'use client';
 
 import React from 'react';
 import Link from 'next/link';
-import { Play, CheckCircle, XCircle, Clock, Edit2, Eye, Calendar, User } from 'lucide-react';
+import { Play, CheckCircle, XCircle, Clock, Edit2, Eye, Calendar, User, PlayCircle, UserCog } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils/cn';
 
@@ -16,6 +16,8 @@ interface TestRunsGridProps {
   selectedRuns: string[];
   onSelectionChange: (ids: string[]) => void;
   onEdit: (run: any) => void;
+  onRunAutomated: (testRun: any) => Promise<void>;
+  onRunManual: (testRun: any) => Promise<void>;
 }
 
 export function TestRunsGrid({ 
@@ -23,7 +25,9 @@ export function TestRunsGrid({
   suiteId, 
   selectedRuns, 
   onSelectionChange,
-  onEdit 
+  onEdit,
+  onRunAutomated,
+  onRunManual
 }: TestRunsGridProps) {
   const toggleSelection = (id: string) => {
     if (selectedRuns.includes(id)) {
@@ -209,24 +213,55 @@ export function TestRunsGrid({
               )}
 
               {/* Actions */}
-              <div className="flex items-center gap-2 pt-2">
-                <Link
-                  href={`/dashboard/test-runs/${run.id}`}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
-                >
-                  <Eye className="h-3 w-3" />
-                  View
-                </Link>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(run);
-                  }}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
-                >
-                  <Edit2 className="h-3 w-3" />
-                  Edit
-                </button>
+              <div className="flex flex-col gap-2 pt-2">
+                {/* Execution Buttons - Only show for pending runs */}
+                {run.status === 'pending' && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRunAutomated(run);
+                      }}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded-md transition-colors"
+                      title="Run all tests automatically"
+                    >
+                      <PlayCircle className="h-3 w-3" />
+                      Automated
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRunManual(run);
+                      }}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+                      title="Execute tests manually step-by-step"
+                    >
+                      <UserCog className="h-3 w-3" />
+                      Manual
+                    </button>
+                  </div>
+                )}
+
+                {/* View & Edit Buttons */}
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/dashboard/test-runs/${run.id}`}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+                  >
+                    <Eye className="h-3 w-3" />
+                    View
+                  </Link>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(run);
+                    }}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    Edit
+                  </button>
+                </div>
               </div>
             </div>
           </div>

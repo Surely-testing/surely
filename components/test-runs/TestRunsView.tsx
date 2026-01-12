@@ -1,12 +1,11 @@
 // ============================================
-// FILE: components/test-runs/TestRunsView.tsx
-// Matches test cases view pattern exactly
+// TestRunsView.tsx - Updated: Removed createRun handling, added Manual/Automated execution
 // ============================================
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, RefreshCw, Search, Filter, Play, Grid3x3, List } from 'lucide-react';
+import { Plus, RefreshCw, Search, Filter, Play, Grid3x3, List, Settings, PlayCircle, UserCog } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { useSuiteContext } from '@/providers/SuiteContextProvider';
 import { toast } from 'sonner';
@@ -19,6 +18,7 @@ import { TestRunsGrid } from './TestRunsGrid';
 import { Pagination } from '@/components/shared/Pagination';
 import { BulkActionsBar } from '@/components/shared/bulk-action/BulkActionBar';
 import TestRunForm from './TestRunsForm';
+import { EnvironmentSettings } from './EnvironmentSettings';
 import {
   Select,
   SelectContent,
@@ -34,15 +34,16 @@ interface TestRunsViewProps {
 
 type SortField = 'name' | 'created_at' | 'executed_at';
 type SortOrder = 'asc' | 'desc';
+type ViewSection = 'runs' | 'form' | 'environments';
 
 export default function TestRunsView({ suiteId }: TestRunsViewProps) {
   const router = useRouter();
-  const { supabase } = useSupabase();
+  const { supabase, user } = useSupabase();
   const { execute: executeBulkAction, isExecuting } = useBulkActions('test_runs', suiteId);
   
   // State
+  const [currentView, setCurrentView] = useState<ViewSection>('runs');
   const [testRuns, setTestRuns] = useState<any[]>([]);
-  const [showForm, setShowForm] = useState(false);
   const [editingRun, setEditingRun] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +59,40 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
   const context = useSuiteContext();
   const canAdmin = context?.canAdmin ?? true;
 
-  // Fetch test runs - matches test cases pattern
+  // Check for default environment
+  const checkDefaultEnvironment = async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('environments')
+        .select('id')
+        .eq('suite_id', suiteId)
+        .eq('is_default', true)
+        .single()
+
+      if (error || !data) {
+        toast.error('No default environment configured', {
+          description: 'Please set a default environment before running tests',
+          action: {
+            label: 'Configure Now',
+            onClick: () => setCurrentView('environments')
+          }
+        })
+        return false
+      }
+      return true
+    } catch (err) {
+      toast.error('No default environment configured', {
+        description: 'Please set a default environment before running tests',
+        action: {
+          label: 'Configure Now',
+          onClick: () => setCurrentView('environments')
+        }
+      })
+      return false
+    }
+  }
+
+  // Fetch test runs
   const fetchTestRuns = async () => {
     setIsLoading(true);
     try {
@@ -78,7 +112,7 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
     }
   };
 
-  // Real-time subscriptions - matches test cases pattern
+  // Real-time subscriptions
   useEffect(() => {
     fetchTestRuns();
 
@@ -188,22 +222,109 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
     }
   };
 
+  const handleFormSuccess = () => {
+    setCurrentView('runs');
+    setEditingRun(null);
+    fetchTestRuns();
+  };
+
+  const handleFormCancel = () => {
+    setCurrentView('runs');
+    setEditingRun(null);
+  };
+
+  const handleRunAutomated = async (testRun: any) => {
+    const hasDefaultEnv = await checkDefaultEnvironment()
+    if (!hasDefaultEnv) return
+
+    try {
+      // Update status to in-progress (or keep as pending if API will update it)
+      const { error: updateError } = await supabase
+        .from('test_runs')
+        .update({ status: 'pending' })
+        .eq('id', testRun.id)
+
+      if (updateError) throw updateError
+
+      // Navigate to test run details page
+      router.push(`/dashboard/test-runs/${testRun.id}`)
+
+      // Get test case IDs from relationships
+      const { data: relationships, error: relError } = await supabase
+        .from('asset_relationships')
+        .select('target_id')
+        .eq('source_type', 'test_run')
+        .eq('source_id', testRun.id)
+        .eq('target_type', 'test_case')
+
+      if (relError) throw relError
+
+      const testCaseIds = relationships?.map(r => r.target_id) || []
+
+      // Trigger execution
+      const response = await fetch('/api/test-execution/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId: testRun.id,
+          testCaseIds,
+          suiteId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to trigger test execution')
+      }
+
+      toast.success('Automated test run started', {
+        description: `Executing ${testCaseIds.length} test case(s)...`
+      })
+
+    } catch (error: any) {
+      logger.log('Run automated failed:', error)
+      toast.error('Failed to start automated run', { description: error.message })
+    }
+  }
+
+  const handleRunManual = async (testRun: any) => {
+    const hasDefaultEnv = await checkDefaultEnvironment()
+    if (!hasDefaultEnv) return
+
+    // Navigate to manual execution view
+    router.push(`/dashboard/test-runs/${testRun.id}/execute`)
+  }
+
+  // Render environment settings
+  if (currentView === 'environments') {
+    return (
+      <div className="space-y-4 md:space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Environment Settings
+            </h1>
+          </div>
+          <button
+            onClick={() => setCurrentView('runs')}
+            className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+          >
+            Back to Test Runs
+          </button>
+        </div>
+        <EnvironmentSettings suiteId={suiteId} />
+      </div>
+    );
+  }
+
   // Render form if creating/editing
-  if (showForm) {
+  if (currentView === 'form') {
     return (
       <div className="space-y-4 md:space-y-6">
         <TestRunForm
           suiteId={suiteId}
           initialData={editingRun}
-          onSuccess={() => {
-            setShowForm(false);
-            setEditingRun(null);
-            fetchTestRuns();
-          }}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingRun(null);
-          }}
+          onSuccess={handleFormSuccess}
+          onCancel={handleFormCancel}
         />
       </div>
     );
@@ -235,11 +356,20 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
   if (testRuns.length === 0) {
     return (
       <>
-        <div className="flex items-center gap-3 mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Test Runs
-          </h1>
-          <span className="text-sm text-muted-foreground">(0)</span>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Test Runs
+            </h1>
+            <span className="text-sm text-muted-foreground">(0)</span>
+          </div>
+          <button
+            onClick={() => setCurrentView('environments')}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+            Environments
+          </button>
         </div>
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Play className="h-12 w-12 text-muted-foreground mb-3" />
@@ -250,7 +380,7 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
           {canAdmin && (
             <button
               type="button"
-              onClick={() => setShowForm(true)}
+              onClick={() => setCurrentView('form')}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-all"
             >
               <Plus className="h-4 w-4" />
@@ -277,12 +407,20 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
           </div>
 
           <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setCurrentView('environments')}
+              className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Environments</span>
+            </button>
+
             {canAdmin && (
               <button
                 type="button"
                 onClick={() => {
                   setEditingRun(null);
-                  setShowForm(true);
+                  setCurrentView('form');
                 }}
                 className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-all"
               >
@@ -578,8 +716,10 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
                 onSelectionChange={setSelectedRuns}
                 onEdit={(run) => {
                   setEditingRun(run);
-                  setShowForm(true);
+                  setCurrentView('form');
                 }}
+                onRunAutomated={handleRunAutomated}
+                onRunManual={handleRunManual}
               />
             ) : (
               <TestRunsGrid
@@ -589,8 +729,10 @@ export default function TestRunsView({ suiteId }: TestRunsViewProps) {
                 onSelectionChange={setSelectedRuns}
                 onEdit={(run) => {
                   setEditingRun(run);
-                  setShowForm(true);
+                  setCurrentView('form');
                 }}
+                onRunAutomated={handleRunAutomated}
+                onRunManual={handleRunManual}
               />
             )}
             

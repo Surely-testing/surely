@@ -1070,6 +1070,7 @@ export type Database = {
           headers: Json | null
           id: string
           is_active: boolean
+          is_default: boolean | null
           name: string
           suite_id: string
           timeout_seconds: number | null
@@ -1087,6 +1088,7 @@ export type Database = {
           headers?: Json | null
           id?: string
           is_active?: boolean
+          is_default?: boolean | null
           name: string
           suite_id: string
           timeout_seconds?: number | null
@@ -1104,6 +1106,7 @@ export type Database = {
           headers?: Json | null
           id?: string
           is_active?: boolean
+          is_default?: boolean | null
           name?: string
           suite_id?: string
           timeout_seconds?: number | null
@@ -2061,6 +2064,7 @@ export type Database = {
           suite_id: string
           tags: string[] | null
           test_data_id: string | null
+          test_type: string | null
           title: string
           type: string | null
           updated_at: string | null
@@ -2102,6 +2106,7 @@ export type Database = {
           suite_id: string
           tags?: string[] | null
           test_data_id?: string | null
+          test_type?: string | null
           title: string
           type?: string | null
           updated_at?: string | null
@@ -2143,6 +2148,7 @@ export type Database = {
           suite_id?: string
           tags?: string[] | null
           test_data_id?: string | null
+          test_type?: string | null
           title?: string
           type?: string | null
           updated_at?: string | null

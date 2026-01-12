@@ -1,6 +1,6 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/page.tsx
-// COMPLETE FIX - Proper status handling and display
+// COMPLETE WITH PROGRESS BAR - Shows execution progress in real-time
 // ============================================
 'use client'
 
@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Play, Pause, CheckCircle, XCircle,
   Clock, Calendar, User, Settings, FileText,
-  Edit, Trash2, AlertCircle, Shield, Flag
+  Edit, Trash2, AlertCircle, Shield, Flag, Loader2
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSupabase } from '@/providers/SupabaseProvider'
@@ -47,9 +47,54 @@ export default function TestRunDetailsPage({
     fetchTestRunDetails()
   }, [testRunId])
 
+  // Real-time subscription for test results updates
+  useEffect(() => {
+    if (!testRunId) return
+
+    const channel = supabase
+      .channel(`test_run_results:${testRunId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'test_run_results',
+        filter: `test_run_id=eq.${testRunId}`
+      }, (payload) => {
+        logger.log('Real-time result update:', payload)
+        fetchTestRunDetails() // Refresh data when results update
+      })
+      .subscribe()
+
+    return () => { 
+      supabase.removeChannel(channel) 
+    }
+  }, [testRunId])
+
+  // Detect if execution is in progress
+  useEffect(() => {
+    if (testRunResults.length > 0) {
+      const hasPending = testRunResults.some(r => r.status === 'pending')
+      setIsExecuting(hasPending)
+    } else {
+      setIsExecuting(false)
+    }
+  }, [testRunResults])
+
+  // Poll for updates every 2 seconds when executing
+  useEffect(() => {
+    if (!isExecuting) return
+
+    const interval = setInterval(() => {
+      fetchTestRunDetails()
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [isExecuting])
+
   const fetchTestRunDetails = async () => {
     try {
-      setIsLoading(true)
+      if (isLoading) {
+        setIsLoading(true)
+      }
 
       // Fetch test run
       const { data: runData, error: runError } = await supabase
@@ -102,9 +147,9 @@ export default function TestRunDetailsPage({
         const resultsToCreate = testCases.map(tc => ({
           test_run_id: testRunId,
           test_case_id: tc.id,
-          status: 'pending', // FIXED: Changed from 'not_executed'
+          status: 'pending',
           executed_at: null,
-          duration_seconds: null, // FIXED: Changed from 'duration'
+          duration_seconds: null,
           notes: null
         }))
 
@@ -178,7 +223,7 @@ export default function TestRunDetailsPage({
         return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
       case 'skipped':
         return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-      case 'pending': // FIXED: Added pending status
+      case 'pending':
         return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
       default:
         return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
@@ -211,7 +256,7 @@ export default function TestRunDetailsPage({
         return <Shield className="h-5 w-5 text-orange-600 dark:text-orange-400" />
       case 'skipped':
         return <Flag className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-      case 'pending': // FIXED: Added pending status
+      case 'pending':
         return <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
       default:
         return <Clock className="h-5 w-5 text-gray-600 dark:text-gray-400" />
@@ -244,14 +289,16 @@ export default function TestRunDetailsPage({
     )
   }
 
-  // FIXED: Calculate stats from results with proper status handling
+  // Calculate stats from results with proper status handling
+  const completedCount = testRunResults.filter(r => r.status !== 'pending').length
   const passedCount = testRunResults.filter(r => r.status === 'passed').length
   const failedCount = testRunResults.filter(r => r.status === 'failed').length
   const blockedCount = testRunResults.filter(r => r.status === 'blocked').length
   const skippedCount = testRunResults.filter(r => r.status === 'skipped').length
   const pendingCount = testRunResults.filter(r => r.status === 'pending').length
-  const totalCount = testCases.length
+  const totalCount = testRunResults.length || testCases.length
   const passRate = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0
+  const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -336,6 +383,32 @@ export default function TestRunDetailsPage({
         </div>
       </div>
 
+      {/* Progress Bar - Show when executing */}
+      {isExecuting && testRunResults.length > 0 && (
+        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+                Running tests, be patient...
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mt-0.5">
+                {completedCount} of {totalCount} tests completed
+              </p>
+            </div>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {completionRate}%
+            </span>
+          </div>
+          <div className="w-full h-3 bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-600 dark:bg-blue-500 transition-all duration-500 ease-out"
+              style={{ width: `${completionRate}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
@@ -387,40 +460,74 @@ export default function TestRunDetailsPage({
             ) : (
               <div className="space-y-3">
                 {testCases.map((testCase: any) => {
-                  // FIXED: Proper status handling with 'pending' as default
                   const result = testRunResults.find(r => r.test_case_id === testCase.id)
                   const status = result?.status || 'pending'
+                  const hasFailed = status === 'failed' || status === 'blocked'
 
                   return (
                     <div
                       key={testCase.id}
-                      className="flex items-start gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                      className="border border-border rounded-lg overflow-hidden"
                     >
-                      <div className="mt-0.5">
-                        {getStatusIcon(status)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-foreground">{testCase.title}</h3>
-                          {testCase.priority && (
-                            <span className={cn(
-                              "text-xs px-2 py-0.5 rounded-full capitalize",
-                              getPriorityColor(testCase.priority)
-                            )}>
-                              {testCase.priority}
-                            </span>
+                      <div className="flex items-start gap-3 p-4 bg-muted/50">
+                        <div className="mt-0.5">
+                          {getStatusIcon(status)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium text-foreground">{testCase.title}</h3>
+                            {testCase.priority && (
+                              <span className={cn(
+                                "text-xs px-2 py-0.5 rounded-full capitalize",
+                                getPriorityColor(testCase.priority)
+                              )}>
+                                {testCase.priority}
+                              </span>
+                            )}
+                          </div>
+                          {testCase.description && (
+                            <p className="text-sm text-muted-foreground line-clamp-2">{testCase.description}</p>
+                          )}
+                          {result?.executed_at && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Executed: {new Date(result.executed_at).toLocaleString()}
+                              {result.duration_seconds && ` • Duration: ${result.duration_seconds}s`}
+                            </p>
                           )}
                         </div>
-                        {testCase.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-2">{testCase.description}</p>
-                        )}
+                        <span className={cn(
+                          "text-xs px-2 py-1 rounded-full capitalize flex-shrink-0",
+                          getStatusColor(status)
+                        )}>
+                          {status === 'pending' ? 'Not Executed' : status.replace('_', ' ')}
+                        </span>
                       </div>
-                      <span className={cn(
-                        "text-xs px-2 py-1 rounded-full capitalize flex-shrink-0",
-                        getStatusColor(status)
-                      )}>
-                        {status === 'pending' ? 'Not Executed' : status.replace('_', ' ')}
-                      </span>
+
+                      {/* Show error details for failed/blocked tests */}
+                      {hasFailed && result?.notes && (
+                        <div className="p-4 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-semibold text-red-900 dark:text-red-100 mb-1">
+                                Failure Details
+                              </h4>
+                              <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">
+                                {result.notes}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Show notes for passed tests */}
+                      {status === 'passed' && result?.notes && (
+                        <div className="p-4 bg-green-50 dark:bg-green-900/20 border-t border-green-200 dark:border-green-800">
+                          <p className="text-sm text-green-700 dark:text-green-300">
+                            {result.notes}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )
                 })}

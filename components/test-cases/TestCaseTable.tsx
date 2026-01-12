@@ -66,6 +66,12 @@ export interface TestCaseRow {
   tags?: string[] | null;
 }
 
+interface LinkedAsset {
+  id: string;
+  name: string;
+  type: string;
+}
+
 interface TestCaseTableProps {
   testCases: TestCaseRow[]
   suiteId: string
@@ -94,6 +100,7 @@ export function TestCaseTable({
   const [loadingActions, setLoadingActions] = useState<string[]>([])
   const [drawerTestCase, setDrawerTestCase] = useState<TestCase | null>(null)
   const [linkedAssetsCounts, setLinkedAssetsCounts] = useState<Record<string, number>>({})
+  const [linkedAssetsDetails, setLinkedAssetsDetails] = useState<Record<string, LinkedAsset[]>>({})
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -109,23 +116,38 @@ export function TestCaseTable({
     return testCases.slice(startIndex, endIndex)
   }, [testCases, currentPage, itemsPerPage])
 
-  // Fetch linked assets count for all visible test cases
+  // Fetch linked assets count and details for all visible test cases
   useEffect(() => {
     const fetchLinkedCounts = async () => {
       const counts: Record<string, number> = {}
+      const details: Record<string, LinkedAsset[]> = {}
       
       await Promise.all(
         paginatedTestCases.map(async (tc) => {
           try {
             const count = await relationshipsApi.getCount('test_case', tc.id)
             counts[tc.id] = count
+            
+            // Fetch asset details if there are linked assets
+            if (count > 0) {
+              const assets = await relationshipsApi.getLinkedAssets('test_case', tc.id)
+              details[tc.id] = assets.map((asset: any) => ({
+                id: asset.id,
+                name: asset.title || asset.name || 'Unnamed Asset',
+                type: asset.asset_type || asset.type || 'Unknown'
+              }))
+            } else {
+              details[tc.id] = []
+            }
           } catch (error) {
             counts[tc.id] = 0
+            details[tc.id] = []
           }
         })
       )
       
       setLinkedAssetsCounts(counts)
+      setLinkedAssetsDetails(details)
     }
 
     if (paginatedTestCases.length > 0) {
@@ -171,6 +193,19 @@ export function TestCaseTable({
       day: 'numeric',
       year: 'numeric'
     })
+  }
+
+  const getTestType = (testCase: TestCaseRow): 'Manual' | 'Automated' => {
+    // Check if steps exist and have automated actions
+    if (testCase.steps && Array.isArray(testCase.steps) && testCase.steps.length > 0) {
+      const hasAutomatedSteps = testCase.steps.some((step: any) => step.action)
+      if (hasAutomatedSteps) return 'Automated'
+    }
+    
+    // Fallback to is_automated flag
+    if (testCase.is_automated) return 'Automated'
+    
+    return 'Manual'
   }
 
   const handleToggleSelection = (id: string) => {
@@ -251,7 +286,6 @@ export function TestCaseTable({
             <TableHeaderCell key="assignee">Assignee</TableHeaderCell>,
             <TableHeaderCell key="module">Module</TableHeaderCell>,
             <TableHeaderCell key="type">Type</TableHeaderCell>,
-            <TableHeaderCell key="automated">Automated</TableHeaderCell>,
             <TableHeaderCell key="linked">Linked Assets</TableHeaderCell>,
             <TableHeaderCell key="created">Created</TableHeaderCell>,
             <TableHeaderCell key="actions" minWidth="min-w-[120px]">Actions</TableHeaderCell>,
@@ -262,6 +296,8 @@ export function TestCaseTable({
         {paginatedTestCases.map((testCase) => {
           const isSelected = selectedIds.includes(testCase.id)
           const linkedCount = linkedAssetsCounts[testCase.id] ?? 0
+          const linkedAssets = linkedAssetsDetails[testCase.id] ?? []
+          const testType = getTestType(testCase)
 
           return (
             <TableRow key={testCase.id} selected={isSelected}>
@@ -346,26 +382,56 @@ export function TestCaseTable({
                 <span className="text-sm">{testCase.module || '—'}</span>
               </TableCell>
 
-              {/* Type */}
+              {/* Type (Manual/Automated) */}
               <TableCell>
-                <span className="text-sm">{testCase.type || 'Manual'}</span>
-              </TableCell>
-
-              {/* Automated */}
-              <TableCell>
-                <span className="text-sm">{testCase.is_automated ? 'Yes' : 'No'}</span>
+                <div className="flex items-center h-full py-1">
+                  <div 
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap w-24"
+                    style={{
+                      backgroundColor: testType === 'Automated' ? '#ffcef3' : '#cabbe9',
+                      color: '#000000'
+                    }}
+                  >
+                    {testType}
+                  </div>
+                </div>
               </TableCell>
 
               {/* Linked Assets */}
               <TableCell>
-                <div className="flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className={cn(
-                    "text-sm",
-                    linkedCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
-                  )}>
-                    {linkedCount > 0 ? `${linkedCount}` : 'None'}
-                  </span>
+                <div className="relative group">
+                  <div className="flex items-center gap-1.5 cursor-help">
+                    <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className={cn(
+                      "text-sm",
+                      linkedCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
+                    )}>
+                      {linkedCount > 0 ? `${linkedCount}` : 'None'}
+                    </span>
+                  </div>
+                  
+                  {/* Tooltip */}
+                  {linkedCount > 0 && linkedAssets.length > 0 && (
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-64">
+                      <div className="bg-popover border border-border rounded-lg shadow-lg p-3">
+                        <div className="text-xs font-semibold text-foreground mb-2">
+                          Linked Assets ({linkedCount})
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                          {linkedAssets.map((asset) => (
+                            <div key={asset.id} className="text-xs">
+                              <div className="font-medium text-foreground truncate" title={asset.name}>
+                                {asset.name}
+                              </div>
+                              <div className="text-muted-foreground capitalize">
+                                {asset.type.replace('_', ' ')}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </TableCell>
 
