@@ -4,6 +4,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { BugWithCreator, BugSeverity, BugStatus } from '@/types/bug.types';
 import { Grid, List, Code, Search, AlertTriangle, Filter, Plus, Sparkles, Upload, Bug } from 'lucide-react';
@@ -136,6 +137,18 @@ export function BugTracking({ suiteId, onRefresh, onCreateClick }: BugTrackingPr
     onConfirm: () => { },
     isDestructive: false
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bugIdFromUrl = params.get('id') || window.location.pathname.split('/').pop();
+
+    if (bugIdFromUrl && bugs.length > 0) {
+      const bug = bugs.find(b => b.id === bugIdFromUrl);
+      if (bug) {
+        setSelectedBug(bug);
+      }
+    }
+  }, [bugs]);
 
   useEffect(() => {
     if (suiteId) {

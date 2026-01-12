@@ -1,15 +1,17 @@
 // ============================================
-// Enhanced Test Run Results View - Separated Sprint & Independent Results
+// Enhanced Test Run Results View - UPDATED: Added progress bar for executing tests
 // ============================================
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle, XCircle, AlertCircle, Clock, Shield, Flag,
   ChevronRight, ChevronDown, Package, CheckSquare, History,
-  TrendingUp, Calendar, User, ArrowLeft, Download, Filter
+  TrendingUp, Calendar, User, ArrowLeft, Download, Filter, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { useSupabase } from '@/providers/SupabaseProvider';
 
 interface TestHistory {
   sprint_id?: string;
@@ -57,7 +59,7 @@ interface TestRun {
   additional_case_ids: string[];
 }
 
-interface EnhancedResultsViewProps {
+interface ResultsViewProps {
   testRun: TestRun;
   sprints: Sprint[];
   sprintResults: Record<string, TestResult[]>;
@@ -65,17 +67,93 @@ interface EnhancedResultsViewProps {
   onBack: () => void;
 }
 
-export default function EnhancedResultsView({
+export default function ResultsView({
   testRun,
   sprints,
   sprintResults,
   additionalResults,
   onBack
-}: EnhancedResultsViewProps) {
+}: ResultsViewProps) {
+  const searchParams = useSearchParams();
+  const { supabase } = useSupabase();
+  const isExecuting = searchParams?.get('executing') === 'true';
+  
   const [expandedSprints, setExpandedSprints] = useState<Record<string, boolean>>({});
   const [expandedAdditional, setExpandedAdditional] = useState(true);
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [executionProgress, setExecutionProgress] = useState({ completed: 0, total: 0 });
+  const [isStillExecuting, setIsStillExecuting] = useState(isExecuting);
+
+  // Calculate total test cases
+  const totalTests = useMemo(() => {
+    const sprintCount = Object.values(sprintResults).flat().length;
+    const additionalCount = additionalResults.length;
+    return sprintCount + additionalCount;
+  }, [sprintResults, additionalResults]);
+
+  // Subscribe to test run updates
+  useEffect(() => {
+    if (!isExecuting) return;
+
+    const channel = supabase
+      .channel(`test_run_results:${testRun.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'test_run_results',
+        filter: `test_run_id=eq.${testRun.id}`
+      }, (payload) => {
+        // Refresh progress
+        fetchExecutionProgress();
+      })
+      .subscribe();
+
+    // Initial fetch
+    fetchExecutionProgress();
+
+    // Poll for updates every 2 seconds
+    const interval = setInterval(() => {
+      fetchExecutionProgress();
+    }, 2000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [isExecuting, testRun.id]);
+
+  const fetchExecutionProgress = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('test_run_results')
+        .select('status')
+        .eq('test_run_id', testRun.id);
+
+      if (error) throw error;
+
+      const completed = data?.filter(r => r.status !== 'pending').length || 0;
+      const total = data?.length || totalTests;
+
+      setExecutionProgress({ completed, total });
+
+      // Check if execution is complete
+      if (completed === total && total > 0) {
+        setIsStillExecuting(false);
+        
+        // Update test run status
+        await supabase
+          .from('test_runs')
+          .update({ 
+            status: 'completed',
+            executed_at: new Date().toISOString()
+          })
+          .eq('id', testRun.id);
+      }
+    } catch (error) {
+      console.error('Error fetching execution progress:', error);
+    }
+  };
 
   // Calculate overall statistics
   const stats = useMemo(() => {
@@ -323,12 +401,44 @@ export default function EnhancedResultsView({
 
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Progress Bar - Show when executing */}
+      {isStillExecuting && (
+        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+                Running tests, be patient...
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mt-0.5">
+                {executionProgress.completed} of {executionProgress.total} tests completed
+              </p>
+            </div>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {executionProgress.total > 0 
+                ? Math.round((executionProgress.completed / executionProgress.total) * 100)
+                : 0}%
+            </span>
+          </div>
+          <div className="w-full h-3 bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-600 dark:bg-blue-500 transition-all duration-500 ease-out"
+              style={{ 
+                width: `${executionProgress.total > 0 
+                  ? (executionProgress.completed / executionProgress.total) * 100 
+                  : 0}%` 
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <button
         onClick={onBack}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
-        <ArrowLeft className="w-4 h-4" />
+        <ArrowLeft className="w-4 w-4" />
         Back to Test Run
       </button>
 

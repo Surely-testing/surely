@@ -1,11 +1,10 @@
 // ============================================
-// TestCasesView.tsx - Complete Integration with Test Execution
+// TestCasesView.tsx - Cleaned up: Removed Test Runs button
 // ============================================
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, RefreshCw, Upload, Sparkles, Play, GitBranch, Filter, Settings } from 'lucide-react'
-import Link from 'next/link'
+import { Plus, RefreshCw, Upload, Sparkles, GitBranch, Filter } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { logger } from '@/lib/utils/logger'
 import { useSupabase } from '@/providers/SupabaseProvider'
@@ -18,14 +17,11 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { useAI } from '@/components/ai/AIAssistantProvider'
 import { TestCaseControlBar } from './views/TestCaseControlBar'
 import { TestCaseDialogs } from './views/TestCaseDialogs'
-import { RunTestsModal } from '../test-runs/runTestsModal'
-import { EnvironmentSettings } from '../test-runs/EnvironmentSettings'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '@/components/ui/Dropdown'
 import type { TestCase } from '@/types/test-case.types'
 import type { ActionOption } from '@/components/shared/bulk-action/BulkActionBar'
@@ -48,7 +44,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const router = useRouter()
   const { supabase, user } = useSupabase()
   const { setIsOpen, sendMessage } = useAI()
-  
+
   const { execute: executeBulkAction, isExecuting } = useBulkActions('test_cases', suiteId)
 
   // State
@@ -70,91 +66,86 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
 
-  // Test Execution State
-  const [isRunTestsModalOpen, setIsRunTestsModalOpen] = useState(false)
-  const [showEnvironmentSettings, setShowEnvironmentSettings] = useState(false)
-
   // Dialog states
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; itemIds: string[] }>({ 
-    open: false, 
-    itemIds: [] 
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; itemIds: string[] }>({
+    open: false,
+    itemIds: []
   })
-  const [archiveDialog, setArchiveDialog] = useState<{ open: boolean; itemIds: string[] }>({ 
-    open: false, 
-    itemIds: [] 
+  const [archiveDialog, setArchiveDialog] = useState<{ open: boolean; itemIds: string[] }>({
+    open: false,
+    itemIds: []
   })
 
-  const fetchTestCases = async () => {
-    setIsLoading(true)
+  const fetchTestCases = async (silent = false) => {
+    if (!silent) setIsLoading(true)
+    
     try {
-      const { data, error } = await supabase
+      // Fetch test cases with their latest results in one query
+      const { data: testCasesData, error: tcError } = await supabase
         .from('test_cases')
         .select('*')
         .eq('suite_id', suiteId)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
-      setTestCases(data || [])
+      if (tcError) throw tcError
+      
+      const testCaseIds = testCasesData?.map(tc => tc.id) || []
+      
+      if (testCaseIds.length > 0) {
+        // Fetch latest results for all test cases
+        const { data: allResults } = await supabase
+          .from('test_run_results')
+          .select('test_case_id, status, created_at')
+          .in('test_case_id', testCaseIds)
+          .order('created_at', { ascending: false })
+
+        // Build a map of latest results
+        const latestByTestCase = new Map<string, string>()
+        allResults?.forEach((result: any) => {
+          if (!latestByTestCase.has(result.test_case_id)) {
+            latestByTestCase.set(result.test_case_id, result.status)
+          }
+        })
+
+        // Merge results into test cases data
+        const testCasesWithResults = testCasesData?.map(tc => ({
+          ...tc,
+          last_result: latestByTestCase.get(tc.id) || tc.last_result
+        })) || []
+
+        setTestCases(testCasesWithResults)
+
+        // Silently sync DB in background if there are updates needed
+        if (!silent && latestByTestCase.size > 0) {
+          const updates = Array.from(latestByTestCase.entries())
+            .filter(([tcId, result]) => {
+              const tc = testCasesData?.find(t => t.id === tcId)
+              return tc && tc.last_result !== result
+            })
+            .map(([testCaseId, lastResult]) =>
+              supabase
+                .from('test_cases')
+                .update({ last_result: lastResult })
+                .eq('id', testCaseId)
+            )
+
+          if (updates.length > 0) {
+            Promise.all(updates).catch(err => logger.log('Error syncing statuses:', err))
+          }
+        }
+      } else {
+        setTestCases([])
+      }
     } catch (err: any) {
       logger.log('Error fetching test cases:', err)
       toast.error('Failed to load test cases', { description: err.message })
     } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const syncAllTestCaseStatuses = async () => {
-    try {
-      const { data: currentTestCases, error: tcError } = await supabase
-        .from('test_cases')
-        .select('id')
-        .eq('suite_id', suiteId)
-      
-      if (tcError) throw tcError
-      if (!currentTestCases || currentTestCases.length === 0) return
-
-      const testCaseIds = currentTestCases.map(tc => tc.id)
-
-      const { data: allResults, error } = await supabase
-        .from('test_run_results')
-        .select('test_case_id, status, created_at')
-        .in('test_case_id', testCaseIds)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      if (!allResults || allResults.length === 0) return
-
-      const latestByTestCase = new Map<string, string>()
-      allResults.forEach((result: any) => {
-        if (!latestByTestCase.has(result.test_case_id)) {
-          latestByTestCase.set(result.test_case_id, result.status)
-        }
-      })
-
-      if (latestByTestCase.size > 0) {
-        const updates = Array.from(latestByTestCase.entries()).map(([testCaseId, lastResult]) => 
-          supabase
-            .from('test_cases')
-            .update({ last_result: lastResult })
-            .eq('id', testCaseId)
-        )
-
-        await Promise.all(updates)
-        await fetchTestCases()
-        logger.log(`Synced last_result for ${latestByTestCase.size} test cases`)
-      }
-    } catch (error: any) {
-      logger.log('Error syncing test case statuses:', error)
+      if (!silent) setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    const initialize = async () => {
-      await fetchTestCases()
-      await syncAllTestCaseStatuses()
-    }
-    
-    initialize()
+    fetchTestCases()
 
     const testCasesChannel = supabase
       .channel(`test_cases:${suiteId}`)
@@ -183,21 +174,21 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         table: 'test_run_results'
       }, async (payload) => {
         const result = payload.new as any
-        
+
         const { data: testCase } = await supabase
           .from('test_cases')
           .select('id, suite_id')
           .eq('id', result.test_case_id)
           .eq('suite_id', suiteId)
           .single()
-        
+
         if (testCase) {
-          setTestCases(prev => prev.map(tc => 
-            tc.id === result.test_case_id 
+          setTestCases(prev => prev.map(tc =>
+            tc.id === result.test_case_id
               ? { ...tc, last_result: result.status }
               : tc
           ))
-          
+
           await supabase
             .from('test_cases')
             .update({ last_result: result.status })
@@ -210,21 +201,21 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         table: 'test_run_results'
       }, async (payload) => {
         const result = payload.new as any
-        
+
         const { data: testCase } = await supabase
           .from('test_cases')
           .select('id, suite_id')
           .eq('id', result.test_case_id)
           .eq('suite_id', suiteId)
           .single()
-        
+
         if (testCase) {
-          setTestCases(prev => prev.map(tc => 
-            tc.id === result.test_case_id 
+          setTestCases(prev => prev.map(tc =>
+            tc.id === result.test_case_id
               ? { ...tc, last_result: result.status }
               : tc
           ))
-          
+
           await supabase
             .from('test_cases')
             .update({ last_result: result.status })
@@ -233,33 +224,11 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       })
       .subscribe()
 
-    return () => { 
+    return () => {
       supabase.removeChannel(testCasesChannel)
       supabase.removeChannel(testRunResultsChannel)
     }
   }, [suiteId, supabase])
-
-  // Show environment settings view
-  if (showEnvironmentSettings) {
-    return (
-      <div className="space-y-4 md:space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-              Environment Settings
-            </h1>
-          </div>
-          <button
-            onClick={() => setShowEnvironmentSettings(false)}
-            className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
-          >
-            Back to Test Cases
-          </button>
-        </div>
-        <EnvironmentSettings suiteId={suiteId} />
-      </div>
-    )
-  }
 
   // Show create form
   if (isCreateModalOpen) {
@@ -282,6 +251,31 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   const grouped = groupTestCases(sorted, groupBy)
   const activeFiltersCount = (priorityFilter !== 'all' ? 1 : 0)
 
+  // Check for default environment
+  const checkDefaultEnvironment = async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('environments')
+        .select('id')
+        .eq('suite_id', suiteId)
+        .eq('is_default', true)
+        .single()
+
+      if (error || !data) {
+        toast.error('No default environment configured', {
+          description: 'Please set a default environment in Test Runs page'
+        })
+        return false
+      }
+      return true
+    } catch (err) {
+      toast.error('No default environment configured', {
+        description: 'Please set a default environment in Test Runs page'
+      })
+      return false
+    }
+  }
+
   // Handlers
   const handleBulkAction = async (
     actionId: string,
@@ -290,11 +284,27 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
     option?: ActionOption | null
   ) => {
     try {
-      // Handle run action specially - show modal
+      // Handle run action differently based on selection count
       if (actionId === 'run') {
-        setSelectedIds(testCaseIds)
-        setIsRunTestsModalOpen(true)
-        return
+        if (testCaseIds.length > 1) {
+          toast.info('Please create a test run to execute multiple test cases', {
+            description: 'Use the Test Runs page to create and execute test runs with multiple cases',
+            action: {
+              label: 'Go to Test Runs',
+              onClick: () => router.push('/dashboard/test-runs')
+            }
+          })
+          return
+        }
+
+        // Single test case - run immediately
+        if (testCaseIds.length === 1) {
+          const hasDefaultEnv = await checkDefaultEnvironment()
+          if (!hasDefaultEnv) return
+
+          await handleRunSingle(testCaseIds[0])
+          return
+        }
       }
 
       // Map other actions
@@ -323,7 +333,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
         testCaseIds,
         mapping.options,
         () => {
-          fetchTestCases()
+          fetchTestCases(true) // Silent refresh
           setSelectedIds([])
         }
       )
@@ -343,14 +353,14 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
   const confirmDelete = async () => {
     if (deleteDialog.itemIds.length === 0) return
-    
+
     await executeBulkAction(
       'delete',
       deleteDialog.itemIds,
       undefined,
       () => {
         setDeleteDialog({ open: false, itemIds: [] })
-        fetchTestCases()
+        fetchTestCases(true) // Silent refresh
       }
     )
   }
@@ -361,14 +371,14 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
   const confirmArchive = async () => {
     if (archiveDialog.itemIds.length === 0) return
-    
+
     await executeBulkAction(
       'archive',
       archiveDialog.itemIds,
       undefined,
       () => {
         setArchiveDialog({ open: false, itemIds: [] })
-        fetchTestCases()
+        fetchTestCases(true) // Silent refresh
       }
     )
   }
@@ -394,24 +404,93 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
 
       if (insertError) throw insertError
       toast.success('Test case duplicated')
-      fetchTestCases()
+      fetchTestCases(true) // Silent refresh
     } catch (error: any) {
       logger.log('Duplicate failed:', error)
       toast.error('Failed to duplicate test case', { description: error.message })
     }
   }
 
-  const handleRunSingle = (testCaseId: string) => {
-    setSelectedIds([testCaseId])
-    setIsRunTestsModalOpen(true)
-  }
+  const handleRunSingle = async (testCaseId: string) => {
+    try {
+      if (!user) {
+        toast.error('You must be logged in to run tests')
+        return
+      }
 
-  const handleRunBulk = () => {
-    if (selectedIds.length === 0) {
-      toast.error('Please select test cases to run')
-      return
+      // Get test case details
+      const testCase = testCases.find(tc => tc.id === testCaseId)
+      if (!testCase) {
+        toast.error('Test case not found')
+        return
+      }
+
+      // Determine if test is automated by checking steps
+      const isAutomated = (() => {
+        if (testCase.steps && Array.isArray(testCase.steps) && testCase.steps.length > 0) {
+          const hasAutomatedSteps = testCase.steps.some((step: any) => step.action)
+          if (hasAutomatedSteps) return true
+        }
+        return testCase.is_automated === true
+      })()
+
+      // Get default environment
+      const { data: defaultEnv, error: envError } = await supabase
+        .from('environments')
+        .select('type')
+        .eq('suite_id', suiteId)
+        .eq('is_default', true)
+        .single()
+
+      if (envError || !defaultEnv) {
+        toast.error('No default environment found')
+        return
+      }
+
+      // Create a quick run with the test_type field set
+      const { data: testRun, error: runError } = await supabase
+        .from('test_runs')
+        .insert({
+          suite_id: suiteId,
+          name: `Quick Run - ${testCase.title}`,
+          environment: defaultEnv.type,
+          test_type: isAutomated ? 'automated' : 'manual',
+          status: 'pending',
+          created_by: user.id,
+        })
+        .select()
+        .single()
+
+      if (runError) throw runError
+
+      // Create relationship
+      const { error: relError } = await supabase
+        .from('asset_relationships')
+        .insert({
+          source_type: 'test_run',
+          source_id: testRun.id,
+          target_type: 'test_case',
+          target_id: testCaseId,
+          relationship_type: 'tests',
+          created_by: user.id,
+          suite_id: suiteId
+        })
+
+      if (relError) throw relError
+
+      // Always go to the same execution page
+      router.push(`/dashboard/test-runs/${testRun.id}/execute`)
+
+      toast.success(`${isAutomated ? 'Automated' : 'Manual'} test ready`, {
+        description: isAutomated
+          ? 'Click Start to begin automated execution'
+          : 'Follow the steps to execute the test'
+      })
+
+    } catch (error: any) {
+      logger.log('Run single failed:', error)
+      toast.error('Failed to run test', { description: error.message })
     }
-    setIsRunTestsModalOpen(true)
   }
 
   const handleSelectAll = () => {
@@ -449,8 +528,7 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
   }
 
   const handleRefresh = async () => {
-    await fetchTestCases()
-    await syncAllTestCaseStatuses()
+    await fetchTestCases(false)
   }
 
   // Loading state
@@ -556,27 +634,9 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
                     <GitBranch className="h-4 w-4 mr-2" />
                     Traceability
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleRunBulk} disabled={selectedIds.length === 0}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Run Selected ({selectedIds.length})
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowEnvironmentSettings(true)}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Environments
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-
-            <Link
-              href="/dashboard/test-runs"
-              className="inline-flex items-center justify-center px-4 lg:px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted hover:border-primary transition-all duration-200 whitespace-nowrap"
-            >
-              <Play className="h-4 w-4 lg:mr-2" />
-              <span className="hidden lg:inline">Test Runs</span>
-            </Link>
 
             {canWrite && (
               <button
@@ -723,44 +783,30 @@ export function TestCasesView({ suiteId, canWrite = false }: TestCasesViewProps)
       </div>
 
       <TestCaseDialogs
-        deleteDialog={{ 
-          open: deleteDialog.open, 
-          testCaseId: deleteDialog.itemIds[0] || null 
+        deleteDialog={{
+          open: deleteDialog.open,
+          testCaseId: deleteDialog.itemIds[0] || null
         }}
-        onDeleteDialogChange={(state) => setDeleteDialog({ 
-          open: state.open, 
-          itemIds: state.testCaseId ? [state.testCaseId] : [] 
+        onDeleteDialogChange={(state) => setDeleteDialog({
+          open: state.open,
+          itemIds: state.testCaseId ? [state.testCaseId] : []
         })}
         onConfirmDelete={confirmDelete}
-        archiveDialog={{ 
-          open: archiveDialog.open, 
-          testCaseId: archiveDialog.itemIds[0] || null 
+        archiveDialog={{
+          open: archiveDialog.open,
+          testCaseId: archiveDialog.itemIds[0] || null
         }}
-        onArchiveDialogChange={(state) => setArchiveDialog({ 
-          open: state.open, 
-          itemIds: state.testCaseId ? [state.testCaseId] : [] 
+        onArchiveDialogChange={(state) => setArchiveDialog({
+          open: state.open,
+          itemIds: state.testCaseId ? [state.testCaseId] : []
         })}
         onConfirmArchive={confirmArchive}
         bulkDeleteDialog={{ open: false, count: 0 }}
-        onBulkDeleteDialogChange={() => {}}
-        onConfirmBulkDelete={() => {}}
+        onBulkDeleteDialogChange={() => { }}
+        onConfirmBulkDelete={() => { }}
         bulkArchiveDialog={{ open: false, count: 0 }}
-        onBulkArchiveDialogChange={() => {}}
-        onConfirmBulkArchive={() => {}}
-      />
-
-      <RunTestsModal
-        isOpen={isRunTestsModalOpen}
-        onClose={() => {
-          setIsRunTestsModalOpen(false)
-        }}
-        testCaseIds={selectedIds}
-        suiteId={suiteId}
-        onSuccess={() => {
-          setSelectedIds([])
-          fetchTestCases()
-          setIsRunTestsModalOpen(false)
-        }}
+        onBulkArchiveDialogChange={() => { }}
+        onConfirmBulkArchive={() => { }}
       />
     </>
   )

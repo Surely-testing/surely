@@ -1,5 +1,6 @@
 // ============================================
 // FILE: components/dashboard/Sidebar.tsx (UPDATED)
+// Now with Tests dropdown grouping
 // ============================================
 'use client'
 
@@ -17,7 +18,7 @@ import type { Suite } from '@/types/dashboard.types'
 interface SidebarProps {
   suites: Suite[]
   currentSuiteId: string | null
-  userId: string // Add userId prop
+  userId: string
   isOpen: boolean
   onToggle: () => void
 }
@@ -29,6 +30,7 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
   const [isSwitching, setIsSwitching] = React.useState(false)
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [isCreatePortalOpen, setIsCreatePortalOpen] = React.useState(false)
+  const [openDropdowns, setOpenDropdowns] = React.useState<Record<string, boolean>>({})
 
   const currentSuite = suites.find(s => s.id === currentSuiteId)
 
@@ -61,6 +63,7 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
     setIsCollapsed(!isCollapsed)
     if (!isCollapsed) {
       setSuiteSwitcherOpen(false)
+      setOpenDropdowns({})
     }
   }
 
@@ -70,6 +73,20 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
     if (window.innerWidth < 1024) {
       onToggle()
     }
+  }
+
+  const toggleDropdown = (itemTitle: string) => {
+    if (isCollapsed) return
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [itemTitle]: !prev[itemTitle]
+    }))
+  }
+
+  // Check if any child is active
+  const isDropdownActive = (items?: any[]) => {
+    if (!items) return false
+    return items.some(item => pathname === item.href || pathname.startsWith(item.href + '/'))
   }
 
   return (
@@ -86,7 +103,7 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed lg:sticky top-0 h-screen border-r border-border flex flex-col transition-all duration-300 ease-in-out z-50',
+          'fixed lg:sticky top-0 h-screen border-r border-border flex flex-col transition-all duration-300 ease-in-out z-50 bg-background',
           'lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full',
           isCollapsed ? 'lg:w-20' : 'w-72 lg:w-64'
@@ -97,25 +114,6 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
           "h-16 flex items-center border-b border-border shrink-0",
           isCollapsed ? "lg:justify-center lg:px-4" : "justify-between px-6"
         )}>
-          {/* <Link
-            href="/dashboard"
-            className="flex items-center gap-3 group transition-all duration-300"
-            onClick={handleNavClick}
-          >
-            <Image
-              src={process.env.NEXT_PUBLIC_CLOUDINARY_LOGO_URL || '/logo.svg'}
-              alt="Surely"
-              width={32}
-              height={32}
-              className="transition-transform group-hover:rotate-12 group-hover:scale-110 duration-300"
-            />
-            <span className={cn(
-              "text-xl font-bold text-foreground tracking-tight transition-all duration-300",
-              isCollapsed && "lg:opacity-0 lg:w-0 lg:overflow-hidden"
-            )}>
-              Surely
-            </span>
-          </Link> */}
           <Link
             href="/dashboard"
             className="flex items-center gap-3 group transition-all duration-300"
@@ -263,8 +261,85 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
               <div className="space-y-1">
                 {section.items.map(item => {
                   const Icon = item.icon
-                  const isActive = pathname === item.href
+                  const hasDropdown = item.items && item.items.length > 0
+                  const isDropdownOpen = openDropdowns[item.title]
+                  const isActive = hasDropdown 
+                    ? isDropdownActive(item.items)
+                    : pathname === item.href
 
+                  if (hasDropdown) {
+                    // Render dropdown item
+                    return (
+                      <div key={item.title}>
+                        <button
+                          onClick={() => toggleDropdown(item.title)}
+                          title={isCollapsed ? item.title : undefined}
+                          className={cn(
+                            'w-full flex items-center rounded-xl text-sm font-medium transition-all duration-200',
+                            'active:scale-[0.98] group relative',
+                            isActive
+                              ? 'bg-primary/5 text-primary border border-primary/20'
+                              : 'text-foreground hover:bg-muted/50 border border-transparent hover:border-border',
+                            isCollapsed ? 'lg:justify-center lg:p-3' : 'gap-3 px-4 py-3'
+                          )}
+                        >
+                          {Icon && (
+                            <Icon className={cn(
+                              "h-5 w-5 shrink-0 transition-colors",
+                              isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                            )} />
+                          )}
+                          <span className={cn(
+                            "truncate flex-1 text-left transition-all duration-300",
+                            isCollapsed && "lg:hidden"
+                          )}>
+                            {item.title}
+                          </span>
+                          <ChevronDown className={cn(
+                            "h-4 w-4 shrink-0 transition-transform duration-200",
+                            isActive ? "text-primary" : "text-muted-foreground",
+                            isDropdownOpen && "rotate-180",
+                            isCollapsed && "lg:hidden"
+                          )} />
+                        </button>
+
+                        {/* Dropdown Items */}
+                        {isDropdownOpen && !isCollapsed && (
+                          <div className="mt-1 ml-4 pl-4 border-l-2 border-border space-y-1 animate-in slide-in-from-top-2 duration-200">
+                            {item.items!.map(subItem => {
+                              const SubIcon = subItem.icon
+                              const isSubActive = pathname === subItem.href
+
+                              return (
+                                <Link
+                                  key={subItem.href}
+                                  href={subItem.href}
+                                  onClick={handleNavClick}
+                                  className={cn(
+                                    'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+                                    'active:scale-[0.98] group',
+                                    isSubActive
+                                      ? 'bg-primary/10 text-primary'
+                                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                                  )}
+                                >
+                                  {SubIcon && (
+                                    <SubIcon className={cn(
+                                      "h-4 w-4 shrink-0",
+                                      isSubActive ? "text-primary" : "text-muted-foreground"
+                                    )} />
+                                  )}
+                                  <span className="truncate">{subItem.title}</span>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+
+                  // Render regular item
                   return (
                     <Link
                       key={item.href}
@@ -354,7 +429,6 @@ export function Sidebar({ suites, currentSuiteId, userId, isOpen, onToggle }: Si
         isOpen={isCreatePortalOpen}
         onClose={() => setIsCreatePortalOpen(false)}
         onSuccess={(suiteId) => {
-          // Switch to the new suite
           handleSwitchSuite(suiteId)
         }}
       />

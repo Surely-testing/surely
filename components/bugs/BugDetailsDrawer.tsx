@@ -206,8 +206,8 @@ export function BugDetailsDrawer({
     const handleShareBug = async () => {
         if (!bug) return
         try {
-            const bugUrl = `${window.location.origin}/dashboard/bugs/${bug.id}`
-            await navigator.clipboard.writeText(bugUrl)
+            const bugUrl = `${window.location.origin}/dashboard/bugs?id=${bug.id}`;
+            await navigator.clipboard.writeText(bugUrl);
             setShareTooltip('Link copied!')
             setShowShareSuccess(true)
             setTimeout(() => {

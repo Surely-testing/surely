@@ -1,12 +1,12 @@
 // ============================================
 // components/test-runs/TestRunsTable.tsx
-// Using custom Table components with responsive behavior
+// Updated: Added execution handlers (Manual/Automated)
 // ============================================
 'use client';
 
 import React from 'react';
 import Link from 'next/link';
-import { Play, Edit2, CheckCircle, XCircle, Clock, Eye, MoreVertical, Trash2 } from 'lucide-react';
+import { Play, Edit2, CheckCircle, XCircle, Clock, Eye, MoreVertical, Trash2, PlayCircle, UserCog } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Table,
@@ -32,8 +32,9 @@ interface TestRunsTableProps {
   selectedRuns: string[];
   onSelectionChange: (ids: string[]) => void;
   onEdit: (run: any) => void;
+  onRunAutomated: (testRun: any) => Promise<void>;
+  onRunManual: (testRun: any) => Promise<void>;
   onDelete?: (runId: string) => void;
-  onStart?: (runId: string) => void;
 }
 
 export function TestRunsTable({ 
@@ -42,8 +43,9 @@ export function TestRunsTable({
   selectedRuns, 
   onSelectionChange,
   onEdit,
-  onDelete,
-  onStart
+  onRunAutomated,
+  onRunManual,
+  onDelete
 }: TestRunsTableProps) {
   const handleToggleSelection = (id: string) => {
     if (selectedRuns.includes(id)) {
@@ -114,7 +116,7 @@ export function TestRunsTable({
           <TableHeaderCell key="status" minWidth="min-w-[140px]">Status</TableHeaderCell>,
           <TableHeaderCell key="executed" minWidth="min-w-[180px]">Executed</TableHeaderCell>,
           <TableHeaderCell key="scheduled" minWidth="min-w-[140px]">Scheduled Date</TableHeaderCell>,
-          <TableHeaderCell key="actions" minWidth="min-w-[120px]">Actions</TableHeaderCell>,
+          <TableHeaderCell key="actions" minWidth="min-w-[140px]">Actions</TableHeaderCell>,
         ]}
       />
 
@@ -220,7 +222,7 @@ export function TestRunsTable({
             </TableCell>
 
             {/* Actions */}
-            <TableCell minWidth="min-w-[120px]">
+            <TableCell minWidth="min-w-[140px]">
               <div className="flex items-center justify-end gap-2">
                 <Link
                   href={`/dashboard/test-runs/${run.id}`}
@@ -240,12 +242,16 @@ export function TestRunsTable({
                       <MoreVertical className="w-4 h-4 text-muted-foreground" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {run.status === 'pending' && onStart && (
+                  <DropdownMenuContent align="end" className="w-52">
+                    {run.status === 'pending' && (
                       <>
-                        <DropdownMenuItem onClick={() => onStart(run.id)}>
-                          <Play className="w-4 h-4" />
-                          Start Execution
+                        <DropdownMenuItem onClick={() => onRunAutomated(run)}>
+                          <PlayCircle className="w-4 h-4" />
+                          Run Automated
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onRunManual(run)}>
+                          <UserCog className="w-4 h-4" />
+                          Execute Manually
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                       </>
