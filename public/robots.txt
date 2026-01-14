@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://testsurely.com
+
+# Sitemaps
+Sitemap: https://testsurely.com/sitemap.xml

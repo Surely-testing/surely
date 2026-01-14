@@ -102,6 +102,21 @@ function getRouteType(path: string) {
 // ============================================
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
+
+  // ============================================
+  // CRITICAL: SEO FILES - BYPASS EVERYTHING
+  // ============================================
+  // Allow sitemap, robots.txt, and other SEO files
+  // WITHOUT any authentication or route checks
+  if (
+    path === '/sitemap.xml' ||
+    path === '/robots.txt' ||
+    path.startsWith('/sitemap-') ||
+    path.endsWith('.xml')
+  ) {
+    return NextResponse.next()
+  }
+
   const routeType = getRouteType(path)
 
   // Early return for bypass routes
@@ -326,7 +341,7 @@ export default proxy
 // ============================================
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sitemap|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|xml)$).*)',
   ],
 }
 
@@ -334,6 +349,13 @@ export const config = {
 // KEY CHANGES
 // ============================================
 /*
+SITEMAP & SEO FIX (LATEST UPDATE):
+-----------------------------------
+1. Added early return for sitemap.xml, robots.txt, and all .xml files
+2. This bypass happens BEFORE any auth or routing logic
+3. Updated matcher config to exclude sitemap, robots.txt, and .xml files
+4. SEO files now completely bypass all authentication
+
 NEXT.JS 15 PROXY FORMAT:
 ------------------------
 1. Function renamed from "middleware" to "proxy"
@@ -347,13 +369,9 @@ is even initialized.
 
 MIGRATION STEPS:
 ----------------
-1. Delete your old middleware.ts file (if it exists)
-2. Use this as your proxy.ts file
-3. Restart your dev server
-4. Test public routes (/features, /pricing, etc.)
-
-If you still have middleware.ts and proxy.ts:
-- Keep ONLY proxy.ts
-- Delete middleware.ts
-- Next.js 15 uses proxy.ts as the new convention
+1. Replace your proxy.ts with this updated version
+2. Restart your dev server: npm run dev
+3. Test sitemap: https://testsurely.com/sitemap.xml
+4. Test robots.txt: https://testsurely.com/robots.txt
+5. Verify public routes still work: /features, /pricing, etc.
 */
