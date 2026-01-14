@@ -13,11 +13,13 @@ const Hero = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isRotating, setIsRotating] = useState(false)
 
-   const images = [
-    'https://res.cloudinary.com/lordefid/image/upload/v1766513233/21_2_sg0lze.png',
-    'https://res.cloudinary.com/lordefid/image/upload/v1766512613/21_ul02zn.png',
-    'https://res.cloudinary.com/lordefid/image/upload/v1766512932/22_2_geqzjm.png',
-    'https://res.cloudinary.com/lordefid/image/upload/v1766512994/23_ifvk46.png',
+  // OPTIMIZED: Added Cloudinary transformations for better performance
+  // w_1200 = max width 1200px, f_webp = WebP format, q_80 = 80% quality, dpr_1.0 = standard resolution
+  const images = [
+    'https://res.cloudinary.com/lordefid/image/upload/w_1200,f_webp,q_80,dpr_1.0/v1766513233/21_2_sg0lze.png',
+    'https://res.cloudinary.com/lordefid/image/upload/w_1200,f_webp,q_80,dpr_1.0/v1766512613/21_ul02zn.png',
+    'https://res.cloudinary.com/lordefid/image/upload/w_1200,f_webp,q_80,dpr_1.0/v1766512932/22_2_geqzjm.png',
+    'https://res.cloudinary.com/lordefid/image/upload/w_1200,f_webp,q_80,dpr_1.0/v1766512994/23_ifvk46.png',
   ]
 
   useEffect(() => {
@@ -142,6 +144,8 @@ const Hero = () => {
                         src={images[currentImageIndex]}
                         alt="Product dashboard"
                         className="w-full h-auto transform group-hover:scale-105 transition-transform duration-700"
+                        loading="eager"
+                        fetchPriority="high"
                         style={{
                           position: 'absolute',
                           top: 0,
@@ -159,6 +163,8 @@ const Hero = () => {
                     src={images[currentImageIndex]}
                     alt="Product dashboard"
                     className="w-full h-auto opacity-0"
+                    loading="eager"
+                    fetchPriority="high"
                   />
                 </div>
               </div>
