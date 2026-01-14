@@ -1,9 +1,7 @@
-# *
 User-agent: *
+Disallow: /cgi-bin/
+Disallow: /tmp/
+Disallow: /admin/
 Allow: /
 
-# Host
-Host: https://testsurely.com
-
-# Sitemaps
 Sitemap: https://testsurely.com/sitemap.xml

@@ -84,7 +84,7 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         alt: "Surely - Quality Assurance Reimagined",
-        type: "image/png", // Specify image type
+        type: "image/png",
       },
     ],
   },
@@ -174,6 +174,12 @@ export default function RootLayout({
           }}
         />
         
+        {/* SEO: Explicit meta description for crawlers */}
+        <meta 
+          name="description" 
+          content="Transform your testing workflow with AI-powered automation, intelligent bug tracking, and real-time insights. Join thousands of teams shipping better software faster." 
+        />
+        
         {/* Additional meta tags for maximum compatibility */}
         <meta property="og:image:secure_url" content={ogImageUrl} />
         <meta property="og:image:type" content="image/png" />
@@ -187,6 +193,9 @@ export default function RootLayout({
         {/* Generic fallbacks for messaging apps */}
         <meta name="thumbnail" content={ogImageUrl} />
         <link rel="image_src" href={ogImageUrl} />
+        
+        {/* Canonical URL to prevent duplicate content issues */}
+        <link rel="canonical" href={baseUrl} />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} antialiased`}
