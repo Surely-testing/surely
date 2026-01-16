@@ -12,6 +12,7 @@ export type Recording = Tables<'recordings'> & {
   logs_count?: number;
   requests_count?: number;
   description?: string | null;
+  comment?: string | null;  // ADDED - for user comments/notes
 };
 
 export interface RecordingFormData {
@@ -23,6 +24,7 @@ export interface RecordingFormData {
   suite_id: string;
   thumbnail_url?: string | null;
   description?: string | null;
+  comment?: string | null;  // ADDED
 }
 
 export interface RecordingMetadata {
@@ -42,15 +44,30 @@ export interface RecordingMetadata {
   stateChanges?: StateChange[];
   codeSnippets?: CodeSnippet[];
   websocketConnections?: WebSocketConnection[];
-  annotations?: Annotation[];        // ADDED
-  annotationsUrl?: string;           // ADDED
+  annotations?: Annotation[];
+  annotationsUrl?: string;
+  rrwebEvents?: RRWebEvent[];        // ADDED
+  rrwebEventsUrl?: string;           // ADDED
+  tabActivity?: TabActivity[];       // ADDED
+  consoleLogs?: ConsoleLog[];        // Direct logs if not using URL
+  networkLogs?: NetworkLog[];        // Direct logs if not using URL
 }
 
 export interface ConsoleLog {
   timestamp: number;
-  type: 'log' | 'warn' | 'error' | 'info';
+  type: 'log' | 'warn' | 'error' | 'info' | 'debug';
   message: string;
   stack?: string;
+  args?: any[];
+  tabId?: number;
+  tabUrl?: string;
+  tabTitle?: string;
+  sessionTimestamp?: number;
+  pageContext?: {
+    url: string;
+    title: string;
+    timestamp: number;
+  };
 }
 
 export interface Screenshot {
@@ -63,7 +80,7 @@ export interface Screenshot {
 }
 
 export interface NetworkLog {
-  id: string;
+  id?: string;
   timestamp: number;
   method: string;
   url: string;
@@ -74,10 +91,20 @@ export interface NetworkLog {
   responseHeaders?: Record<string, string>;
   requestBody?: any;
   responseBody?: any;
-  error?: string;
+  error?: boolean;
+  errorMessage?: string;
   type: 'fetch' | 'xhr' | 'websocket' | 'graphql';
   size?: number;
   websocketMessages?: WebSocketMessage[];
+  tabId?: number;
+  tabUrl?: string;
+  tabTitle?: string;
+  sessionTimestamp?: number;
+  pageContext?: {
+    url: string;
+    title: string;
+    timestamp: number;
+  };
 }
 
 export interface RecordingSession {
@@ -88,6 +115,9 @@ export interface RecordingSession {
   consoleLogs: ConsoleLog[];
   networkLogs: NetworkLog[];
   screenshots: string[];
+  rrwebEvents?: RRWebEvent[];
+  tabActivity?: TabActivity[];
+  annotations?: Annotation[];
 }
 
 export interface RecordingPreview {
@@ -103,7 +133,9 @@ export interface RecordingPreview {
   stateChanges?: StateChange[];
   codeSnippets?: CodeSnippet[];
   websocketConnections?: WebSocketConnection[];
-  annotations?: Annotation[];        // ADDED
+  annotations?: Annotation[];
+  rrwebEvents?: RRWebEvent[];        // ADDED
+  tabActivity?: TabActivity[];       // ADDED
 }
 
 export interface RecordingFilters {
@@ -112,6 +144,28 @@ export interface RecordingFilters {
   dateFrom?: string;
   dateTo?: string;
   sort?: 'newest' | 'oldest' | 'duration';
+}
+
+// RRWeb Events for DOM replay
+// Using proper rrweb types
+export interface RRWebEvent {
+  type: number;
+  timestamp: number;
+  data: any;  // Required by rrweb
+  tabId?: number;
+  tabUrl?: string;
+  tabTitle?: string;
+  delay?: number;
+}
+
+// Tab Activity tracking
+export interface TabActivity {
+  type: 'navigation' | 'page_load' | 'tab_focus' | 'tab_close' | 'browser_navigation';
+  url?: string;
+  title?: string;
+  tabId: number;
+  timestamp: number;
+  sessionTimestamp: number;
 }
 
 // Error Stack Traces

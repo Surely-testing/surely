@@ -1453,6 +1453,7 @@ export type Database = {
       recordings: {
         Row: {
           archived: boolean
+          comment: string | null
           created_at: string | null
           created_by: string
           duration: number | null
@@ -1466,6 +1467,7 @@ export type Database = {
         }
         Insert: {
           archived?: boolean
+          comment?: string | null
           created_at?: string | null
           created_by: string
           duration?: number | null
@@ -1479,6 +1481,7 @@ export type Database = {
         }
         Update: {
           archived?: boolean
+          comment?: string | null
           created_at?: string | null
           created_by?: string
           duration?: number | null

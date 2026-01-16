@@ -1,6 +1,6 @@
 // ============================================
 // FILE: app/api/test-runs/route.ts
-// Based on actual test_runs table schema
+// FIXED: Added support for GET by id
 // ============================================
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
@@ -11,11 +11,32 @@ export async function GET(req: NextRequest) {
     const supabase = await createClient()
     const { searchParams } = new URL(req.url)
     const suiteId = searchParams.get('suiteId')
+    const id = searchParams.get('id')
 
+    // Fetch single test run by ID
+    if (id) {
+      const { data, error } = await supabase
+        .from('test_runs')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) {
+        logger.log('GET test run by id error:', error)
+        return NextResponse.json({ 
+          success: false, 
+          error: error.code === 'PGRST116' ? 'Test run not found' : error.message 
+        }, { status: error.code === 'PGRST116' ? 404 : 500 })
+      }
+
+      return NextResponse.json({ success: true, data })
+    }
+
+    // Fetch all test runs for a suite
     if (!suiteId) {
       return NextResponse.json({ 
         success: false, 
-        error: 'suiteId required' 
+        error: 'suiteId or id parameter required' 
       }, { status: 400 })
     }
 

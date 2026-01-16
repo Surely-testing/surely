@@ -1,5 +1,7 @@
+// ============================================
 // lib/extension/extension-bridge.ts
-// Fixed bridge with DIRECT recording start from web app
+// Enhanced with user email for display
+// ============================================
 
 export interface ExtensionAuthContext {
   accountId: string;
@@ -9,6 +11,7 @@ export interface ExtensionAuthContext {
   userToken: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
+  userEmail: string; // ADDED for popup display
 }
 
 export interface RecordingStartResponse {
@@ -20,6 +23,8 @@ class ExtensionBridge {
   private static instance: ExtensionBridge;
   private authContext: ExtensionAuthContext | null = null;
   private recordingCompleteCallbacks: ((recordingId: string) => void)[] = [];
+  private recordingStartCallbacks: (() => void)[] = [];
+  private recordingFailCallbacks: ((error: string) => void)[] = [];
 
   private constructor() {
     this.setupMessageListener();
@@ -45,10 +50,24 @@ class ExtensionBridge {
 
         case 'RECORDING_STARTED':
           console.log('[Bridge] Recording started successfully');
+          this.recordingStartCallbacks.forEach(cb => {
+            try {
+              cb();
+            } catch (error) {
+              console.error('[Bridge] Error in recording start callback:', error);
+            }
+          });
           break;
 
         case 'RECORDING_START_FAILED':
           console.error('[Bridge] Recording failed to start:', message.error);
+          this.recordingFailCallbacks.forEach(cb => {
+            try {
+              cb(message.error);
+            } catch (error) {
+              console.error('[Bridge] Error in recording fail callback:', error);
+            }
+          });
           break;
 
         case 'RECORDING_SAVED':
@@ -63,20 +82,16 @@ class ExtensionBridge {
     });
   }
 
-  /**
-   * Set auth context (call this when user navigates to test suite page)
-   */
   setAuthContext(context: ExtensionAuthContext): void {
-    console.log('[Bridge] Setting auth context');
+    console.log('[Bridge] Setting auth context for:', context.userEmail);
     this.authContext = context;
-    
-    // Send to extension immediately
     this.sendAuthContextToExtension();
   }
 
-  /**
-   * Send auth context to extension via window messaging
-   */
+  getAuthContext(): ExtensionAuthContext | null {
+    return this.authContext;
+  }
+
   private sendAuthContextToExtension(): void {
     if (!this.authContext) {
       console.warn('[Bridge] No auth context available to send');
@@ -91,15 +106,10 @@ class ExtensionBridge {
     }, '*');
   }
 
-  /**
-   * Check if extension is installed
-   */
   async checkExtension(): Promise<boolean> {
     return new Promise((resolve) => {
-      // Send ping
       window.postMessage({ type: 'EXTENSION_PING' }, '*');
 
-      // Listen for pong
       const handlePong = (event: MessageEvent) => {
         if (event.source !== window) return;
         
@@ -111,7 +121,6 @@ class ExtensionBridge {
 
       window.addEventListener('message', handlePong);
 
-      // Timeout after 2 seconds
       setTimeout(() => {
         window.removeEventListener('message', handlePong);
         resolve(false);
@@ -119,9 +128,6 @@ class ExtensionBridge {
     });
   }
 
-  /**
-   * Start recording directly from web app
-   */
   async startRecording(): Promise<RecordingStartResponse> {
     if (!this.authContext) {
       return {
@@ -133,21 +139,14 @@ class ExtensionBridge {
     return new Promise((resolve) => {
       console.log('[Bridge] Requesting recording start');
 
-      // Send start recording message with auth context
-      window.postMessage({
-        type: 'START_RECORDING',
-        data: this.authContext
-      }, '*');
-
-      // Listen for response
-      const handleResponse = (event: MessageEvent) => {
+      const handleStarted = (event: MessageEvent) => {
         if (event.source !== window) return;
 
         if (event.data.type === 'RECORDING_STARTED') {
-          window.removeEventListener('message', handleResponse);
+          cleanup();
           resolve({ success: true });
         } else if (event.data.type === 'RECORDING_START_FAILED') {
-          window.removeEventListener('message', handleResponse);
+          cleanup();
           resolve({ 
             success: false, 
             error: event.data.error || 'Failed to start recording'
@@ -155,11 +154,20 @@ class ExtensionBridge {
         }
       };
 
-      window.addEventListener('message', handleResponse);
+      const cleanup = () => {
+        window.removeEventListener('message', handleStarted);
+        clearTimeout(timeout);
+      };
 
-      // Timeout after 30 seconds
-      setTimeout(() => {
-        window.removeEventListener('message', handleResponse);
+      window.addEventListener('message', handleStarted);
+
+      window.postMessage({
+        type: 'START_RECORDING',
+        data: this.authContext
+      }, '*');
+
+      const timeout = setTimeout(() => {
+        cleanup();
         resolve({ 
           success: false, 
           error: 'Recording start timeout - extension may not be responding'
@@ -168,13 +176,28 @@ class ExtensionBridge {
     });
   }
 
-  /**
-   * Register callback for when recording is completed
-   */
+  onRecordingStart(callback: () => void): () => void {
+    this.recordingStartCallbacks.push(callback);
+    return () => {
+      const index = this.recordingStartCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.recordingStartCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  onRecordingFail(callback: (error: string) => void): () => void {
+    this.recordingFailCallbacks.push(callback);
+    return () => {
+      const index = this.recordingFailCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.recordingFailCallbacks.splice(index, 1);
+      }
+    };
+  }
+
   onRecordingComplete(callback: (recordingId: string) => void): () => void {
     this.recordingCompleteCallbacks.push(callback);
-
-    // Return cleanup function
     return () => {
       const index = this.recordingCompleteCallbacks.indexOf(callback);
       if (index > -1) {
@@ -192,7 +215,11 @@ class ExtensionBridge {
       }
     });
   }
+
+  clearAuthContext(): void {
+    this.authContext = null;
+    console.log('[Bridge] Auth context cleared');
+  }
 }
 
-// Export singleton instance
 export const extensionBridge = ExtensionBridge.getInstance();

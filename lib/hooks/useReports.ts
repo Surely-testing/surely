@@ -14,7 +14,7 @@ export function useReports(suiteId?: string) {
   const [reports, setReports] = useState<ReportWithCreator[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState<string | null>(null)
-  
+
   const supabase = createClient()
 
   const fetchReports = useCallback(async () => {
@@ -22,7 +22,7 @@ export function useReports(suiteId?: string) {
 
     try {
       setLoading(true)
-      
+
       // Fetch reports for current suite
       const { data: reportsData, error: reportsError } = await supabase
         .from('reports')
@@ -71,7 +71,7 @@ export function useReports(suiteId?: string) {
           } as ReportWithCreator
         })
         .filter((report): report is ReportWithCreator => report !== null)
-      
+
       setReports(validReports)
     } catch (err: any) {
       logger.log('Error fetching reports:', err)
@@ -93,7 +93,7 @@ export function useReports(suiteId?: string) {
 
     try {
       setGenerating('new')
-      
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
@@ -130,7 +130,7 @@ export function useReports(suiteId?: string) {
   const regenerateReportFn = async (reportId: string) => {
     try {
       setGenerating(reportId)
-      
+
       // Get existing report
       const { data: report, error: fetchError } = await supabase
         .from('reports')
@@ -151,9 +151,9 @@ export function useReports(suiteId?: string) {
 
       const { error } = await supabase
         .from('reports')
-        .update({ 
+        .update({
           data: JSON.stringify(reportData),
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
         })
         .eq('id', reportId)
 
@@ -203,12 +203,17 @@ export function useReports(suiteId?: string) {
 async function generateReportData(formData: ReportFormData, suiteId: string) {
   const supabase = createClient()
   const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+  // FIX: Calculate 30 days AGO, not 30 days from now
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30) // Subtract 30 days
 
   const period = {
     start: formData.filters?.date_range?.start || thirtyDaysAgo.toISOString(),
     end: formData.filters?.date_range?.end || now.toISOString(),
   }
+
+  console.log('Report Period:', period) // Debug log
 
   switch (formData.type) {
     case 'test_coverage':
@@ -233,8 +238,8 @@ async function generateTestCoverageReport(supabase: any, suiteId: string, period
     .lte('created_at', period.end)
 
   const total = tests?.length || 0
-  const passed = tests?.filter((t: any) => t.last_result === 'passed').length || 0
-  const failed = tests?.filter((t: any) => t.last_result === 'failed').length || 0
+  const passed = tests?.filter((t: any) => t.status === 'passed').length || 0
+  const failed = tests?.filter((t: any) => t.status === 'failed').length || 0
 
   return {
     period,
@@ -252,18 +257,39 @@ async function generateTestCoverageReport(supabase: any, suiteId: string, period
   }
 }
 
+// Fixed version for useReports.ts
 async function generateBugTrendsReport(supabase: any, suiteId: string, period: any) {
-  const { data: bugs } = await supabase
+  console.log('Fetching bugs for period:', period) // Debug log
+
+  const { data: bugs, error } = await supabase
     .from('bugs')
     .select('*')
     .eq('suite_id', suiteId)
     .gte('created_at', period.start)
     .lte('created_at', period.end)
 
+  if (error) {
+    console.error('Error fetching bugs:', error)
+  }
+
+  console.log('Bugs found:', bugs?.length || 0) // Debug log
+
   const total = bugs?.length || 0
   const open = bugs?.filter((b: any) => b.status === 'open').length || 0
   const resolved = bugs?.filter((b: any) => b.status === 'resolved').length || 0
+
+  // Count all critical bugs
   const critical = bugs?.filter((b: any) => b.severity === 'critical').length || 0
+
+  // Count critical bugs that are NOT resolved (these need attention)
+  const criticalUnresolved = bugs?.filter((b: any) =>
+    b.severity === 'critical' && b.status !== 'resolved'
+  ).length || 0
+
+  // Count critical bugs that ARE resolved
+  const criticalResolved = bugs?.filter((b: any) =>
+    b.severity === 'critical' && b.status === 'resolved'
+  ).length || 0
 
   return {
     period,
@@ -272,12 +298,18 @@ async function generateBugTrendsReport(supabase: any, suiteId: string, period: a
       openBugs: open,
       resolvedBugs: resolved,
       criticalBugs: critical,
+      criticalResolved: criticalResolved,
+      criticalUnresolved: criticalUnresolved,
     },
-    summary: `Tracked ${total} bugs with ${open} open, ${resolved} resolved, and ${critical} critical.`,
+    summary: `Tracked ${total} bugs with ${open} open, ${resolved} resolved, and ${critical} critical (${criticalResolved} resolved, ${criticalUnresolved} needing attention).`,
     insights: [
       `${total} bugs tracked in this period`,
       resolved > 0 ? `${Math.round((resolved / total) * 100)}% resolution rate` : 'No bugs resolved',
-      critical > 0 ? `${critical} critical bugs require attention` : 'No critical bugs',
+      criticalUnresolved > 0
+        ? `${criticalUnresolved} critical bugs require attention${criticalResolved > 0 ? ` (${criticalResolved} critical bugs resolved)` : ''}`
+        : critical > 0
+          ? `All ${critical} critical bugs have been resolved`
+          : 'No critical bugs',
     ],
   }
 }

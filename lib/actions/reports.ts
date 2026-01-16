@@ -7,11 +7,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/utils/logger';
-import { 
-  Report, 
-  ReportFormData, 
-  ReportData, 
-  ReportSchedule, 
+import {
+  Report,
+  ReportFormData,
+  ReportData,
+  ReportSchedule,
   ReportScheduleFormData,
   ReportScheduleWithReport
 } from '@/types/report.types';
@@ -22,7 +22,7 @@ import {
 
 export async function getReports(suiteId: string) {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase
     .from('reports')
     .select(`
@@ -47,7 +47,7 @@ export async function getReports(suiteId: string) {
 
 export async function getReport(reportId: string) {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase
     .from('reports')
     .select(`
@@ -72,7 +72,7 @@ export async function getReport(reportId: string) {
 
 export async function createReport(formData: ReportFormData, suiteId: string) {
   const supabase = await createClient();
-  
+
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return { data: null, error: 'User not authenticated' };
@@ -105,7 +105,7 @@ export async function createReport(formData: ReportFormData, suiteId: string) {
 
 export async function regenerateReport(reportId: string) {
   const supabase = await createClient();
-  
+
   // Get existing report
   const { data: report, error: fetchError } = await supabase
     .from('reports')
@@ -128,9 +128,9 @@ export async function regenerateReport(reportId: string) {
 
   const { data, error } = await supabase
     .from('reports')
-    .update({ 
-      data: reportData as any, 
-      updated_at: new Date().toISOString() 
+    .update({
+      data: reportData as any,
+      updated_at: new Date().toISOString()
     })
     .eq('id', reportId)
     .select()
@@ -147,7 +147,7 @@ export async function regenerateReport(reportId: string) {
 
 export async function deleteReport(reportId: string) {
   const supabase = await createClient();
-  
+
   const { error } = await supabase
     .from('reports')
     .delete()
@@ -168,7 +168,7 @@ export async function deleteReport(reportId: string) {
 
 export async function getReportSchedules(suiteId?: string) {
   const supabase = await createClient();
-  
+
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return { data: null, error: 'User not authenticated' };
@@ -196,11 +196,11 @@ export async function getReportSchedules(suiteId?: string) {
 }
 
 export async function createReportSchedule(
-  formData: ReportScheduleFormData, 
+  formData: ReportScheduleFormData,
   suiteId: string
 ) {
   const supabase = await createClient();
-  
+
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return { data: null, error: 'User not authenticated' };
@@ -232,17 +232,17 @@ export async function createReportSchedule(
 }
 
 export async function updateReportSchedule(
-  scheduleId: string, 
+  scheduleId: string,
   updates: Partial<ReportScheduleFormData>
 ) {
   const supabase = await createClient();
-  
+
   const updateData: any = {};
-  
+
   if (updates.type) updateData.type = updates.type;
   if (updates.emails) updateData.emails = updates.emails;
   if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
-  
+
   if (updates.frequency) {
     updateData.frequency = updates.frequency;
     updateData.next_run = calculateNextRun(updates.frequency);
@@ -270,7 +270,7 @@ export async function toggleReportSchedule(scheduleId: string, isActive: boolean
 
 export async function deleteReportSchedule(scheduleId: string) {
   const supabase = await createClient();
-  
+
   const { error } = await supabase
     .from('report_schedules')
     .delete()
@@ -287,7 +287,7 @@ export async function deleteReportSchedule(scheduleId: string) {
 
 export async function runReportScheduleNow(scheduleId: string) {
   const supabase = await createClient();
-  
+
   const { data: schedule, error: fetchError } = await supabase
     .from('report_schedules')
     .select('*')
@@ -301,7 +301,7 @@ export async function runReportScheduleNow(scheduleId: string) {
   // Update next_run
   const { error } = await supabase
     .from('report_schedules')
-    .update({ 
+    .update({
       next_run: calculateNextRun(schedule.frequency)
     })
     .eq('id', scheduleId);
@@ -324,7 +324,7 @@ export async function runReportScheduleNow(scheduleId: string) {
 
 function calculateNextRun(frequency: string): string {
   const now = new Date();
-  
+
   switch (frequency) {
     case 'daily':
       now.setDate(now.getDate() + 1);
@@ -336,7 +336,7 @@ function calculateNextRun(frequency: string): string {
       now.setMonth(now.getMonth() + 1);
       break;
   }
-  
+
   now.setHours(9, 0, 0, 0);
   return now.toISOString();
 }
@@ -369,8 +369,8 @@ async function generateReportData(
 }
 
 async function generateTestCoverageReport(
-  supabase: any, 
-  suiteId: string, 
+  supabase: any,
+  suiteId: string,
   period: any
 ): Promise<ReportData> {
   const { data: tests } = await supabase
@@ -401,8 +401,8 @@ async function generateTestCoverageReport(
 }
 
 async function generateBugTrendsReport(
-  supabase: any, 
-  suiteId: string, 
+  supabase: any,
+  suiteId: string,
   period: any
 ): Promise<ReportData> {
   const { data: bugs } = await supabase
@@ -415,7 +415,19 @@ async function generateBugTrendsReport(
   const total = bugs?.length || 0;
   const open = bugs?.filter((b: any) => b.status === 'open').length || 0;
   const resolved = bugs?.filter((b: any) => b.status === 'resolved').length || 0;
+
+  // Count all critical bugs
   const critical = bugs?.filter((b: any) => b.severity === 'critical').length || 0;
+
+  // Count critical bugs that are NOT resolved (these need attention)
+  const criticalUnresolved = bugs?.filter((b: any) =>
+    b.severity === 'critical' && b.status !== 'resolved'
+  ).length || 0;
+
+  // Count critical bugs that ARE resolved
+  const criticalResolved = bugs?.filter((b: any) =>
+    b.severity === 'critical' && b.status === 'resolved'
+  ).length || 0;
 
   return {
     period,
@@ -424,20 +436,26 @@ async function generateBugTrendsReport(
       openBugs: open,
       resolvedBugs: resolved,
       criticalBugs: critical,
+      criticalResolved: criticalResolved,
+      criticalUnresolved: criticalUnresolved,
     },
-    summary: `Tracked ${total} bugs with ${open} open, ${resolved} resolved, and ${critical} critical.`,
+    summary: `Tracked ${total} bugs with ${open} open, ${resolved} resolved, and ${critical} critical (${criticalResolved} resolved, ${criticalUnresolved} needing attention).`,
     insights: [
       `${total} bugs tracked in this period`,
       resolved > 0 ? `${Math.round((resolved / total) * 100)}% resolution rate` : 'No bugs resolved',
-      critical > 0 ? `${critical} critical bugs require attention` : 'No critical bugs',
+      criticalUnresolved > 0
+        ? `${criticalUnresolved} critical bugs require attention${criticalResolved > 0 ? ` (${criticalResolved} critical bugs resolved)` : ''}`
+        : critical > 0
+          ? `All ${critical} critical bugs have been resolved`
+          : 'No critical bugs',
     ],
   };
 }
 
 async function generateSprintSummaryReport(
-  supabase: any, 
-  suiteId: string, 
-  period: any, 
+  supabase: any,
+  suiteId: string,
+  period: any,
   sprintId?: string
 ): Promise<ReportData> {
   return {
@@ -452,8 +470,8 @@ async function generateSprintSummaryReport(
 }
 
 async function generateTeamPerformanceReport(
-  supabase: any, 
-  suiteId: string, 
+  supabase: any,
+  suiteId: string,
   period: any
 ): Promise<ReportData> {
   return {
