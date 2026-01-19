@@ -45,7 +45,7 @@ const Hero = () => {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          
+
           {/* Left: Content */}
           <div className={`space-y-8 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             {/* Badge */}
@@ -83,14 +83,12 @@ const Hero = () => {
                   <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
-              <Button
-                variant="outline"
-                size="lg"
-                className="group"
-              >
-                <Play className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
-                Watch Demo
-              </Button>
+              <Link href="/demo">
+                <Button variant="outline" size="lg" className="group">
+                  <Play className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
+                  Watch Demo
+                </Button>
+              </Link>
             </div>
 
             {/* Features List */}
@@ -113,11 +111,11 @@ const Hero = () => {
             {/* Floating background elements */}
             <div className="absolute -top-4 -right-4 w-72 h-72 bg-gradient-primary opacity-20 rounded-full blur-3xl animate-pulse" />
             <div className="absolute -bottom-4 -left-4 w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-            
+
             {/* Main image container */}
             <div className="relative group perspective-1000">
               <div className="absolute -inset-1 bg-gradient-primary rounded-2xl blur-lg opacity-25 group-hover:opacity-40 transition-opacity duration-500" />
-              
+
               <div className="relative rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
                 {/* Folding segments container */}
                 <div className="relative w-full" style={{ height: 'auto' }}>
@@ -126,8 +124,8 @@ const Hero = () => {
                       key={segment}
                       className="fold-segment"
                       style={{
-                        transform: isRotating 
-                          ? `rotateY(${90 - segment * 18}deg)` 
+                        transform: isRotating
+                          ? `rotateY(${90 - segment * 18}deg)`
                           : 'rotateY(0deg)',
                         transformOrigin: 'left',
                         transition: `transform 600ms ease-in-out ${segment * 100}ms`,
@@ -157,7 +155,7 @@ const Hero = () => {
                       <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent pointer-events-none" />
                     </div>
                   ))}
-                  
+
                   {/* Base image for height reference */}
                   <img
                     src={images[currentImageIndex]}

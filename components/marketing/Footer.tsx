@@ -105,6 +105,22 @@ const Footer: React.FC = () => {
                                     Pricing
                                 </Link>
                             </li>
+                            <li>
+                                <Link 
+                                    href="/demo" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    Demo
+                                </Link>
+                            </li>
+                            <li>
+                                <Link 
+                                    href="/how-to" 
+                                    className="text-sm sm:text-base text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors inline-block py-1 touch-manipulation"
+                                >
+                                    How-To Guides
+                                </Link>
+                            </li>
                         </ul>
                     </div>
 
