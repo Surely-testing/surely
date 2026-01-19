@@ -43,17 +43,17 @@ export default function HowToPage() {
 
   const videoMetadata: VideoMetadata[] = [
     { videoId: 'eXitEea7d7c', category: 'getting-started', difficulty: 'Beginner' },
-    { videoId: 'dQw4w9WgXcQ', category: 'getting-started', difficulty: 'Beginner' },
-    { videoId: 'jNQXAC9IVRw', category: 'getting-started', difficulty: 'Beginner' },
-    { videoId: '9bZkp7q19f0', category: 'getting-started', difficulty: 'Beginner' },
-    { videoId: 'kJQP7kiw5Fk', category: 'recording', difficulty: 'Beginner' },
-    { videoId: 'YE7VzlLtp-4', category: 'recording', difficulty: 'Intermediate' },
-    { videoId: 'fJ9rUzIMcZQ', category: 'recording', difficulty: 'Intermediate' },
-    { videoId: 'Bey4XXJAqS8', category: 'testing', difficulty: 'Intermediate' },
-    { videoId: 'LXb3EKWsInQ', category: 'testing', difficulty: 'Intermediate' },
-    { videoId: '3JZ_D3ELwOQ', category: 'testing', difficulty: 'Advanced' },
-    { videoId: 'lTTajzrSkCw', category: 'collaboration', difficulty: 'Beginner' },
-    { videoId: 'PT2_F-1esPk', category: 'collaboration', difficulty: 'Intermediate' }
+    { videoId: 'hh215p1YQhg', category: 'getting-started', difficulty: 'Beginner' },
+    { videoId: 'JRUQeWA9Sh4', category: 'getting-started', difficulty: 'Beginner' },
+    { videoId: 'BUbfCcnBgV4', category: 'getting-started', difficulty: 'Beginner' },
+    // { videoId: 'kJQP7kiw5Fk', category: 'recording', difficulty: 'Beginner' },
+    // { videoId: 'YE7VzlLtp-4', category: 'recording', difficulty: 'Intermediate' },
+    // { videoId: 'fJ9rUzIMcZQ', category: 'recording', difficulty: 'Intermediate' },
+    // { videoId: 'Bey4XXJAqS8', category: 'testing', difficulty: 'Intermediate' },
+    { videoId: 'pdyhzvvefxQ', category: 'testing', difficulty: 'Intermediate' },
+    // { videoId: '3JZ_D3ELwOQ', category: 'testing', difficulty: 'Advanced' },
+    // { videoId: 'lTTajzrSkCw', category: 'collaboration', difficulty: 'Beginner' },
+    // { videoId: 'PT2_F-1esPk', category: 'collaboration', difficulty: 'Intermediate' }
   ];
 
   useEffect(() => {
