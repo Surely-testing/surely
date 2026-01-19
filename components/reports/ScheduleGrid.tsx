@@ -81,9 +81,9 @@ export function ScheduleGrid({
     });
   };
 
-  const formatTime = (timeString: string | null | undefined) => {
-    if (!timeString) return 'N/A';
-    return timeString;
+  const getScheduleTime = () => {
+    // All schedules run at 9:00 AM
+    return '9:00 AM';
   };
 
   const handleCardClick = (schedule: ReportScheduleWithReport) => {
@@ -254,13 +254,6 @@ export function ScheduleGrid({
                   </div>
                 </div>
 
-                {/* Description */}
-                {schedule.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-2">
-                    {schedule.description}
-                  </p>
-                )}
-
                 {/* Badges */}
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
                   <Badge variant={getFrequencyColor(schedule.frequency)} size="sm">
@@ -289,7 +282,13 @@ export function ScheduleGrid({
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Time</span>
                     <span className="text-foreground font-medium">
-                      {formatTime(schedule.schedule_time)}
+                      {getScheduleTime()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Report Type</span>
+                    <span className="text-foreground font-medium capitalize">
+                      {schedule.type.replace(/_/g, ' ')}
                     </span>
                   </div>
                 </div>
@@ -304,10 +303,10 @@ export function ScheduleGrid({
                     <span className="truncate">Created {formatDate(schedule.created_at)}</span>
                   </div>
 
-                  {schedule.next_run_at && (
+                  {schedule.next_run && (
                     <div className="flex items-center gap-2 text-xs">
                       <Clock className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
-                      <span className="truncate text-primary font-medium">Next {formatDate(schedule.next_run_at)}</span>
+                      <span className="truncate text-primary font-medium">Next: {formatDate(schedule.next_run)}</span>
                     </div>
                   )}
                 </div>

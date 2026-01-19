@@ -48,6 +48,8 @@ type AIContextType = {
   }
   currentSessionId: string | null
   loadSession: (sessionId: string) => Promise<void>
+  robotPosition: { x: number; y: number }
+  setRobotPosition: (pos: { x: number; y: number }) => void
 }
 
 const AIContext = createContext<AIContextType | null>(null)
@@ -100,6 +102,25 @@ export function AIAssistantProvider({
   })
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
 
+  const [robotPosition, setRobotPosition] = useState<{ x: number; y: number }>(() => {
+    // Load from localStorage on mount
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ai-robot-position')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch {
+          return { x: window.innerWidth - 100, y: window.innerHeight - 120 }
+        }
+      }
+    }
+    return { x: window.innerWidth - 100, y: window.innerHeight - 120 }
+  })
+
+  useEffect(() => {
+    localStorage.setItem('ai-robot-position', JSON.stringify(robotPosition))
+  }, [robotPosition])
+
   // Initialize AI service
   useEffect(() => {
     const init = async () => {
@@ -116,7 +137,7 @@ export function AIAssistantProvider({
 
         logger.log('✅ AI Assistant initialized with model:', modelInfo.currentModel)
       } catch (err: any) {
-        logger.log('❌ AI initialization failed:', err)
+        logger.log('AI initialization failed:', err)
         setError(err.message)
       }
     }
@@ -1162,7 +1183,9 @@ export function AIAssistantProvider({
     error,
     sessionStats,
     currentSessionId,
-    loadSession
+    loadSession,
+    robotPosition,
+    setRobotPosition
   }
 
   return (

@@ -14,10 +14,16 @@ import {
   Download,
   ExternalLink,
   Play,
+  Pause,
+  SkipBack,
+  SkipForward,
   Bot,
   Brain,
   Bug as BugIcon,
   MessageSquare,
+  Monitor,
+  Video,
+  Code,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -25,6 +31,9 @@ import { AIInsights, AIInsight } from '@/components/ai/AIInsights';
 import { convertInsightToBugData } from '../../../lib/helpers/bugPrefillHelper';
 import { AnnotationPlaybackOverlay } from './AnnotationPlaybackOverlay';
 import type { Annotation } from '@/lib/recording/annotation-system';
+import type { eventWithTime } from '@rrweb/types';
+
+
 
 interface RecordingPlayerProps {
   recording: Recording;
@@ -32,6 +41,8 @@ interface RecordingPlayerProps {
   sprint?: { id: string; name: string } | null;
   embeddedInBugDrawer?: boolean;
 }
+
+type ViewMode = 'video' | 'replay' | 'split';
 
 export function RecordingPlayer({ 
   recording, 
@@ -43,10 +54,16 @@ export function RecordingPlayer({
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const [networkLogs, setNetworkLogs] = useState<NetworkLog[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [rrwebEvents, setRRWebEvents] = useState<eventWithTime[]>([]);
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('video');
+  const [isReplayPlaying, setIsReplayPlaying] = useState(false);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
+  const replayContainerRef = useRef<HTMLDivElement>(null);
+  const rrwebPlayerRef = useRef<any>(null);
 
   // AI Insights state
   const [showAIInsights, setShowAIInsights] = useState(true);
@@ -61,12 +78,85 @@ export function RecordingPlayer({
     if (!video) return;
 
     const handleTimeUpdate = () => {
-      setCurrentVideoTime(video.currentTime);
+      const time = video.currentTime;
+      setCurrentVideoTime(time);
+      
+      // Sync rrweb replay if in split mode
+      if (viewMode === 'split' && rrwebPlayerRef.current) {
+        rrwebPlayerRef.current.goto(time * 1000);
+      }
+    };
+
+    const handlePlay = () => {
+      if (viewMode === 'split' && rrwebPlayerRef.current) {
+        rrwebPlayerRef.current.play();
+      }
+    };
+
+    const handlePause = () => {
+      if (viewMode === 'split' && rrwebPlayerRef.current) {
+        rrwebPlayerRef.current.pause();
+      }
     };
 
     video.addEventListener('timeupdate', handleTimeUpdate);
-    return () => video.removeEventListener('timeupdate', handleTimeUpdate);
-  }, []);
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    
+    return () => {
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+    };
+  }, [viewMode]);
+
+  // Initialize rrweb replay
+  useEffect(() => {
+    if (viewMode === 'replay' || viewMode === 'split') {
+      initializeRRWebReplay();
+    }
+    
+    return () => {
+      if (rrwebPlayerRef.current) {
+        rrwebPlayerRef.current.destroy?.();
+        rrwebPlayerRef.current = null;
+      }
+    };
+  }, [viewMode, rrwebEvents]);
+
+  const initializeRRWebReplay = async () => {
+    if (!replayContainerRef.current || rrwebEvents.length === 0) return;
+
+    try {
+      // Dynamically import rrweb-player
+      const { Replayer } = await import('rrweb');
+      
+      // Clear container
+      replayContainerRef.current.innerHTML = '';
+      
+      // Create replayer
+      const replayer = new Replayer(rrwebEvents, {
+        root: replayContainerRef.current,
+        speed: 1,
+        skipInactive: true,
+        showWarning: false,
+        showDebug: false,
+        mouseTail: {
+          duration: 500,
+          lineCap: 'round',
+          lineWidth: 2,
+          strokeStyle: '#f05a22',
+        }
+      });
+      
+      rrwebPlayerRef.current = replayer;
+      
+      logger.log('RRWeb replay initialized with', rrwebEvents.length, 'events');
+    } catch (error) {
+      logger.log('Error initializing rrweb replay:', error);
+      toast.error('Failed to initialize DOM replay');
+    }
+  };
 
   const loadLogs = async () => {
     setIsLoadingLogs(true);
@@ -118,6 +208,22 @@ export function RecordingPlayer({
           logger.log('Error loading annotations:', error);
         }
       }
+
+      // Load rrweb events
+      if (metadata?.rrwebEvents && Array.isArray(metadata.rrwebEvents)) {
+        // Cast to eventWithTime for rrweb compatibility
+        setRRWebEvents(metadata.rrwebEvents as eventWithTime[]);
+      } else if (metadata?.rrwebEventsUrl) {
+        try {
+          const response = await fetch(metadata.rrwebEventsUrl);
+          if (response.ok) {
+            const data = await response.json();
+            setRRWebEvents(Array.isArray(data) ? data as eventWithTime[] : []);
+          }
+        } catch (error) {
+          logger.log('Error loading rrweb events:', error);
+        }
+      }
     } catch (error) {
       logger.log('Error loading logs:', error);
     } finally {
@@ -133,6 +239,25 @@ export function RecordingPlayer({
       toast.success('Link copied to clipboard');
     } catch (error) {
       toast.error('Failed to copy link');
+    }
+  };
+
+  const handleReplayControl = (action: 'play' | 'pause' | 'restart') => {
+    if (!rrwebPlayerRef.current) return;
+
+    switch (action) {
+      case 'play':
+        rrwebPlayerRef.current.play();
+        setIsReplayPlaying(true);
+        break;
+      case 'pause':
+        rrwebPlayerRef.current.pause();
+        setIsReplayPlaying(false);
+        break;
+      case 'restart':
+        rrwebPlayerRef.current.goto(0);
+        setIsReplayPlaying(false);
+        break;
     }
   };
 
@@ -157,7 +282,6 @@ export function RecordingPlayer({
     return recording.url || '';
   };
 
-  // Handle AI Insights callbacks
   const handleSaveInsights = (insights: AIInsight[]) => {
     logger.log('Saved insights:', insights);
     toast.success(`Saved ${insights.length} AI insights`);
@@ -166,8 +290,6 @@ export function RecordingPlayer({
   const handleCreateBug = (insight: AIInsight) => {
     try {
       const metadata = recording.metadata as any;
-
-      // Convert AI insight to bug form data
       const bugData = convertInsightToBugData(insight, recording.id, {
         browser: metadata?.browser,
         os: metadata?.os,
@@ -176,12 +298,8 @@ export function RecordingPlayer({
         networkLogs
       });
 
-      // Store in sessionStorage for the bug form to pick up
       sessionStorage.setItem('bugPrefillData', JSON.stringify(bugData));
-
-      // Navigate to bug creation page
       router.push(`/dashboard/bugs?from_recording=${recording.id}&insight_id=${insight.id}&show_form=true`);
-
       toast.success('Opening bug form with AI-generated details...');
     } catch (error) {
       logger.log('Error creating bug from insight:', error);
@@ -192,10 +310,11 @@ export function RecordingPlayer({
   const metadata = recording.metadata as any;
   const createdAt = recording.created_at ? new Date(recording.created_at) : new Date();
   const videoUrl = getVideoUrl();
+  const hasRRWebData = rrwebEvents.length > 0;
 
   return (
     <div className="w-full">
-      {/* Back and Share Buttons - Top Row */}
+      {/* Header */}
       {!embeddedInBugDrawer ? (
         <div className="flex justify-between items-center mb-4">
           <Button variant="outline" size="sm" onClick={() => window.history.back()} className="gap-2">
@@ -227,55 +346,134 @@ export function RecordingPlayer({
         </div>
       )}
 
-      {/* YouTube-style Layout */}
-      <div className="flex flex-col lg:flex-row gap-6 w-full">
-        {/* Left Column - Video Player (70%) */}
-        <div className="lg:w-[70%] space-y-4">
-          {/* Video Player */}
-          <div className="bg-black rounded-xl overflow-hidden">
-            <div className="aspect-video relative">
-              {videoUrl ? (
-                <div className="relative w-full h-full">
-                  <video
-                    ref={videoRef}
-                    src={videoUrl}
-                    controls
-                    className="w-full h-full"
-                    onError={() => setVideoError(true)}
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                  
-                  {/* Annotation overlay */}
-                  {annotations.length > 0 && (
-                    <AnnotationPlaybackOverlay
-                      annotations={annotations}
-                      currentTime={currentVideoTime}
-                      isPlaying={!videoRef.current?.paused}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full text-white">
-                  <div className="text-center px-4">
-                    <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg mb-2">Video unavailable</p>
-                    <p className="text-sm text-gray-400">No video URL provided</p>
-                  </div>
-                </div>
-              )}
+      {/* View Mode Selector */}
+      {hasRRWebData && (
+        <div className="flex gap-2 mb-4 p-2 bg-muted rounded-lg w-fit">
+          <Button
+            variant={viewMode === 'video' ? 'outline' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('video')}
+            className="gap-2"
+          >
+            <Video className="h-4 w-4" />
+            Video Only
+          </Button>
+          <Button
+            variant={viewMode === 'replay' ? 'outline' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('replay')}
+            className="gap-2"
+          >
+            <Code className="h-4 w-4" />
+            DOM Replay
+          </Button>
+          <Button
+            variant={viewMode === 'split' ? 'outline' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('split')}
+            className="gap-2"
+          >
+            <Monitor className="h-4 w-4" />
+            Split View
+          </Button>
+        </div>
+      )}
 
-              {videoError && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                  <div className="text-center text-white px-4">
-                    <p className="text-lg mb-2">Failed to load video</p>
-                    <p className="text-sm text-gray-400">
-                      The video may be unavailable or corrupted
-                    </p>
+      {/* Layout */}
+      <div className="flex flex-col lg:flex-row gap-6 w-full">
+        {/* Left Column - Player(s) */}
+        <div className="lg:w-[70%] space-y-4">
+          {/* Player Area */}
+          <div className={`bg-black rounded-xl overflow-hidden ${viewMode === 'split' ? 'grid grid-cols-2 gap-2 p-2' : ''}`}>
+            {/* Video Player */}
+            {(viewMode === 'video' || viewMode === 'split') && (
+              <div className={`${viewMode === 'split' ? '' : 'aspect-video'} relative`}>
+                {videoUrl ? (
+                  <div className="relative w-full h-full">
+                    <video
+                      ref={videoRef}
+                      src={videoUrl}
+                      controls
+                      className="w-full h-full"
+                      onError={() => setVideoError(true)}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                    
+                    {annotations.length > 0 && (
+                      <AnnotationPlaybackOverlay
+                        annotations={annotations}
+                        currentTime={currentVideoTime}
+                        isPlaying={!videoRef.current?.paused}
+                      />
+                    )}
                   </div>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-white min-h-[400px]">
+                    <div className="text-center px-4">
+                      <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg mb-2">Video unavailable</p>
+                      <p className="text-sm text-gray-400">No video URL provided</p>
+                    </div>
+                  </div>
+                )}
+
+                {videoError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                    <div className="text-center text-white px-4">
+                      <p className="text-lg mb-2">Failed to load video</p>
+                      <p className="text-sm text-gray-400">The video may be unavailable or corrupted</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* RRWeb Replay Player */}
+            {(viewMode === 'replay' || viewMode === 'split') && (
+              <div className={`${viewMode === 'split' ? '' : 'aspect-video'} relative bg-white`}>
+                {rrwebEvents.length > 0 ? (
+                  <div className="relative w-full h-full">
+                    <div 
+                      ref={replayContainerRef} 
+                      className="w-full h-full overflow-auto"
+                      style={{ minHeight: viewMode === 'replay' ? '600px' : '400px' }}
+                    />
+                    
+                    {viewMode === 'replay' && (
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/80 p-3 rounded-lg">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleReplayControl('restart')}
+                          className="text-white hover:text-white hover:bg-white/20"
+                        >
+                          <SkipBack className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleReplayControl(isReplayPlaying ? 'pause' : 'play')}
+                          className="text-white hover:text-white hover:bg-white/20"
+                        >
+                          {isReplayPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full min-h-[400px]">
+                    <div className="text-center px-4">
+                      <Code className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg mb-2">No DOM replay data</p>
+                      <p className="text-sm text-muted-foreground">
+                        This recording doesn't have DOM interaction data
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Video Info */}
@@ -284,9 +482,7 @@ export function RecordingPlayer({
 
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                <span>
-                  {formatDistanceToNow(createdAt, { addSuffix: true })}
-                </span>
+                <span>{formatDistanceToNow(createdAt, { addSuffix: true })}</span>
                 {recording.duration && (
                   <>
                     <span>•</span>
@@ -317,11 +513,25 @@ export function RecordingPlayer({
                   {annotations.length} Annotations
                 </Badge>
               )}
+              {hasRRWebData && (
+                <Badge variant="default">
+                  <Code className="h-3 w-3 mr-1" />
+                  {rrwebEvents.length} DOM Events
+                </Badge>
+              )}
             </div>
+
+            {(recording.comment || metadata?.comment) && (
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  {recording.comment || metadata?.comment}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Column - AI Insights & Logs Tabs (30%) */}
+        {/* Right Column - Tabs */}
         <div className="lg:w-[30%]">
           <Tabs defaultValue="ai-insights" className="w-full">
             <TabsList className="grid w-full grid-cols-6 mb-4">
@@ -329,24 +539,13 @@ export function RecordingPlayer({
                 <Bot className="h-3 w-3" />
                 <span className="hidden sm:inline">AI</span>
               </TabsTrigger>
-              <TabsTrigger value="info" className="text-xs">
-                Info
-              </TabsTrigger>
-              <TabsTrigger value="console" className="text-xs">
-                Console
-              </TabsTrigger>
-              <TabsTrigger value="network" className="text-xs">
-                Network
-              </TabsTrigger>
-              <TabsTrigger value="annotations" className="text-xs">
-                Notes
-              </TabsTrigger>
-              <TabsTrigger value="screenshots" className="text-xs">
-                Shots
-              </TabsTrigger>
+              <TabsTrigger value="info" className="text-xs">Info</TabsTrigger>
+              <TabsTrigger value="console" className="text-xs">Console</TabsTrigger>
+              <TabsTrigger value="network" className="text-xs">Network</TabsTrigger>
+              <TabsTrigger value="annotations" className="text-xs">Notes</TabsTrigger>
+              <TabsTrigger value="screenshots" className="text-xs">Shots</TabsTrigger>
             </TabsList>
 
-            {/* AI Insights Tab */}
             <TabsContent value="ai-insights" className="mt-0">
               <Card>
                 <CardHeader className="pb-3">
@@ -386,45 +585,35 @@ export function RecordingPlayer({
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground mb-1">
-                      Duration
-                    </dt>
-                    <dd className="text-sm font-mono">
-                      {formatDuration(recording.duration)}
-                    </dd>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">Duration</dt>
+                    <dd className="text-sm font-mono">{formatDuration(recording.duration)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground mb-1">
-                      Resolution
-                    </dt>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">Resolution</dt>
                     <dd className="text-sm">{metadata?.resolution || 'N/A'}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground mb-1">
-                      Created
-                    </dt>
-                    <dd className="text-sm">
-                      {createdAt.toLocaleString()}
-                    </dd>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">Created</dt>
+                    <dd className="text-sm">{createdAt.toLocaleString()}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground mb-1">
-                      Browser
-                    </dt>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">Browser</dt>
                     <dd className="text-sm">{metadata?.browser || 'N/A'}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground mb-1">
-                      Operating System
-                    </dt>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">Operating System</dt>
                     <dd className="text-sm">{metadata?.os || 'N/A'}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground mb-1">
-                      Test Suite
-                    </dt>
+                    <dt className="text-xs font-medium text-muted-foreground mb-1">Test Suite</dt>
                     <dd className="text-sm">{suite.name}</dd>
                   </div>
+                  {metadata?.tabActivity && (
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground mb-1">Tab Activity</dt>
+                      <dd className="text-sm">{metadata.tabActivity.length} events</dd>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -437,13 +626,9 @@ export function RecordingPlayer({
                 <CardContent>
                   <ScrollArea className="h-[600px]">
                     {isLoadingLogs ? (
-                      <p className="text-center text-muted-foreground py-8 text-sm">
-                        Loading logs...
-                      </p>
+                      <p className="text-center text-muted-foreground py-8 text-sm">Loading logs...</p>
                     ) : consoleLogs.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8 text-sm">
-                        No console logs available
-                      </p>
+                      <p className="text-center text-muted-foreground py-8 text-sm">No console logs available</p>
                     ) : (
                       <div className="space-y-2 font-mono text-xs">
                         {consoleLogs.map((log, index) => (
@@ -482,13 +667,9 @@ export function RecordingPlayer({
                 <CardContent>
                   <ScrollArea className="h-[600px]">
                     {isLoadingLogs ? (
-                      <p className="text-center text-muted-foreground py-8 text-sm">
-                        Loading network logs...
-                      </p>
+                      <p className="text-center text-muted-foreground py-8 text-sm">Loading network logs...</p>
                     ) : networkLogs.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8 text-sm">
-                        No network activity recorded
-                      </p>
+                      <p className="text-center text-muted-foreground py-8 text-sm">No network activity recorded</p>
                     ) : (
                       <div className="divide-y">
                         {networkLogs.map((log, index) => (
@@ -536,9 +717,7 @@ export function RecordingPlayer({
                 <CardContent>
                   <ScrollArea className="h-[600px]">
                     {isLoadingLogs ? (
-                      <p className="text-center text-muted-foreground py-8 text-sm">
-                        Loading annotations...
-                      </p>
+                      <p className="text-center text-muted-foreground py-8 text-sm">Loading annotations...</p>
                     ) : annotations.length > 0 ? (
                       <div className="space-y-3">
                         {annotations.map((annotation) => (

@@ -73,6 +73,11 @@ export function ScheduleTable({
     });
   };
 
+  const getScheduleTime = () => {
+    // All schedules run at 9:00 AM
+    return '9:00 AM';
+  };
+
   if (schedules.length === 0) {
     return (
       <TableEmpty
@@ -147,15 +152,15 @@ export function ScheduleTable({
 
             {/* Time */}
             <TableCell minWidth="min-w-[120px]">
-              <span className="text-sm">
-                {schedule.schedule_time || '—'}
+              <span className="text-sm font-medium">
+                {getScheduleTime()}
               </span>
             </TableCell>
 
             {/* Next Run */}
             <TableCell minWidth="min-w-[140px]">
               <span className="text-sm">
-                {formatDate(schedule.next_run_at)}
+                {formatDate(schedule.next_run)}
               </span>
             </TableCell>
 
@@ -174,7 +179,7 @@ export function ScheduleTable({
             {/* Report Type */}
             <TableCell minWidth="min-w-[160px]">
               <span className="text-sm capitalize">
-                {schedule.report?.type?.replace('_', ' ') || '—'}
+                {schedule.type.replace(/_/g, ' ')}
               </span>
             </TableCell>
 

@@ -1,8 +1,13 @@
+// ============================================
+// components/recordings/RecordWithExtensionButton.tsx
+// Works with new persistent auth system
+// ============================================
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Circle, AlertCircle, Download } from 'lucide-react';
+import { Circle, AlertCircle, Download, CheckCircle2, XCircle } from 'lucide-react';
 import { extensionBridge } from '@/lib/extension/extension-bridge';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -34,73 +39,51 @@ export function RecordWithExtensionButton({
   const [isStarting, setIsStarting] = useState(false);
   const [showInstallDialog, setShowInstallDialog] = useState(false);
 
-  // Check if extension is installed on mount
   useEffect(() => {
     checkExtension();
 
-    // Listen for recording completion
-    const cleanup = extensionBridge.onRecordingComplete((recordingId) => {
-      toast.success('Recording saved successfully!');
+    // Listen for recording events
+    const cleanupComplete = extensionBridge.onRecordingComplete((recordingId) => {
+      console.log('[Button] Recording completed:', recordingId);
+      toast.success('Recording saved successfully!', {
+        description: 'Your test recording is now available',
+        duration: 5000,
+        icon: <CheckCircle2 className="h-5 w-5 text-green-500" />
+      });
       onRecordingComplete?.();
     });
 
-    return cleanup;
+    const cleanupStart = extensionBridge.onRecordingStart(() => {
+      console.log('[Button] Recording started successfully');
+    });
+
+    const cleanupFail = extensionBridge.onRecordingFail((error) => {
+      console.error('[Button] Recording failed:', error);
+      toast.error('Recording failed', {
+        description: error,
+        duration: 7000,
+        icon: <XCircle className="h-5 w-5 text-red-500" />
+      });
+    });
+
+    return () => {
+      cleanupComplete();
+      cleanupStart();
+      cleanupFail();
+    };
   }, [onRecordingComplete]);
 
-  // Send auth context to extension whenever it changes
-  useEffect(() => {
-    if (extensionInstalled) {
-      sendAuthContextToExtension();
-    }
-  }, [extensionInstalled, testSuiteId, testSuiteName, accountId, sprintId]);
+  // Note: ExtensionAuthSync component handles sending auth context automatically
+  // We don't need to manually sync here anymore
 
   const checkExtension = async () => {
     setIsChecking(true);
     const installed = await extensionBridge.checkExtension();
     setExtensionInstalled(installed);
     setIsChecking(false);
-    
-    if (!installed) {
-      console.log('[Button] Extension not installed');
-    }
-  };
 
-  const sendAuthContextToExtension = async () => {
-    try {
-      // Create Supabase client
-      const supabase = createClient();
-      
-      // Get current session
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('[Button] Error getting session:', error);
-        return;
-      }
-      
-      if (!session) {
-        console.error('[Button] No active session');
-        return;
-      }
-
-      // Get Supabase config from environment
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-      // Send to extension
-      extensionBridge.setAuthContext({
-        accountId,
-        testSuiteId,
-        testSuiteName,
-        sprintId,
-        userToken: session.access_token,
-        supabaseUrl,
-        supabaseAnonKey
-      });
-
-      console.log('[Button] Auth context sent to extension');
-    } catch (error) {
-      console.error('[Button] Error sending auth context:', error);
+    if (installed) {
+      console.log('[Button] Extension installed and ready');
     }
   };
 
@@ -108,30 +91,71 @@ export function RecordWithExtensionButton({
     setIsStarting(true);
 
     try {
-      // Ensure auth context is sent
-      await sendAuthContextToExtension();
-      
-      // Wait a moment for auth to propagate
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Start recording directly
+      // Extension should already have auth context from ExtensionAuthSync
+      // But we'll ensure it's fresh just in case
+      const supabase = createClient();
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error || !session) {
+        toast.error('Authentication error', {
+          description: 'Please refresh the page and try again'
+        });
+        setIsStarting(false);
+        return;
+      }
+
+      // Get Supabase config
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        toast.error('Configuration error');
+        setIsStarting(false);
+        return;
+      }
+
+      // Send fresh auth context (in case it changed)
+      extensionBridge.setAuthContext({
+        accountId,
+        testSuiteId,
+        testSuiteName,
+        sprintId,
+        userToken: session.access_token,
+        supabaseUrl,
+        supabaseAnonKey,
+        userEmail: session.user.email || 'Unknown User'
+      });
+
+      // Give extension a moment to process
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Start recording
       const result = await extensionBridge.startRecording();
 
       if (result.success) {
         toast.success('Recording started!', {
-          description: 'Use the floating controls to capture your test. Network logs and console will be recorded automatically.',
-          duration: 5000
+          description: 'Screen sharing prompt will appear. Select what you want to record.',
+          duration: 5000,
+          icon: <Circle className="h-5 w-5 fill-red-500 text-red-500 animate-pulse" />
         });
+
+        setTimeout(() => {
+          toast.info('Recording in progress', {
+            description: 'Use the floating controls to pause, annotate, or stop. Network logs and console are being captured automatically.',
+            duration: 8000
+          });
+        }, 2000);
       } else {
         toast.error('Failed to start recording', {
-          description: result.error,
-          duration: 5000
+          description: result.error || 'Please try again',
+          duration: 7000
         });
       }
     } catch (error) {
+      console.error('[Button] Unexpected error:', error);
       toast.error('Failed to start recording', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-        duration: 5000
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        duration: 7000
       });
     } finally {
       setIsStarting(false);
@@ -162,6 +186,15 @@ export function RecordWithExtensionButton({
             </DialogHeader>
 
             <div className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm font-semibold text-yellow-900 mb-1">
+                  ⏱️ Recording Limit: 5 Minutes
+                </p>
+                <p className="text-xs text-yellow-700">
+                  Keep recordings focused. Recording auto-stops after 5 minutes.
+                </p>
+              </div>
+              
               <div className="bg-muted rounded-lg p-4">
                 <h4 className="font-semibold mb-2 text-sm">Features:</h4>
                 <ul className="text-sm text-muted-foreground space-y-1.5">
@@ -171,15 +204,23 @@ export function RecordWithExtensionButton({
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 mt-0.5">✓</span>
-                    <span>Network request & console log capture</span>
+                    <span>Automatic network & console log capture</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 mt-0.5">✓</span>
-                    <span>Drawing, blur & highlight annotation tools</span>
+                    <span>Real-time annotation tools</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 mt-0.5">✓</span>
-                    <span>Works across all websites & tabs</span>
+                    <span>DOM replay with rrweb</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>Multi-tab support</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span>Auto-sync to your test suite</span>
                   </li>
                 </ul>
               </div>
@@ -188,9 +229,9 @@ export function RecordWithExtensionButton({
                 <Button
                   onClick={() => {
                     const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
-                    const storeUrl = isFirefox 
-                      ? 'https://addons.mozilla.org/firefox/' // Update with actual URL
-                      : 'https://chrome.google.com/webstore'; // Update with actual URL
+                    const storeUrl = isFirefox
+                      ? 'https://addons.mozilla.org/firefox/'
+                      : 'https://chrome.google.com/webstore';
                     window.open(storeUrl, '_blank');
                   }}
                   className="w-full"
@@ -198,7 +239,7 @@ export function RecordWithExtensionButton({
                   <Download className="h-4 w-4" />
                   Install from Store
                 </Button>
-                
+
                 <Button
                   onClick={() => {
                     checkExtension();
@@ -207,12 +248,12 @@ export function RecordWithExtensionButton({
                   variant="outline"
                   className="w-full"
                 >
-                  I've Installed It - Refresh
+                  I've Installed It - Check Again
                 </Button>
               </div>
 
               <p className="text-xs text-center text-muted-foreground">
-                After installation, refresh this page and click the Record button
+                After installation, the extension will automatically connect.
               </p>
             </div>
           </DialogContent>
@@ -231,7 +272,7 @@ export function RecordWithExtensionButton({
     );
   }
 
-  // Show record button - DIRECTLY starts recording
+  // Show record button
   return (
     <Button
       onClick={handleStartRecording}

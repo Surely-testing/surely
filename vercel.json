@@ -1,6 +1,12 @@
 {
-  "crons": [{
-    "path": "/api/cron/your-endpoint",
-    "schedule": "0 0 * * *"
-  }]
+  "crons": [
+    {
+      "path": "/api/cron/check-trial-expiration",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/send-scheduled-reports",
+      "schedule": "0 9 * * *"
+    }
+  ]
 }

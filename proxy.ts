@@ -25,10 +25,12 @@ const ROUTES = {
     '/terms',
     '/security',
     '/reviews',
+    '/demo',
+    '/how-to',
   ],
 
   // Auth pages - redirect to role-specific dashboard if authenticated
-  AUTH: ['/login', '/signup'],
+  AUTH: ['/login', '/register'],
 
   // Always accessible (bypass all checks)
   BYPASS: ['/auth/callback', '/verify-email', '/auth/reactivate', '/select-account-type'],

@@ -1,5 +1,6 @@
 // ============================================
-// FILE: components/dashboard/DashboardShell.tsx - WITH ANNOTATIONS
+// components/dashboard/DashboardShell.tsx
+// Enhanced with automatic extension auth sync
 // ============================================
 'use client'
 
@@ -9,6 +10,7 @@ import { AIAssistantProvider } from '@/components/ai/AIAssistantProvider'
 import { AIAssistant } from '@/components/ai/AIAssistant'
 import { AIFloatingButton } from '@/components/ai/AIFloatingButton'
 import { ContextualTips } from '@/components/ai/ContextualTips'
+import { ExtensionAuthSync } from '@/components/extension/ExtensionAuthSync'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { useSuiteContext } from '@/providers/SuiteContextProvider'
@@ -27,43 +29,51 @@ export function DashboardShell({ user, profile, suites, children }: DashboardShe
   
   const { suite: currentSuite } = useSuiteContext()
 
+  // Extract sprint ID from pathname if present (e.g., /dashboard/suites/[suiteId]/sprints/[sprintId])
+  const sprintId = pathname.match(/sprints\/([^/]+)/)?.[1] || null
+
   return (
-    
-      <AIAssistantProvider
+    <AIAssistantProvider
+      userId={user.id}
+      suiteId={currentSuite.id}
+      suiteName={currentSuite.name}
+    >
+      {/* Auto-sync auth context to extension */}
+      <ExtensionAuthSync
         userId={user.id}
-        suiteId={currentSuite.id}
-        suiteName={currentSuite.name}
-      >
-        <div className="flex h-screen bg-background overflow-hidden">
-          <Sidebar
-            suites={suites}
-            currentSuiteId={currentSuite.id}
-            userId={user.id}
-            isOpen={sidebarOpen}
-            onToggle={() => setSidebarOpen(!sidebarOpen)}
+        currentSuite={currentSuite}
+        sprintId={sprintId}
+      />
+      
+      <div className="flex h-screen bg-background overflow-hidden">
+        <Sidebar
+          suites={suites}
+          currentSuiteId={currentSuite.id}
+          userId={user.id}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+        />
+
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header
+            user={user}
+            profile={profile}
+            currentSuite={currentSuite}
+            onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           />
 
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header
-              user={user}
-              profile={profile}
-              currentSuite={currentSuite}
-              onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-            />
-
-            <main className="flex-1 overflow-y-auto bg-muted/30">
-              <div className="container mx-auto p-6">
-                {children}
-              </div>
-            </main>
-          </div>
-
-          {/* AI Components */}
-          <ContextualTips />
-          <AIFloatingButton />
-          <AIAssistant />
+          <main className="flex-1 overflow-y-auto bg-muted/30">
+            <div className="container mx-auto p-6">
+              {children}
+            </div>
+          </main>
         </div>
-      </AIAssistantProvider>
-    
+
+        {/* AI Components */}
+        <ContextualTips />
+        <AIFloatingButton />
+        <AIAssistant />
+      </div>
+    </AIAssistantProvider>
   )
 }

@@ -1,5 +1,5 @@
 // ============================================
-// lib/actions/recordings.ts - FIXED DELETE
+// lib/actions/recordings.ts - COMPLETE FIX
 // ============================================
 
 'use server';
@@ -199,28 +199,51 @@ export async function deleteRecording(
       throw new Error('Permission denied. Only suite owners and admins can delete recordings.');
     }
 
-    // Delete video file from Supabase Storage
-    if (recording.metadata && typeof recording.metadata === 'object' && 'fileName' in recording.metadata) {
-      const { error: storageError } = await supabase.storage
-        .from('recordings')
-        .remove([(recording.metadata as Record<string, any>).fileName]);
-
-      if (storageError) {
-        logger.log('Storage deletion error:', storageError);
-        // Continue anyway - we still want to delete the database record
+    // Extract file paths from metadata
+    const filesToDelete: string[] = [];
+    
+    // Main video file
+    if (recording.metadata && typeof recording.metadata === 'object') {
+      const metadata = recording.metadata as Record<string, any>;
+      
+      if (metadata.fileName) {
+        filesToDelete.push(metadata.fileName);
+      }
+      
+      // Console logs file
+      if (metadata.consoleLogsUrl) {
+        const match = metadata.consoleLogsUrl.match(/recordings\/(.+)$/);
+        if (match) filesToDelete.push(match[1]);
+      }
+      
+      // Network logs file
+      if (metadata.networkLogsUrl) {
+        const match = metadata.networkLogsUrl.match(/recordings\/(.+)$/);
+        if (match) filesToDelete.push(match[1]);
+      }
+      
+      // Screenshots if any
+      if (metadata.screenshots && Array.isArray(metadata.screenshots)) {
+        metadata.screenshots.forEach((screenshot: any) => {
+          if (screenshot.url) {
+            const match = screenshot.url.match(/recordings\/(.+)$/);
+            if (match) filesToDelete.push(match[1]);
+          }
+        });
       }
     }
 
-    // Delete console logs file if exists
-    if (recording.metadata && typeof recording.metadata === 'object' && 'consoleLogsUrl' in recording.metadata) {
-      const logFileName = `${recording.suite_id}/${recordingId}/console_logs.json`;
-      await supabase.storage.from('recordings').remove([logFileName]);
-    }
+    // Delete all files from storage
+    if (filesToDelete.length > 0) {
+      console.log('[Delete] Removing files:', filesToDelete);
+      const { error: storageError } = await supabase.storage
+        .from('recordings')
+        .remove(filesToDelete);
 
-    // Delete network logs file if exists
-    if (recording.metadata && typeof recording.metadata === 'object' && 'networkLogsUrl' in recording.metadata) {
-      const logFileName = `${recording.suite_id}/${recordingId}/network_logs.json`;
-      await supabase.storage.from('recordings').remove([logFileName]);
+      if (storageError) {
+        logger.log('Storage deletion warning:', storageError);
+        // Continue anyway - we still want to delete the database record
+      }
     }
 
     // Move to trash before deleting
