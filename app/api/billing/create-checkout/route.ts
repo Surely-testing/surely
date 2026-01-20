@@ -1,6 +1,6 @@
 // ============================================
 // FILE: app/api/billing/create-checkout/route.ts
-// DodoPayments Checkout Session Creation - FIXED
+// DodoPayments Checkout Session Creation - FIXED URLs
 // ============================================
 
 import { NextResponse } from 'next/server'
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     // Determine trial period (14 days for new users, 0 for returning paid users)
     const trialPeriodDays = existingSubscription?.had_paid_plan ? 0 : 14
 
-    // Build checkout params according to DodoPayments API spec
+    // FIXED: Update return URL to match actual route
     const checkoutParams: any = {
       product_cart: [{
         product_id: productId,
@@ -59,16 +59,14 @@ export async function POST(req: Request) {
       }],
       customer: {
         email: user.email!,
-        // Add name if available
         ...(user.user_metadata?.name && { name: user.user_metadata.name })
       },
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?success=true`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?tab=subscription&success=true`,
       metadata: {
         user_id: user.id,
         tier_id: tierId,
         billing_cycle: billingCycle
       },
-      // CRITICAL: Force payment methods to be available
       allowed_payment_method_types: ['credit', 'debit']
     }
 
@@ -77,7 +75,7 @@ export async function POST(req: Request) {
       checkoutParams.trial_period_days = trialPeriodDays
     }
 
-    // Add customer_id if returning customer (NOT inside customer object)
+    // Add customer_id if returning customer
     if (existingSubscription?.dodo_customer_id) {
       checkoutParams.customer_id = existingSubscription.dodo_customer_id
     }
@@ -107,7 +105,7 @@ export async function POST(req: Request) {
       })
     }
 
-    // Extract checkout URL - try multiple possible property names
+    // Extract checkout URL
     const checkoutUrl = (session as any).checkout_url || 
                        (session as any).url
 

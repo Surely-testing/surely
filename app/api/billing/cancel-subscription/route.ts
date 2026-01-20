@@ -1,9 +1,12 @@
 // ============================================
 // FILE: app/api/billing/cancel-subscription/route.ts
+// Cancel subscription at end of billing period
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { dodoClient } from '@/lib/dodo/client'
+import { DodoSubscription } from '@/lib/dodo/types'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Get subscription
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
-      .select('dodo_subscription_id')
+      .select('dodo_subscription_id, current_period_end')
       .eq('user_id', userId)
       .single()
 
@@ -31,40 +34,59 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
-    // Cancel subscription in DodoPayments
-    const response = await fetch(
-      `https://api.dodopayments.com/v1/subscriptions/${subscription.dodo_subscription_id}/cancel`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.DODO_SECRET_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cancel_at_period_end: true, // Keep access until period ends
-        }),
-      }
-    )
+    console.log('Cancelling subscription:', subscription.dodo_subscription_id)
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      return NextResponse.json({ error: errorData.message }, { status: response.status })
+    // Cancel subscription in DodoPayments using cancel_at_next_billing_date
+    const result = await dodoClient.subscriptions.update(
+      subscription.dodo_subscription_id,
+      {
+        cancel_at_next_billing_date: true
+      } as any
+    ) as DodoSubscription
+
+    console.log('Subscription cancelled:', result)
+
+    // Build update object using correct field names
+    const updateData: any = {
+      cancel_at_period_end: true,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Use next_billing_date from the response if available
+    if (result.next_billing_date) {
+      updateData.current_period_end = result.next_billing_date
     }
 
     // Update local database
-    await supabase
+    const { error: updateError } = await supabase
       .from('subscriptions')
-      .update({
-        cancel_at_period_end: true,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('user_id', userId)
 
-    return NextResponse.json({ success: true })
+    if (updateError) {
+      console.error('Error updating subscription:', updateError)
+      return NextResponse.json({ error: 'Failed to update database' }, { status: 500 })
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      subscription: {
+        cancel_at_period_end: true,
+        current_period_end: result.next_billing_date || subscription.current_period_end
+      }
+    })
 
   } catch (error: any) {
     console.error('Cancel subscription error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Error details:', {
+      status: error.status,
+      message: error.message,
+      error: error.error
+    })
+    
+    return NextResponse.json({ 
+      error: error.message || 'Failed to cancel subscription',
+      details: error.status ? `DodoPayments API error: ${error.status}` : undefined
+    }, { status: error.status || 500 })
   }
 }
-

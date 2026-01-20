@@ -1517,6 +1517,7 @@ export type Database = {
           frequency: string
           id: string
           is_active: boolean | null
+          name: string
           next_run: string | null
           suite_id: string
           type: string
@@ -1529,6 +1530,7 @@ export type Database = {
           frequency: string
           id?: string
           is_active?: boolean | null
+          name?: string
           next_run?: string | null
           suite_id: string
           type: string
@@ -1541,6 +1543,7 @@ export type Database = {
           frequency?: string
           id?: string
           is_active?: boolean | null
+          name?: string
           next_run?: string | null
           suite_id?: string
           type?: string

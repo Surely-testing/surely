@@ -204,7 +204,7 @@ export default function NotificationsView({ userId, schedules, profile }: any) {
             />
           </div>
 
-          <Button onClick={handleSave}>Save Preferences</Button>
+          <Button className='btn-primary' onClick={handleSave}>Save Preferences</Button>
         </CardContent>
       </Card>
 

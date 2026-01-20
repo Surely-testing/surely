@@ -23,14 +23,14 @@ export async function POST(req: Request) {
     const svix_signature = (await headersList).get('webhook-signature')
 
     console.log('========================================')
-    console.log('🔔 WEBHOOK INCOMING')
+    console.log('WEBHOOK INCOMING')
     console.log('Svix ID:', svix_id)
     console.log('Svix Timestamp:', svix_timestamp)
     console.log('Svix Signature:', svix_signature)
     console.log('========================================')
 
     if (!svix_id || !svix_timestamp || !svix_signature) {
-      console.error('❌ Missing svix headers')
+      console.error('Missing svix headers')
       return NextResponse.json(
         { error: 'Missing svix headers' },
         { status: 401 }
@@ -47,14 +47,14 @@ export async function POST(req: Request) {
         'webhook-signature': svix_signature,
       }) as any
     } catch (err) {
-      console.error('❌ Webhook verification failed:', err)
+      console.error('Webhook verification failed:', err)
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
       )
     }
 
-    console.log('✅ Signature verified')
+    console.log('Signature verified')
     console.log('========================================')
     console.log('WEBHOOK RECEIVED:', event.type)
     console.log('Full payload:', JSON.stringify(event, null, 2))
@@ -153,6 +153,8 @@ async function handleCheckoutCompleted(data: any) {
     ...paymentMethodInfo,
     trial_end: null,
     had_paid_plan: true,
+    current_period_start: data.current_period_start || data.subscription?.current_period_start,
+    current_period_end: data.current_period_end || data.subscription?.current_period_end,
     updated_at: new Date().toISOString()
   }
 
@@ -168,16 +170,50 @@ async function handleCheckoutCompleted(data: any) {
     throw error
   }
 
-  console.log('✅ Subscription updated successfully')
+  console.log('Subscription updated successfully')
 }
 
 async function handleSubscriptionCreated(data: any) {
   console.log('Subscription created:', JSON.stringify(data, null, 2))
-  // This might fire before checkout.completed, so we'll handle the main update there
+  
+  const userId = data.metadata?.user_id
+  
+  if (!userId) {
+    console.error('No user ID found in subscription.created')
+    return
+  }
+
+  const updateData: any = {
+    dodo_subscription_id: data.id || data.subscription_id,
+    dodo_customer_id: data.customer_id,
+    status: data.status,
+    updated_at: new Date().toISOString()
+  }
+
+  if (data.current_period_start) {
+    updateData.current_period_start = data.current_period_start
+  }
+
+  if (data.current_period_end) {
+    updateData.current_period_end = data.current_period_end
+  }
+
+  if (data.trial_end) {
+    updateData.trial_end = data.trial_end
+  }
+
+  const { error } = await supabase
+    .from('subscriptions')
+    .update(updateData)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Error updating subscription in subscription.created:', error)
+  }
 }
 
 async function handleSubscriptionActive(data: any) {
-  console.log('🎯 handleSubscriptionActive called')
+  console.log('handleSubscriptionActive called')
   console.log('Data received:', JSON.stringify(data, null, 2))
 
   const userId = data.metadata?.user_id
@@ -185,7 +221,7 @@ async function handleSubscriptionActive(data: any) {
   console.log('Extracted userId:', userId)
 
   if (!userId) {
-    console.error('❌ No user ID found in subscription data')
+    console.error('No user ID found in subscription data')
     console.error('metadata:', data.metadata)
     return
   }
@@ -204,6 +240,8 @@ async function handleSubscriptionActive(data: any) {
     ...paymentMethodInfo,
     trial_end: null,
     had_paid_plan: true,
+    current_period_start: data.current_period_start,
+    current_period_end: data.current_period_end,
     updated_at: new Date().toISOString()
   }
 
@@ -216,11 +254,11 @@ async function handleSubscriptionActive(data: any) {
     .eq('user_id', userId)
 
   if (error) {
-    console.error('❌ Error updating subscription:', error)
+    console.error('Error updating subscription:', error)
     throw error
   }
 
-  console.log('✅ Subscription updated successfully!')
+  console.log('Subscription updated successfully')
 
   await supabase.from('activity_logs').insert({
     user_id: userId,
@@ -233,20 +271,26 @@ async function handleSubscriptionActive(data: any) {
     }
   })
 
-  console.log('✅ Activity log created')
+  console.log('Activity log created')
 }
 
 async function handleSubscriptionCancelled(data: any) {
   console.log('Subscription cancelled:', data.subscription_id)
 
+  const updateData: any = {
+    status: 'cancelled',
+    cancel_at_period_end: true,
+    cancelled_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+
+  if (data.current_period_end) {
+    updateData.current_period_end = data.current_period_end
+  }
+
   const { error } = await supabase
     .from('subscriptions')
-    .update({
-      status: 'cancelled',
-      cancel_at_period_end: true,
-      cancelled_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('dodo_subscription_id', data.subscription_id)
 
   if (error) {
@@ -289,8 +333,16 @@ async function handlePaymentSucceeded(data: any) {
     paymentMethodUpdate.dodo_payment_method_id = data.payment_method_id
   }
 
+  // Update billing period if provided
+  if (data.current_period_start) {
+    paymentMethodUpdate.current_period_start = data.current_period_start
+  }
+  if (data.current_period_end) {
+    paymentMethodUpdate.current_period_end = data.current_period_end
+  }
+
   if (Object.keys(paymentMethodUpdate).length > 0) {
-    console.log('Updating payment method:', paymentMethodUpdate)
+    console.log('Updating payment method and billing period:', paymentMethodUpdate)
     await supabase
       .from('subscriptions')
       .update(paymentMethodUpdate)
@@ -316,7 +368,7 @@ async function handlePaymentSucceeded(data: any) {
     throw error
   }
 
-  console.log('✅ Payment recorded successfully')
+  console.log('Payment recorded successfully')
 }
 
 async function handlePaymentFailed(data: any) {
@@ -374,12 +426,22 @@ async function handlePlanChanged(data: any) {
     return
   }
 
+  const updateData: any = {
+    tier_id: tier.id,
+    updated_at: new Date().toISOString()
+  }
+
+  if (data.current_period_start) {
+    updateData.current_period_start = data.current_period_start
+  }
+
+  if (data.current_period_end) {
+    updateData.current_period_end = data.current_period_end
+  }
+
   await supabase
     .from('subscriptions')
-    .update({
-      tier_id: tier.id,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('dodo_subscription_id', data.subscription_id)
 }
 
@@ -403,6 +465,18 @@ async function handleSubscriptionUpdated(data: any) {
     updateData.cancel_at_period_end = data.cancel_at_next_billing_date
   }
 
+  if (data.current_period_start) {
+    updateData.current_period_start = data.current_period_start
+  }
+
+  if (data.current_period_end) {
+    updateData.current_period_end = data.current_period_end
+  }
+
+  if (data.trial_end) {
+    updateData.trial_end = data.trial_end
+  }
+
   console.log('Updating subscription with:', updateData)
 
   const { error } = await supabase
@@ -415,5 +489,5 @@ async function handleSubscriptionUpdated(data: any) {
     throw error
   }
 
-  console.log('✅ Subscription updated successfully')
+  console.log('Subscription updated successfully')
 }
