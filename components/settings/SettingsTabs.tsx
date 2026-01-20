@@ -3,6 +3,8 @@
 // ============================================
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs'
 import { User, Building2, Shield, CreditCard, Bell, LayoutGrid, Sparkles } from 'lucide-react'
 import IndividualAccountView from './account/IndividualAccountView'
@@ -40,11 +42,23 @@ export function SettingsTabs({
   memberSuites = [],
   reportSchedules = []
 }: SettingsTabsProps) {
+  const searchParams = useSearchParams()
   const isOrgAccount = profile.account_type === 'organization' || 
                        profile.account_type === 'organization-admin'
 
+  // Get tab from URL or default to 'account'
+  const tabFromUrl = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'account')
+
+  // Update tab when URL changes
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [tabFromUrl])
+
   return (
-    <Tabs defaultValue="account" className="w-full">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7">
         <TabsTrigger value="account" className="flex items-center gap-2">
           {isOrgAccount ? <Building2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
@@ -103,8 +117,7 @@ export function SettingsTabs({
       </TabsContent>
 
       <TabsContent value="subscription" className="mt-6">
-        {/* <SubscriptionView subscription={subscription} tiers={tiers} /> */}
-          <SubscriptionView userId={user.id} />
+        <SubscriptionView userId={user.id} />
       </TabsContent>
 
       <TabsContent value="notifications" className="mt-6">
@@ -113,9 +126,11 @@ export function SettingsTabs({
 
       <TabsContent value="suites" className="mt-6">
         <SuitesView 
-                  ownedSuites={ownedSuites}
-                  memberSuites={memberSuites}
-                  userId={user.id} accountType={'individual'}        />
+          ownedSuites={ownedSuites}
+          memberSuites={memberSuites}
+          userId={user.id} 
+          accountType={'individual'}
+        />
       </TabsContent>
 
       <TabsContent value="ai" className="mt-6">

@@ -24,19 +24,39 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
   useEffect(() => {
     fetchData()
     
-    // Check if returning from payment method update
     const searchParams = new URLSearchParams(window.location.search)
+    
+    if (searchParams.get('success') === 'true') {
+      const subscriptionId = searchParams.get('subscription_id')
+      const status = searchParams.get('status')
+      
+      if (status === 'active' || subscriptionId) {
+        toast.success('Subscription activated!', {
+          description: 'Your premium features are now active.'
+        })
+      } else {
+        toast.success('Checkout completed!')
+      }
+      
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('success')
+      newUrl.searchParams.delete('subscription_id')
+      newUrl.searchParams.delete('status')
+      window.history.replaceState({}, '', newUrl.toString())
+    }
+    
     if (searchParams.get('payment_updated') === 'true') {
       toast.success('Payment method updated successfully!')
-      // Clean up URL
-      window.history.replaceState({}, '', '/settings/billing')
+      
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('payment_updated')
+      window.history.replaceState({}, '', newUrl.toString())
     }
   }, [userId])
 
   const fetchData = async () => {
     setLoading(true)
     try {
-      // FIXED: Separate queries for subscription and tier
       const { data: subData, error: subError } = await supabase
         .from('subscriptions')
         .select('*')
@@ -48,7 +68,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         toast.error('Failed to load subscription data')
       }
 
-      // If subscription exists, fetch the tier separately
       let tierData = null
       if (subData?.tier_id) {
         const { data: tier } = await supabase
@@ -62,7 +81,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
 
       setSubscription(subData ? { ...subData, tier: tierData } : null)
 
-      // Fetch all tiers
       const { data: tiersData, error: tiersError } = await supabase
         .from('subscription_tiers')
         .select('*')
@@ -75,7 +93,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         setTiers(tiersData || [])
       }
 
-      // Fetch payment history
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('payments')
         .select('*')
@@ -89,7 +106,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         setPayments(paymentsData || [])
       }
 
-      // Show status toasts based on subscription state
       if (subData) {
         const status = subData.status
         const trialEnd = subData.trial_end
@@ -117,6 +133,31 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
     }
   }
 
+  const handleSyncSubscription = async () => {
+    setActionLoading('sync')
+
+    try {
+      const response = await fetch('/api/billing/sync-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sync subscription')
+      }
+
+      toast.success('Subscription synced successfully!')
+      await fetchData()
+    } catch (err: any) {
+      console.error('Sync error:', err)
+      toast.error(err.message || 'Failed to sync subscription')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const handleSubscribe = async (tierId: string, billingCycle: 'monthly' | 'yearly') => {
     setActionLoading(tierId)
 
@@ -127,7 +168,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         body: JSON.stringify({ tierId, billingCycle })
       })
 
-      // Check if response is JSON
       const contentType = response.headers.get('content-type')
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text()
@@ -141,7 +181,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         throw new Error(data.error || 'Failed to create checkout')
       }
 
-      // Redirect to checkout URL
       if (data.checkoutUrl) {
         toast.success('Redirecting to checkout...')
         window.location.href = data.checkoutUrl
@@ -178,7 +217,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
       })
 
       setShowCancelDialog(false)
-      await fetchData() // Refresh data
+      await fetchData()
     } catch (err: any) {
       console.error('Cancel error:', err)
       toast.error(err.message || 'Failed to cancel subscription')
@@ -207,7 +246,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         description: 'Your subscription will continue at the end of the current period.'
       })
 
-      await fetchData() // Refresh data
+      await fetchData()
     } catch (err: any) {
       console.error('Reactivate error:', err)
       toast.error(err.message || 'Failed to reactivate subscription')
@@ -225,7 +264,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           userId,
-          returnUrl: `${window.location.origin}/settings/billing?payment_updated=true`
+          returnUrl: `${window.location.origin}/dashboard/settings?tab=subscription&payment_updated=true`
         })
       })
 
@@ -235,7 +274,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
         throw new Error(data.error || 'Failed to get update URL')
       }
 
-      // Redirect to payment method update page
       if (data.updateUrl) {
         toast.success('Redirecting to update payment method...')
         window.location.href = data.updateUrl
@@ -252,7 +290,6 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
   }
 
   const handleContactSales = () => {
-    // Redirect to contact sales page or open modal
     window.location.href = '/contact-sales'
   }
 
@@ -268,27 +305,48 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
   const status = subscription?.status || 'inactive'
   const isTrialing = status === 'trialing'
   const isActive = status === 'active'
-  const isCancelled = status === 'cancelled' || subscription?.cancel_at_period_end
+  const isCancelled = subscription?.cancel_at_period_end === true
   const isPastDue = status === 'past_due'
   const isOnHold = status === 'on_hold'
   const isExpired = status === 'expired'
   
-  const isFreeState = !subscription || isExpired || (isCancelled && !subscription?.current_period_end) || 
-                      (!isTrialing && !isActive && !isPastDue && !isOnHold)
+  const isFreeState = !subscription || isExpired || (!isTrialing && !isActive && !isPastDue && !isOnHold)
 
   const trialDaysRemaining = subscription?.trial_end 
     ? Math.ceil((new Date(subscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0
 
   const canCancelSubscription = (isActive || isTrialing) && !isCancelled
+  const canReactivate = isCancelled && subscription?.current_period_end
 
   return (
     <div className="space-y-6">
       {/* Current Plan */}
       <Card>
         <CardHeader>
-          <CardTitle>Current Plan</CardTitle>
-          <CardDescription>Your active subscription details</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Current Plan</CardTitle>
+              <CardDescription>Your active subscription details</CardDescription>
+            </div>
+            {subscription && !isFreeState && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncSubscription}
+                disabled={actionLoading === 'sync'}
+              >
+                {actionLoading === 'sync' ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Sync
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -323,7 +381,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
               </Badge>
             </div>
 
-            {/* Cancellation Warning */}
+            {/* Cancellation Warning with Reactivate */}
             {isCancelled && subscription?.current_period_end && (
               <div className="flex items-start gap-3 p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg">
                 <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
@@ -335,17 +393,20 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                     Your subscription will end on {new Date(subscription.current_period_end).toLocaleDateString()}. 
                     You'll still have access until then.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={handleReactivateSubscription}
-                    disabled={actionLoading === 'reactivate'}
-                  >
-                    {actionLoading === 'reactivate' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Reactivate Subscription
-                  </Button>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReactivateSubscription}
+                  disabled={actionLoading === 'reactivate'}
+                  className="flex-shrink-0"
+                >
+                  {actionLoading === 'reactivate' ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Reactivate'
+                  )}
+                </Button>
               </div>
             )}
 
@@ -370,15 +431,14 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
 
             {/* Action Buttons */}
             {canCancelSubscription && (
-              <div className="pt-4 border-t">
+              <div className="pt-4 border-t flex justify-end">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowCancelDialog(true)}
                   className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/10"
                 >
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel Subscription
+                  Cancel Plan
                 </Button>
               </div>
             )}
@@ -415,23 +475,24 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                 </li>
               </ul>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
                 onClick={() => setShowCancelDialog(false)}
                 disabled={!!actionLoading}
-                className="flex-1"
               >
-                Keep Subscription
+                Keep Plan
               </Button>
               <Button
                 variant="error"
                 onClick={handleCancelSubscription}
                 disabled={actionLoading === 'cancel'}
-                className="flex-1"
               >
-                {actionLoading === 'cancel' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Yes, Cancel
+                {actionLoading === 'cancel' ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  'Confirm Cancel'
+                )}
               </Button>
             </div>
           </CardContent>
@@ -473,8 +534,11 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                 onClick={handleUpdatePaymentMethod}
                 disabled={actionLoading === 'payment'}
               >
-                {actionLoading === 'payment' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Update
+                {actionLoading === 'payment' ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  'Update'
+                )}
               </Button>
             </div>
             {(isPastDue || isOnHold) && (
@@ -504,8 +568,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                 <CardDescription>Recent transactions</CardDescription>
               </div>
               <Button onClick={fetchData} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+                <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
@@ -649,8 +712,11 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                               disabled={isCurrentPlan || !!actionLoading}
                               onClick={() => handleSubscribe(tier.id, 'monthly')}
                             >
-                              {actionLoading === tier.id && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                              {isCurrentPlan ? 'Current Plan' : isFreeState ? 'Start Trial' : 'Subscribe Monthly'}
+                              {actionLoading === tier.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                isCurrentPlan ? 'Current Plan' : isFreeState ? 'Start Trial' : 'Monthly'
+                              )}
                             </Button>
                             {tier.price_yearly && !isCurrentPlan && (
                               <Button 
@@ -659,7 +725,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                                 disabled={!!actionLoading}
                                 onClick={() => handleSubscribe(tier.id, 'yearly')}
                               >
-                                Subscribe Yearly (Save 17%)
+                                Yearly (Save 17%)
                               </Button>
                             )}
                           </>

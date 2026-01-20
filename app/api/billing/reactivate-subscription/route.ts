@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { dodoClient } from '@/lib/dodo/client'
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,25 +32,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 })
     }
 
-    // Reactivate in DodoPayments
-    const response = await fetch(
-      `https://api.dodopayments.com/v1/subscriptions/${subscription.dodo_subscription_id}`,
+    console.log('Reactivating subscription:', subscription.dodo_subscription_id)
+
+    // Reactivate in DodoPayments - set cancel_at_next_billing_date to false
+    const result = await dodoClient.subscriptions.update(
+      subscription.dodo_subscription_id,
       {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${process.env.DODO_SECRET_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cancel_at_period_end: false,
-        }),
-      }
+        cancel_at_next_billing_date: false
+      } as any
     )
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      return NextResponse.json({ error: errorData.message }, { status: response.status })
-    }
+    console.log('Subscription reactivated:', result)
 
     // Update local database
     await supabase
@@ -65,6 +58,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Reactivate subscription error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Error details:', {
+      status: error.status,
+      message: error.message,
+      error: error.error
+    })
+    
+    return NextResponse.json({ 
+      error: error.message || 'Failed to reactivate subscription',
+      details: error.status ? `DodoPayments API error: ${error.status}` : undefined
+    }, { status: error.status || 500 })
   }
 }
