@@ -1,9 +1,11 @@
 // ============================================
 // FILE: app/api/billing/update-payment-method/route.ts
+// Update payment method for a subscription
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { dodoClient } from '@/lib/dodo/client'
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,35 +33,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 })
     }
 
-    // Create payment method update session in DodoPayments
-    const response = await fetch(
-      `https://api.dodopayments.com/v1/subscriptions/${subscription.dodo_subscription_id}/update-payment-method`,
+    console.log('Updating payment method for subscription:', subscription.dodo_subscription_id)
+
+    // Use the SDK's updatePaymentMethod method
+    // This returns a payment link that redirects the user to update their payment method
+    const response = await dodoClient.subscriptions.updatePaymentMethod(
+      subscription.dodo_subscription_id,
       {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.DODO_SECRET_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          return_url: returnUrl || `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
-        }),
+        type: 'new', // Always use 'new' to let user add a new payment method
+        return_url: returnUrl || `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`
       }
     )
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      return NextResponse.json({ error: errorData.message }, { status: response.status })
-    }
+    console.log('Payment method update response:', response)
 
-    const data = await response.json()
-
+    // The response contains a payment_link that redirects the user to the payment form
+    // For on_hold subscriptions, it also includes payment_id for tracking
     return NextResponse.json({ 
-      updateUrl: data.url,
-      success: true 
+      success: true,
+      updateUrl: response.payment_link,
+      paymentId: response.payment_id, // Only present for on_hold subscriptions
+      expiresOn: response.expires_on
     })
 
   } catch (error: any) {
     console.error('Update payment method error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Error details:', {
+      status: error.status,
+      message: error.message,
+      error: error.error
+    })
+    
+    return NextResponse.json({ 
+      error: error.message || 'Failed to update payment method',
+      details: error.status ? `DodoPayments API error: ${error.status}` : undefined
+    }, { status: error.status || 500 })
   }
 }

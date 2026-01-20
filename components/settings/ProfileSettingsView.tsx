@@ -52,54 +52,85 @@ export default function ProfileSettings({ profile }: ProfileSettingsProps) {
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Profile Settings</CardTitle>
-                <CardDescription>
-                    Manage your public profile information
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="flex items-center gap-4">
-                    <Avatar className="h-20 w-20">
-                        <AvatarImage src={profile?.avatar_url ?? undefined} />
-                        <AvatarFallback>
-                            {name?.charAt(0)?.toUpperCase() || 'U'}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <Label htmlFor="avatar" className="cursor-pointer">
-                            <Button variant="outline" asChild>
-                                <span>Change Avatar</span>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* LEFT COLUMN - Avatar */}
+            <div className="lg:col-span-2">
+                <Card className="h-full">
+                    <CardHeader>
+                        <CardTitle>Profile Picture</CardTitle>
+                        <CardDescription>
+                            Update your avatar
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col items-center justify-center flex-1 space-y-4">
+                        <Avatar className="h-32 w-32">
+                            <AvatarImage src={profile?.avatar_url ?? undefined} />
+                            <AvatarFallback className="text-3xl">
+                                {name?.charAt(0)?.toUpperCase() || 'U'}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="text-center">
+                            <Label htmlFor="avatar" className="cursor-pointer">
+                                <Button variant="outline" asChild>
+                                    <span>Change Avatar</span>
+                                </Button>
+                            </Label>
+                            <Input
+                                id="avatar"
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleAvatarUpload}
+                            />
+                            <p className="text-xs text-muted-foreground mt-2">
+                                JPG, PNG or GIF. Max 5MB.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* RIGHT COLUMN - Profile Information */}
+            <div className="lg:col-span-3">
+                <Card className="h-full">
+                    <CardHeader>
+                        <CardTitle>Profile Information</CardTitle>
+                        <CardDescription>
+                            Manage your public profile information
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="name">Display Name</Label>
+                            <Input
+                                id="name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Enter your name"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input
+                                id="email"
+                                value={profile?.email || ''}
+                                disabled
+                                className="bg-muted"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Email cannot be changed
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end pt-4 border-t">
+                            <Button onClick={handleUpdate} disabled={isLoading}>
+                                {isLoading ? 'Saving...' : 'Save Changes'}
                             </Button>
-                        </Label>
-                        <Input
-                            id="avatar"
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleAvatarUpload}
-                        />
-                        <p className="text-xs text-muted-foreground mt-2">
-                            JPG, PNG or GIF. Max 5MB.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="name">Display Name</Label>
-                    <Input
-                        id="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Enter your name"
-                    />
-                </div>
-
-                <Button onClick={handleUpdate} disabled={isLoading}>
-                    {isLoading ? 'Saving...' : 'Save Changes'}
-                </Button>
-            </CardContent>
-        </Card>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
     )
 }

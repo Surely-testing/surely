@@ -112,9 +112,11 @@ export default function ProfileForm({ profile }: ProfileFormProps) {
             />
           </div>
 
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Saving...' : 'Save Details'}
-          </Button>
+          <div className="flex justify-end pt-4 border-t">
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? 'Saving...' : 'Save Details'}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

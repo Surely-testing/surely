@@ -56,6 +56,17 @@ export interface DodoSubscription {
 }
 
 /**
+ * Response from the Update Payment Method API
+ * Used for both active and on_hold subscriptions
+ */
+export interface UpdatePaymentMethodResponse {
+  client_secret?: string | null
+  expires_on?: string | null
+  payment_id?: string | null // Only present for on_hold subscriptions
+  payment_link?: string | null
+}
+
+/**
  * Type guard to check if an object is a DodoSubscription
  */
 export function isDodoSubscription(obj: any): obj is DodoSubscription {
