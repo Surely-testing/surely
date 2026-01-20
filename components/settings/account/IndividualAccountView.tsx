@@ -35,7 +35,7 @@ export default function IndividualAccountView({ user, profile }: any) {
 
     setIsLoading(true)
     const result = await updateAccountEmail(email)
-    
+
     if (result.error) {
       toast.error('Error', {
         description: result.error,
@@ -50,7 +50,7 @@ export default function IndividualAccountView({ user, profile }: any) {
 
   const handleDeleteAccount = async () => {
     const result = await deleteAccount()
-    
+
     if (result.error) {
       toast.error('Error', {
         description: result.error,
@@ -85,10 +85,11 @@ export default function IndividualAccountView({ user, profile }: any) {
                 We'll send a verification email to confirm changes
               </p>
             </div>
-            
+
             <div className="flex justify-end">
-              <Button 
-                onClick={handleUpdateEmail} 
+              <Button
+                className='btn-primary'
+                onClick={handleUpdateEmail}
                 disabled={isLoading || email === user.email}
               >
                 {isLoading ? 'Updating...' : 'Update Email'}

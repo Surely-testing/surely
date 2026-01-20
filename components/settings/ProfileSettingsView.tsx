@@ -124,7 +124,7 @@ export default function ProfileSettings({ profile }: ProfileSettingsProps) {
                         </div>
 
                         <div className="flex justify-end pt-4 border-t">
-                            <Button onClick={handleUpdate} disabled={isLoading}>
+                            <Button onClick={handleUpdate} disabled={isLoading} className='btn-primary'>
                                 {isLoading ? 'Saving...' : 'Save Changes'}
                             </Button>
                         </div>

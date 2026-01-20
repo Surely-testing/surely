@@ -113,7 +113,7 @@ export default function ProfileForm({ profile }: ProfileFormProps) {
           </div>
 
           <div className="flex justify-end pt-4 border-t">
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading} className='btn-primary'>
               {isLoading ? 'Saving...' : 'Save Details'}
             </Button>
           </div>

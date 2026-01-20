@@ -231,6 +231,7 @@ export default function SecurityView({ user }: any) {
             <Button 
               onClick={handleUpdatePassword} 
               disabled={isLoading || !currentPassword || !isPasswordValid}
+              className='btn-primary'
             >
               {isLoading ? 'Updating...' : 'Update Password'}
             </Button>

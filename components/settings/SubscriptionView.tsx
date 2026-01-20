@@ -23,13 +23,13 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
 
   useEffect(() => {
     fetchData()
-    
+
     const searchParams = new URLSearchParams(window.location.search)
-    
+
     if (searchParams.get('success') === 'true') {
       const subscriptionId = searchParams.get('subscription_id')
       const status = searchParams.get('status')
-      
+
       if (status === 'active' || subscriptionId) {
         toast.success('Subscription activated!', {
           description: 'Your premium features are now active.'
@@ -37,17 +37,17 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
       } else {
         toast.success('Checkout completed!')
       }
-      
+
       const newUrl = new URL(window.location.href)
       newUrl.searchParams.delete('success')
       newUrl.searchParams.delete('subscription_id')
       newUrl.searchParams.delete('status')
       window.history.replaceState({}, '', newUrl.toString())
     }
-    
+
     if (searchParams.get('payment_updated') === 'true') {
       toast.success('Payment method updated successfully!')
-      
+
       const newUrl = new URL(window.location.href)
       newUrl.searchParams.delete('payment_updated')
       window.history.replaceState({}, '', newUrl.toString())
@@ -75,7 +75,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
           .select('*')
           .eq('id', subData.tier_id)
           .single()
-        
+
         tierData = tier
       }
 
@@ -262,7 +262,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
       const response = await fetch('/api/billing/update-payment-method', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           userId,
           returnUrl: `${window.location.origin}/dashboard/settings?tab=subscription&payment_updated=true`
         })
@@ -309,10 +309,10 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
   const isPastDue = status === 'past_due'
   const isOnHold = status === 'on_hold'
   const isExpired = status === 'expired'
-  
+
   const isFreeState = !subscription || isExpired || (!isTrialing && !isActive && !isPastDue && !isOnHold)
 
-  const trialDaysRemaining = subscription?.trial_end 
+  const trialDaysRemaining = subscription?.trial_end
     ? Math.ceil((new Date(subscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0
 
@@ -365,18 +365,18 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                     </p>
                   )}
                 </div>
-                <Badge 
+                <Badge
                   variant={
-                    isActive ? 'default' : 
-                    isTrialing ? 'primary' : 
-                    isPastDue || isOnHold ? 'danger' : 
-                    'default'
+                    isActive ? 'default' :
+                      isTrialing ? 'primary' :
+                        isPastDue || isOnHold ? 'danger' :
+                          'default'
                   }
                 >
-                  {isTrialing ? `Trial (${trialDaysRemaining}d)` : 
-                   isFreeState ? 'Free' : 
-                   isCancelled ? 'Cancelling' :
-                   status}
+                  {isTrialing ? `Trial (${trialDaysRemaining}d)` :
+                    isFreeState ? 'Free' :
+                      isCancelled ? 'Cancelling' :
+                        status}
                 </Badge>
               </div>
 
@@ -389,7 +389,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                       Subscription Ending
                     </p>
                     <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                      Your subscription will end on {new Date(subscription.current_period_end).toLocaleDateString()}. 
+                      Your subscription will end on {new Date(subscription.current_period_end).toLocaleDateString()}.
                       You'll still have access until then.
                     </p>
                   </div>
@@ -579,11 +579,10 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                     className="flex items-center justify-between p-4 border rounded-lg"
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-lg ${
-                        payment.status === 'succeeded' 
-                          ? 'bg-green-100 dark:bg-green-900/20' 
+                      <div className={`p-2 rounded-lg ${payment.status === 'succeeded'
+                          ? 'bg-green-100 dark:bg-green-900/20'
                           : 'bg-red-100 dark:bg-red-900/20'
-                      }`}>
+                        }`}>
                         {payment.status === 'succeeded' ? (
                           <Check className="w-5 h-5 text-green-600" />
                         ) : (
@@ -626,10 +625,10 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                 .map((tier: any) => {
                   const isCurrentPlan = tier.id === currentTier?.id && !isFreeState
                   const isEnterprise = tier.name.toLowerCase() === 'enterprise'
-                  
+
                   return (
-                    <Card 
-                      key={tier.id} 
+                    <Card
+                      key={tier.id}
                       className={isCurrentPlan ? 'border-primary border-2' : ''}
                     >
                       <CardHeader>
@@ -698,7 +697,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                         </ul>
                         <div className="flex justify-end gap-2 pt-2 border-t">
                           {isEnterprise ? (
-                            <Button 
+                            <Button
                               variant="outline"
                               onClick={handleContactSales}
                             >
@@ -706,7 +705,8 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                             </Button>
                           ) : (
                             <>
-                              <Button 
+                              <Button
+                                className='btn-primary text-white'
                                 variant={isCurrentPlan ? 'ghost' : 'primary'}
                                 disabled={isCurrentPlan || !!actionLoading}
                                 onClick={() => handleSubscribe(tier.id, 'monthly')}
@@ -718,7 +718,7 @@ export default function SubscriptionView({ userId }: SubscriptionViewProps) {
                                 )}
                               </Button>
                               {tier.price_yearly && !isCurrentPlan && (
-                                <Button 
+                                <Button
                                   variant="outline"
                                   disabled={!!actionLoading}
                                   onClick={() => handleSubscribe(tier.id, 'yearly')}
