@@ -15,6 +15,8 @@ interface ScheduleReportDialogProps {
   onSchedule: (formData: ReportScheduleFormData) => Promise<void>;
   existingSchedule?: ReportScheduleWithReport | null;
   isSubmitting?: boolean;
+  suiteId: string; // ADDED: Required suite_id prop
+  suiteName?: string; // ADDED: Optional suite name for display
 }
 
 export function ScheduleReportDialog({
@@ -23,6 +25,8 @@ export function ScheduleReportDialog({
   onSchedule,
   existingSchedule,
   isSubmitting = false,
+  suiteId,
+  suiteName,
 }: ScheduleReportDialogProps) {
   const [formData, setFormData] = useState<ReportScheduleFormData>({
     name: '',
@@ -30,6 +34,7 @@ export function ScheduleReportDialog({
     frequency: 'weekly',
     emails: [''],
     is_active: true,
+    suite_id: suiteId, // ADDED: Initialize with suite_id
     filters: {
       date_range: {
         start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -89,10 +94,27 @@ export function ScheduleReportDialog({
         frequency: existingSchedule.frequency as ReportFrequency,
         emails: Array.isArray(existingSchedule.emails) ? existingSchedule.emails : [''],
         is_active: existingSchedule.is_active ?? true,
+        suite_id: existingSchedule.suite_id || suiteId, // ADDED: Use existing or prop
         filters: parseFilters(existingSchedule.filters),
       });
+    } else {
+      // Reset to defaults when no existing schedule
+      setFormData({
+        name: '',
+        type: 'test_coverage',
+        frequency: 'weekly',
+        emails: [''],
+        is_active: true,
+        suite_id: suiteId,
+        filters: {
+          date_range: {
+            start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            end: new Date().toISOString().split('T')[0],
+          },
+        },
+      });
     }
-  }, [existingSchedule]);
+  }, [existingSchedule, suiteId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +124,12 @@ export function ScheduleReportDialog({
 
     if (validEmails.length === 0) {
       alert('Please add at least one email recipient');
+      return;
+    }
+
+    // Ensure suite_id is included
+    if (!formData.suite_id) {
+      alert('Suite ID is required');
       return;
     }
 
@@ -117,6 +145,7 @@ export function ScheduleReportDialog({
       frequency: 'weekly',
       emails: [''],
       is_active: true,
+      suite_id: suiteId,
       filters: {
         date_range: {
           start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -163,6 +192,14 @@ export function ScheduleReportDialog({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Suite Info Display */}
+          {suiteName && (
+            <div className="p-3 bg-muted/30 rounded-md border border-border">
+              <p className="text-xs text-muted-foreground mb-1">Test Suite</p>
+              <p className="text-sm font-medium text-foreground">{suiteName}</p>
+            </div>
+          )}
+
           {/* Report Name */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -302,11 +339,11 @@ export function ScheduleReportDialog({
 function getScheduleInfo(frequency: ReportFrequency): string {
   switch (frequency) {
     case 'daily':
-      return 'Report will be generated and emailed every day at 9:00 AM.';
+      return 'Report will be generated and emailed every day at 9:00 AM UTC.';
     case 'weekly':
-      return 'Report will be generated and emailed every Monday at 9:00 AM.';
+      return 'Report will be generated and emailed every Monday at 9:00 AM UTC.';
     case 'monthly':
-      return 'Report will be generated and emailed on the 1st of each month at 9:00 AM.';
+      return 'Report will be generated and emailed on the 1st of each month at 9:00 AM UTC.';
     default:
       return '';
   }

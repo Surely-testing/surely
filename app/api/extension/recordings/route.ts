@@ -1,6 +1,6 @@
 // ============================================
 // app/api/extension/recordings/route.ts
-// FIXED: Proper large file handling for App Router
+// COMPLETE FIXED with rrweb_events support
 // ============================================
 
 import { createClient } from '@/lib/supabase/server';
@@ -10,6 +10,17 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes
+
+// CORS headers
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS(request: NextRequest) {
+    return NextResponse.json({}, { headers: corsHeaders });
+}
 
 export async function POST(request: NextRequest) {
     console.log('[API] Extension recording upload started');
@@ -22,7 +33,7 @@ export async function POST(request: NextRequest) {
         if (!authHeader?.startsWith('Bearer ')) {
             return NextResponse.json(
                 { success: false, error: 'Missing or invalid authorization header' },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -38,7 +49,7 @@ export async function POST(request: NextRequest) {
             console.error('[API] Auth error:', authError);
             return NextResponse.json(
                 { success: false, error: 'Invalid or expired token' },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -62,7 +73,7 @@ export async function POST(request: NextRequest) {
                     error: 'Failed to parse upload data. The file may be too large or corrupted.',
                     details: parseError.message
                 },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -76,6 +87,7 @@ export async function POST(request: NextRequest) {
         const metadataStr = formData.get('metadata') as string | null;
         const consoleLogsFile = formData.get('console_logs') as File | null;
         const networkLogsFile = formData.get('network_logs') as File | null;
+        const rrwebEventsFile = formData.get('rrweb_events') as File | null;
 
         console.log('[API] Extracted fields:', {
             hasVideo: !!videoFile,
@@ -83,28 +95,29 @@ export async function POST(request: NextRequest) {
             title,
             suiteId,
             hasConsoleLogs: !!consoleLogsFile,
-            hasNetworkLogs: !!networkLogsFile
+            hasNetworkLogs: !!networkLogsFile,
+            hasRRWebEvents: !!rrwebEventsFile
         });
 
         // Validate required fields
         if (!videoFile) {
             return NextResponse.json(
                 { success: false, error: 'Missing video file' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
         if (!title) {
             return NextResponse.json(
                 { success: false, error: 'Missing recording title' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
         if (!suiteId) {
             return NextResponse.json(
                 { success: false, error: 'Missing suite_id' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -116,7 +129,7 @@ export async function POST(request: NextRequest) {
                     success: false,
                     error: `Video file too large. Maximum size is 100MB, your file is ${(videoFile.size / 1024 / 1024).toFixed(2)}MB`
                 },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -150,7 +163,7 @@ export async function POST(request: NextRequest) {
             console.error('[API] Suite access error:', suiteError);
             return NextResponse.json(
                 { success: false, error: 'Suite not found or access denied' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             );
         }
 
@@ -164,7 +177,7 @@ export async function POST(request: NextRequest) {
             console.error('[API] User does not have access to suite');
             return NextResponse.json(
                 { success: false, error: 'You do not have access to this test suite' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             );
         }
 
@@ -183,14 +196,17 @@ export async function POST(request: NextRequest) {
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from('recordings')
             .upload(videoFileName, videoBuffer, {
-                contentType: 'video/webm',  // Force simple MIME type
+                contentType: 'video/webm',
                 cacheControl: '3600',
                 upsert: false
-            });;
+            });
 
         if (uploadError) {
             console.error('[API] Video upload error:', uploadError);
-            throw new Error(`Upload failed: ${uploadError.message}`);
+            return NextResponse.json(
+                { success: false, error: `Upload failed: ${uploadError.message}` },
+                { status: 500, headers: corsHeaders }
+            );
         }
 
         // Get public URL
@@ -252,6 +268,32 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Upload rrweb events if provided
+        let rrwebEventsUrl = null;
+        if (rrwebEventsFile && rrwebEventsFile.size > 0) {
+            console.log('[API] Uploading rrweb events...');
+            const eventsFileName = `${suiteId}/${timestamp}_rrweb_events.json`;
+            const eventsArrayBuffer = await rrwebEventsFile.arrayBuffer();
+            const eventsBuffer = Buffer.from(eventsArrayBuffer);
+
+            const { error: eventsError } = await supabase.storage
+                .from('recordings')
+                .upload(eventsFileName, eventsBuffer, {
+                    contentType: 'application/json',
+                    cacheControl: '3600'
+                });
+
+            if (!eventsError) {
+                const { data: eventsUrlData } = supabase.storage
+                    .from('recordings')
+                    .getPublicUrl(eventsFileName);
+                rrwebEventsUrl = eventsUrlData.publicUrl;
+                console.log('[API] RRWeb events uploaded');
+            } else {
+                console.warn('[API] RRWeb events upload failed:', eventsError);
+            }
+        }
+
         // Create database record
         const recordingRecord = {
             suite_id: suiteId,
@@ -261,12 +303,13 @@ export async function POST(request: NextRequest) {
             duration: duration,
             created_by: user.id,
             archived: false,
+            comment: comment || null,
             metadata: {
                 ...metadata,
                 fileName: videoFileName,
                 consoleLogsUrl: consoleLogsUrl,
                 networkLogsUrl: networkLogsUrl,
-                comment: comment || null,
+                rrwebEventsUrl: rrwebEventsUrl,
                 source: 'extension'
             }
         };
@@ -280,7 +323,23 @@ export async function POST(request: NextRequest) {
 
         if (dbError) {
             console.error('[API] Database insert error:', dbError);
-            throw new Error(`Database insert failed: ${dbError.message}`);
+            
+            // Cleanup uploaded files on database error
+            await supabase.storage.from('recordings').remove([videoFileName]);
+            if (consoleLogsUrl) {
+                await supabase.storage.from('recordings').remove([`${suiteId}/${timestamp}_console_logs.json`]);
+            }
+            if (networkLogsUrl) {
+                await supabase.storage.from('recordings').remove([`${suiteId}/${timestamp}_network_logs.json`]);
+            }
+            if (rrwebEventsUrl) {
+                await supabase.storage.from('recordings').remove([`${suiteId}/${timestamp}_rrweb_events.json`]);
+            }
+            
+            return NextResponse.json(
+                { success: false, error: `Database insert failed: ${dbError.message}` },
+                { status: 500, headers: corsHeaders }
+            );
         }
 
         console.log('[API] Recording saved successfully:', dbData.id);
@@ -307,7 +366,7 @@ export async function POST(request: NextRequest) {
                 created_at: dbData.created_at
             },
             message: 'Recording saved successfully'
-        });
+        }, { headers: corsHeaders });
 
     } catch (error: any) {
         console.error('[API] Error saving recording:', error);
@@ -318,7 +377,7 @@ export async function POST(request: NextRequest) {
                 error: error.message || 'Failed to save recording',
                 details: error.stack
             },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }

@@ -1,6 +1,6 @@
 // ============================================
 // FILE: lib/ai/types.ts
-// TypeScript types for the AI system
+// COMPLETE FILE - Replace your entire types.ts with this
 // ============================================
 
 export type ModelName = 'google/gemini-flash-1.5' | 'qwen/qwen-2-7b-instruct:free' | 'meta-llama/llama-3-8b-instruct:free' | 'nousresearch/hermes-3-llama-3.1-405b:free'
@@ -22,7 +22,7 @@ export type Message = {
     generatedContent?: {
       [x: string]: any
       id: string
-      type: 'bug_report' | 'test_case' | 'test_cases' | 'report' | 'document'
+      type: 'bug_report' | 'test_case' | 'test_cases' | 'report' | 'document' | 'coverage_analysis' | 'automation_analysis' | 'testing_insights'
       data: any
       isSaved?: boolean
     }
@@ -32,7 +32,7 @@ export type Message = {
 
 export type AIGeneratedContent = {
   id: string
-  type: 'bug_report' | 'test_case' | 'test_cases' | 'report' | 'document'
+  type: 'bug_report' | 'test_case' | 'test_cases' | 'report' | 'document' | 'coverage_analysis' | 'automation_analysis' | 'testing_insights'
   status: 'draft' | 'reviewed' | 'saved'
   data: any
   createdAt: Date
@@ -68,6 +68,10 @@ export interface AICallOptions {
   model?: ModelName
   systemInstruction?: string
 }
+
+// ============================================
+// AI Response Data Types
+// ============================================
 
 // Base AI response data that all responses have
 interface BaseAIResponseData {
@@ -161,7 +165,108 @@ interface ErrorExplanationResponseData extends BaseAIResponseData {
   }
 }
 
+// ============================================
+// NEW: Test Agent Response Data Types
+// ============================================
+
+// Coverage Analysis Response Data
+export interface CoverageAnalysisData {
+  summary: string
+  coverageScore: number
+  gaps: Array<{
+    area: string
+    severity: 'high' | 'medium' | 'low'
+    reason: string
+    bugCount: number
+    recommendation: string
+  }>
+  strengths: string[]
+  recommendations: Array<{
+    priority: 'high' | 'medium' | 'low'
+    action: string
+    impact: string
+  }>
+}
+
+interface CoverageAnalysisResponseData extends BaseAIResponseData {
+  coverageAnalysis: CoverageAnalysisData
+}
+
+// Automation Analysis Response Data
+export interface AutomationAnalysisData {
+  summary: {
+    totalCases: number
+    recommendedForAutomation: number
+    estimatedEffort: string
+    expectedROI: 'high' | 'medium' | 'low'
+    framework: string
+  }
+  recommendations: Array<{
+    testCaseId: string
+    testCaseTitle: string
+    automationScore: number
+    roi: 'high' | 'medium' | 'low'
+    reasoning: string
+    estimatedEffort: string
+    complexity: 'simple' | 'moderate' | 'complex'
+    benefits: string[]
+    suggestedApproach: string
+  }>
+  notRecommended: Array<{
+    testCaseId: string
+    testCaseTitle: string
+    reason: string
+  }>
+  overallInsight: string
+}
+
+interface AutomationAnalysisResponseData extends BaseAIResponseData {
+  automationAnalysis: AutomationAnalysisData
+}
+
+// Testing Insights Response Data
+export interface TestingInsightsData {
+  summary: string
+  bugPatterns: {
+    totalBugs: number
+    bySeverity: Record<string, number>
+    byComponent: Record<string, number>
+    byStatus: Record<string, number>
+  }
+  testingPatterns: {
+    totalTests: number
+    byStatus: Record<string, number>
+    byPriority: Record<string, number>
+  }
+  keyInsights: Array<{
+    type: 'risk' | 'opportunity' | 'concern' | 'success'
+    title: string
+    description: string
+    severity: 'high' | 'medium' | 'low'
+    impact: string
+  }>
+  recommendations: Array<{
+    priority: 'high' | 'medium' | 'low'
+    category: 'coverage' | 'quality' | 'process' | 'automation'
+    action: string
+    reasoning: string
+    expectedOutcome: string
+  }>
+  trends: {
+    qualityTrend: 'improving' | 'stable' | 'declining'
+    riskAreas: string[]
+    successAreas: string[]
+  }
+}
+
+interface TestingInsightsResponseData extends BaseAIResponseData {
+  testingInsights: TestingInsightsData
+}
+
+// ============================================
 // Union type for all possible response data shapes
+// ============================================
+
 export type AIResponseData = 
   | BaseAIResponseData 
   | TestCasesResponseData 
@@ -171,6 +276,9 @@ export type AIResponseData =
   | TestExecutionAnalysisResponseData
   | RiskAssessmentResponseData
   | ErrorExplanationResponseData
+  | CoverageAnalysisResponseData
+  | AutomationAnalysisResponseData
+  | TestingInsightsResponseData
 
 export interface AIResponse {
   success: boolean
@@ -259,7 +367,10 @@ export interface UsageStats {
   averageCostPerOp: number
 }
 
+// ============================================
 // Type guard functions to check response data shape
+// ============================================
+
 export function isTestCasesResponse(data: AIResponseData): data is TestCasesResponseData {
   return 'testCases' in data
 }
@@ -288,6 +399,19 @@ export function isErrorExplanationResponse(data: AIResponseData): data is ErrorE
   return 'errorExplanation' in data
 }
 
+// NEW: Type guards for Test Agent responses
+export function isCoverageAnalysisResponse(data: AIResponseData): data is CoverageAnalysisResponseData {
+  return 'coverageAnalysis' in data
+}
+
+export function isAutomationAnalysisResponse(data: AIResponseData): data is AutomationAnalysisResponseData {
+  return 'automationAnalysis' in data
+}
+
+export function isTestingInsightsResponse(data: AIResponseData): data is TestingInsightsResponseData {
+  return 'testingInsights' in data
+}
+
 export function isBaseResponse(data: AIResponseData): data is BaseAIResponseData {
   return 'content' in data && 
     !('testCases' in data) && 
@@ -296,5 +420,8 @@ export function isBaseResponse(data: AIResponseData): data is BaseAIResponseData
     !('suggestions' in data) &&
     !('analysis' in data) &&
     !('riskAssessment' in data) &&
-    !('errorExplanation' in data)
+    !('errorExplanation' in data) &&
+    !('coverageAnalysis' in data) &&
+    !('automationAnalysis' in data) &&
+    !('testingInsights' in data)
 }

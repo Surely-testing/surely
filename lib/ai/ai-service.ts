@@ -1044,6 +1044,528 @@ ${error.context ? `Context: ${JSON.stringify(error.context)}` : ''}`
       }
     }
   }
+
+  // ============================================
+  // ADD THESE METHODS TO YOUR EXISTING lib/ai/ai-service.ts
+  // Paste them into the AIService class, before the closing brace
+  // ============================================
+
+  /**
+   * Analyze test coverage and identify gaps
+   */
+  async analyzeCoverage(data: {
+    testCases: any[]
+    bugs: any[]
+    suiteId: string
+    suiteName: string
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a QA coverage analyst. Analyze test coverage and identify gaps.
+
+REQUIRED JSON FORMAT:
+{
+  "summary": "Brief overview of coverage status",
+  "coverageScore": 0-100,
+  "gaps": [
+    {
+      "area": "Component/Feature name",
+      "severity": "high|medium|low",
+      "reason": "Why this is a gap",
+      "bugCount": 0,
+      "recommendation": "What tests to add"
+    }
+  ],
+  "strengths": ["Area 1", "Area 2"],
+  "recommendations": [
+    {
+      "priority": "high|medium|low",
+      "action": "Specific action to take",
+      "impact": "Expected improvement"
+    }
+  ]
+}
+
+Return ONLY the JSON object.`
+
+    const prompt = `Analyze test coverage for: ${data.suiteName}
+
+TEST CASES (${data.testCases.length}):
+${JSON.stringify(data.testCases.map(tc => ({
+      title: tc.title,
+      module: tc.module || tc.feature || tc.component,
+      status: tc.status,
+      priority: tc.priority
+    })), null, 2)}
+
+BUGS (${data.bugs.length}):
+${JSON.stringify(data.bugs.map(b => ({
+      title: b.title,
+      component: b.component || b.module || b.feature,
+      severity: b.severity,
+      status: b.status
+    })), null, 2)}
+
+Identify which areas have bugs but no test coverage, and recommend what tests to create.`
+
+    const result = await this.callAI(prompt, {
+      type: 'coverage_analysis',
+      temperature: 0.4,
+      maxTokens: 2000,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        let content = result.data.content.trim()
+        content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              coverageAnalysis: parsed
+            }
+          }
+        }
+      } catch (e) {
+        logger.log('Failed to parse coverage analysis:', e)
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Identify automation opportunities with ROI analysis
+   */
+  async analyzeAutomation(data: {
+    testCases: any[]
+    suiteId: string
+    framework?: string
+  }): Promise<AIResponse> {
+    const framework = data.framework || 'Playwright'
+
+    const systemInstruction = `You are a test automation architect. Analyze test cases and score automation potential.
+
+REQUIRED JSON FORMAT:
+{
+  "summary": {
+    "totalCases": 0,
+    "recommendedForAutomation": 0,
+    "estimatedEffort": "X hours",
+    "expectedROI": "high|medium|low",
+    "framework": "${framework}"
+  },
+  "recommendations": [
+    {
+      "testCaseId": "TC_XXX",
+      "testCaseTitle": "Test case title",
+      "automationScore": 0-100,
+      "roi": "high|medium|low",
+      "reasoning": "Why automate this",
+      "estimatedEffort": "X hours",
+      "complexity": "simple|moderate|complex",
+      "benefits": ["Benefit 1", "Benefit 2"],
+      "suggestedApproach": "Technical approach"
+    }
+  ],
+  "notRecommended": [
+    {
+      "testCaseId": "TC_XXX",
+      "testCaseTitle": "Test case title",
+      "reason": "Why not to automate"
+    }
+  ],
+  "overallInsight": "Key takeaway about automation strategy"
+}
+
+Scoring criteria:
+- Repeatability (0-30): How often is this executed?
+- Complexity (0-25): Is it simple to automate?
+- Stability (0-25): Is the feature stable?
+- ROI (0-20): Time saved vs effort
+
+Return ONLY the JSON object.`
+
+    const prompt = `Analyze these ${data.testCases.length} test cases for automation potential using ${framework}:
+
+${JSON.stringify(data.testCases.map(tc => ({
+      id: tc.id,
+      title: tc.title,
+      description: tc.description,
+      type: tc.type,
+      priority: tc.priority,
+      steps: tc.steps?.length || 0,
+      complexity: tc.steps?.length > 10 ? 'complex' : tc.steps?.length > 5 ? 'moderate' : 'simple'
+    })), null, 2)}
+
+Consider:
+1. Which tests are executed frequently?
+2. Which are time-consuming to run manually?
+3. Which have stable, predictable steps?
+4. What's the ROI (time saved vs automation effort)?`
+
+    const result = await this.callAI(prompt, {
+      type: 'automation_analysis',
+      temperature: 0.4,
+      maxTokens: 3000,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        let content = result.data.content.trim()
+        content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              automationAnalysis: parsed
+            }
+          }
+        }
+      } catch (e) {
+        logger.log('Failed to parse automation analysis:', e)
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Generate insights from testing history and bug patterns
+   */
+  async analyzeTestingInsights(data: {
+    bugs: any[]
+    testCases: any[]
+    testRuns?: any[]
+    suiteId: string
+    suiteName: string
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a QA data analyst. Analyze testing patterns and provide actionable insights.
+
+REQUIRED JSON FORMAT:
+{
+  "summary": "Executive summary of testing health",
+  "bugPatterns": {
+    "totalBugs": 0,
+    "bySeverity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+    "byComponent": {"Component1": 0, "Component2": 0},
+    "byStatus": {"open": 0, "in_progress": 0, "resolved": 0}
+  },
+  "testingPatterns": {
+    "totalTests": 0,
+    "byStatus": {"passed": 0, "failed": 0, "pending": 0},
+    "byPriority": {"high": 0, "medium": 0, "low": 0}
+  },
+  "keyInsights": [
+    {
+      "type": "risk|opportunity|concern|success",
+      "title": "Insight title",
+      "description": "Detailed explanation",
+      "severity": "high|medium|low",
+      "impact": "What this means"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "high|medium|low",
+      "category": "coverage|quality|process|automation",
+      "action": "Specific action to take",
+      "reasoning": "Why this matters",
+      "expectedOutcome": "What will improve"
+    }
+  ],
+  "trends": {
+    "qualityTrend": "improving|stable|declining",
+    "riskAreas": ["Area1", "Area2"],
+    "successAreas": ["Area1", "Area2"]
+  }
+}
+
+Return ONLY the JSON object.`
+
+    const prompt = `Analyze testing patterns for: ${data.suiteName}
+
+BUGS (${data.bugs.length}):
+${JSON.stringify(data.bugs.map(b => ({
+      severity: b.severity,
+      status: b.status,
+      component: b.component || b.module,
+      created_at: b.created_at
+    })), null, 2)}
+
+TEST CASES (${data.testCases.length}):
+${JSON.stringify(data.testCases.map(tc => ({
+      priority: tc.priority,
+      status: tc.status,
+      module: tc.module || tc.feature
+    })), null, 2)}
+
+${data.testRuns ? `TEST RUNS (${data.testRuns.length}):
+${JSON.stringify(data.testRuns.slice(0, 10).map(tr => ({
+      passed: tr.passed,
+      failed: tr.failed,
+      total: tr.total,
+      date: tr.executed_at
+    })), null, 2)}` : ''}
+
+Identify:
+1. Which components have the most bugs?
+2. Are there patterns in bug severity?
+3. Where is test coverage weak?
+4. What are the biggest risks?
+5. What's working well?`
+
+    const result = await this.callAI(prompt, {
+      type: 'testing_insights',
+      temperature: 0.5,
+      maxTokens: 2500,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        let content = result.data.content.trim()
+        content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              testingInsights: parsed
+            }
+          }
+        }
+      } catch (e) {
+        logger.log('Failed to parse testing insights:', e)
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Enhanced test case generation with context awareness
+   */
+  async generateTestCasesWithContext(data: {
+    prompt: string
+    suiteId: string
+    suiteName: string
+    existingTestCases?: any[]
+    recentBugs?: any[]
+    framework?: string
+    standards?: string[]
+  }): Promise<AIResponse> {
+    const standards = data.standards || [
+      'Test cases must be independent and atomic',
+      'Use Given-When-Then format for acceptance criteria',
+      'Include at least one negative test per feature'
+    ]
+
+    const systemInstruction = `You are a Senior QA Engineer. Generate comprehensive test cases based on requirements and existing patterns.
+
+CONTEXT:
+- Suite: ${data.suiteName}
+- Framework: ${data.framework || 'N/A'}
+- Team Standards: ${standards.join('; ')}
+
+${data.existingTestCases && data.existingTestCases.length > 0 ? `
+EXISTING TEST PATTERNS (learn from these):
+${JSON.stringify(data.existingTestCases.slice(0, 3), null, 2)}
+
+Follow similar structure and naming conventions.` : ''}
+
+${data.recentBugs && data.recentBugs.length > 0 ? `
+RECENT BUGS (cover these scenarios):
+${JSON.stringify(data.recentBugs.slice(0, 3).map((b: any) => ({
+      title: b.title,
+      severity: b.severity,
+      component: b.component
+    })), null, 2)}
+
+Include regression tests for these bug areas.` : ''}
+
+REQUIRED JSON FORMAT:
+{
+  "testCases": [
+    {
+      "id": "TC_XXX",
+      "title": "Clear, action-oriented title",
+      "description": "What this test validates",
+      "priority": "high|medium|low",
+      "type": "functional|integration|regression|smoke",
+      "preconditions": ["Precondition 1"],
+      "steps": [
+        {
+          "step": 1,
+          "action": "Clear action",
+          "expectedResult": "Expected outcome"
+        }
+      ],
+      "expectedResult": "Overall expected result",
+      "testData": "Required test data",
+      "automationPotential": "high|medium|low"
+    }
+  ]
+}
+
+REQUIREMENTS:
+- Generate 3-5 comprehensive test cases
+- Include positive, negative, and edge case scenarios
+- Each test must have 3-5 detailed steps
+- Steps must be clear enough for a junior tester to execute
+- Consider the recent bugs when designing test scenarios
+
+Return ONLY the JSON object.`
+
+    const result = await this.callAI(data.prompt, {
+      type: 'test_cases_enhanced',
+      temperature: 0.7,
+      maxTokens: 3000,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        let content = result.data.content.trim()
+        content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+
+          if (!parsed.testCases || !Array.isArray(parsed.testCases)) {
+            return {
+              success: false,
+              error: 'Invalid response structure',
+              userMessage: 'Failed to generate test cases'
+            }
+          }
+
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              testCases: parsed.testCases
+            }
+          }
+        }
+      } catch (e) {
+        logger.log('Failed to parse enhanced test cases:', e)
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Enhanced bug report generation with root cause analysis
+   */
+  async generateBugReportWithContext(data: {
+    prompt: string
+    consoleError?: string
+    suiteId: string
+    suiteName: string
+    recentBugs?: any[]
+    component?: string
+  }): Promise<AIResponse> {
+    const systemInstruction = `You are a Bug Analysis Specialist. Generate detailed bug reports with root cause analysis.
+
+${data.recentBugs && data.recentBugs.length > 0 ? `
+RECENT BUG PATTERNS (for context):
+${JSON.stringify(data.recentBugs.slice(0, 3).map((b: any) => ({
+      title: b.title,
+      severity: b.severity,
+      component: b.component,
+      possibleCause: b.possibleCause
+    })), null, 2)}
+
+Learn from these patterns when analyzing the current issue.` : ''}
+
+REQUIRED JSON FORMAT:
+{
+  "title": "Concise, descriptive title",
+  "severity": "critical|high|medium|low",
+  "priority": "urgent|high|medium|low",
+  "description": "Detailed description of the issue",
+  "stepsToReproduce": ["Step 1", "Step 2", "Step 3"],
+  "expectedBehavior": "What should happen",
+  "actualBehavior": "What actually happens",
+  "environment": {
+    "browser": "Browser name/version",
+    "os": "Operating system",
+    "version": "App version"
+  },
+  "possibleCause": "Technical root cause hypothesis",
+  "suggestedFix": "Recommended solution approach",
+  "affectedComponents": ["Component1"],
+  "regressionRisk": "high|medium|low",
+  "workaround": "Temporary workaround if available"
+}
+
+SEVERITY GUIDELINES:
+- Critical: System crash, data loss, security breach
+- High: Major feature broken, no workaround
+- Medium: Feature degraded, workaround exists
+- Low: Minor issue, cosmetic, edge case
+
+Return ONLY the JSON object.`
+
+    let fullPrompt = `Suite: ${data.suiteName}
+${data.component ? `Component: ${data.component}` : ''}
+
+Bug Description: ${data.prompt}`
+
+    if (data.consoleError) {
+      fullPrompt += `
+
+CONSOLE ERROR/STACK TRACE:
+${data.consoleError}
+
+Analyze this error and determine the root cause.`
+    }
+
+    const result = await this.callAI(fullPrompt, {
+      type: 'bug_report_enhanced',
+      temperature: 0.4,
+      maxTokens: 2000,
+      systemInstruction
+    })
+
+    if (result.success && result.data) {
+      try {
+        let content = result.data.content.trim()
+        content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          return {
+            ...result,
+            data: {
+              ...result.data,
+              bugReport: parsed
+            }
+          }
+        }
+      } catch (e) {
+        logger.log('Failed to parse enhanced bug report:', e)
+      }
+    }
+
+    return result
+  }
+
 }
 
 export const aiService = new AIService()

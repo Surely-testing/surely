@@ -25,6 +25,8 @@ class ExtensionBridge {
   private recordingCompleteCallbacks: ((recordingId: string) => void)[] = [];
   private recordingStartCallbacks: (() => void)[] = [];
   private recordingFailCallbacks: ((error: string) => void)[] = [];
+  stopRecording: any;
+  getRecordingState: any;
 
   private constructor() {
     this.setupMessageListener();

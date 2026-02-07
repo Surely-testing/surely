@@ -70,6 +70,7 @@ export interface ReportFormData {
 }
 
 export interface ReportScheduleFormData {
+  suite_id: any;
   report_id?: string;
   type: ReportType;
   frequency: ReportFrequency;

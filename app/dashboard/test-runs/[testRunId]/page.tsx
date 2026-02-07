@@ -1,6 +1,6 @@
 // ============================================
 // FILE: app/dashboard/test-runs/[testRunId]/page.tsx
-// COMPLETE WITH PROGRESS BAR - Shows execution progress in real-time
+// FIXED: Fetch suite relationship with test run
 // ============================================
 'use client'
 
@@ -96,10 +96,17 @@ export default function TestRunDetailsPage({
         setIsLoading(true)
       }
 
-      // Fetch test run
+      // FIXED: Fetch test run with suite relationship
       const { data: runData, error: runError } = await supabase
         .from('test_runs')
-        .select('*')
+        .select(`
+          *,
+          suite:test_suites (
+            id,
+            name,
+            description
+          )
+        `)
         .eq('id', testRunId)
         .single()
 

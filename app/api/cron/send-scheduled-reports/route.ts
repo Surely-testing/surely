@@ -12,11 +12,14 @@ export async function GET(request: NextRequest) {
     // Verify cron secret to prevent unauthorized calls
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      logger.log('Unauthorized cron attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const supabase = await createClient();
     const now = new Date();
+
+    logger.log(`[CRON] Starting scheduled reports check at ${now.toISOString()}`);
 
     // Get all active schedules that are due to run
     const { data: schedules, error: schedulesError } = await supabase
@@ -32,9 +35,13 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true)
       .lte('next_run', now.toISOString());
 
-    if (schedulesError) throw schedulesError;
+    if (schedulesError) {
+      logger.log('[CRON] Error fetching schedules:', schedulesError);
+      throw schedulesError;
+    }
 
     if (!schedules || schedules.length === 0) {
+      logger.log('[CRON] No schedules due to run');
       return NextResponse.json({
         success: true,
         message: 'No schedules due to run',
@@ -42,13 +49,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    logger.log(`[CRON] Found ${schedules.length} schedules to process`);
+
     const results = await Promise.allSettled(
       schedules.map(async (schedule) => {
         try {
+          logger.log(`[CRON] Processing schedule ${schedule.id} (${schedule.name})`);
+
+          // Validate schedule has required fields
+          if (!schedule.suite_id) {
+            throw new Error('Schedule missing suite_id');
+          }
+
+          if (!schedule.emails || schedule.emails.length === 0) {
+            throw new Error('Schedule has no email recipients');
+          }
+
           // Generate report data
           const reportData = await generateReportData(
             schedule.type,
             schedule.suite_id,
+            schedule.frequency, // Pass frequency to determine the period
             supabase
           );
 
@@ -59,17 +80,27 @@ export async function GET(request: NextRequest) {
             suiteName: schedule.suite?.name || 'Unknown Suite',
           });
 
-          // Update next_run time
+          // Update next_run time and last_run
           const nextRun = calculateNextRun(schedule.frequency);
           await supabase
             .from('report_schedules')
-            .update({ next_run: nextRun })
+            .update({ 
+              next_run: nextRun,
+              last_run: now.toISOString()
+            })
             .eq('id', schedule.id);
 
-          return { success: true, scheduleId: schedule.id };
+          logger.log(`[CRON] Successfully processed schedule ${schedule.id}. Next run: ${nextRun}`);
+
+          return { success: true, scheduleId: schedule.id, name: schedule.name };
         } catch (error: any) {
-          logger.log(`Error processing schedule ${schedule.id}:`, error);
-          return { success: false, scheduleId: schedule.id, error: error.message };
+          logger.log(`[CRON] Error processing schedule ${schedule.id}:`, error);
+          return { 
+            success: false, 
+            scheduleId: schedule.id, 
+            name: schedule.name,
+            error: error.message 
+          };
         }
       })
     );
@@ -77,15 +108,17 @@ export async function GET(request: NextRequest) {
     const successful = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
     const failed = results.length - successful;
 
+    logger.log(`[CRON] Completed: ${successful} successful, ${failed} failed`);
+
     return NextResponse.json({
       success: true,
       message: `Processed ${results.length} schedules`,
       successful,
       failed,
-      results,
+      results: results.map(r => r.status === 'fulfilled' ? r.value : { error: 'Promise rejected' }),
     });
   } catch (error: any) {
-    logger.log('Cron job error:', error);
+    logger.log('[CRON] Fatal error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to process scheduled reports' },
       { status: 500 }
@@ -105,24 +138,34 @@ function calculateNextRun(frequency: string): string {
       now.setDate(now.getDate() + 1);
       break;
     case 'weekly':
-      now.setDate(now.getDate() + 7);
+      // Schedule for next Monday at 9 AM
+      const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
+      now.setDate(now.getDate() + daysUntilMonday);
       break;
     case 'monthly':
+      // Schedule for 1st of next month at 9 AM
       now.setMonth(now.getMonth() + 1);
+      now.setDate(1);
       break;
   }
 
+  // Always set to 9 AM UTC (adjust if you need a different timezone)
   now.setHours(9, 0, 0, 0);
   return now.toISOString();
 }
 
-async function generateReportData(type: string, suiteId: string, supabase: any) {
+async function generateReportData(
+  type: string, 
+  suiteId: string, 
+  frequency: string,
+  supabase: any
+) {
   const now = new Date();
   
   let startDate: Date;
   
   // Set period based on frequency
-  switch (type) {
+  switch (frequency) {
     case 'daily':
       startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); // Last 24 hours
       break;
@@ -276,6 +319,8 @@ async function sendReportEmail({
   const subject = `${reportTypeNames[schedule.type] || 'Report'} - ${suiteName}`;
 
   try {
+    logger.log(`[EMAIL] Sending to ${schedule.emails.length} recipients`);
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -295,9 +340,11 @@ async function sendReportEmail({
       throw new Error(`Resend API error: ${errorText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    logger.log(`[EMAIL] Successfully sent. Email ID: ${result.id}`);
+    return result;
   } catch (error) {
-    logger.log('Error sending email via Resend:', error);
+    logger.log('[EMAIL] Error sending email via Resend:', error);
     throw error;
   }
 }

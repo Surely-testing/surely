@@ -1,6 +1,6 @@
 // ============================================
 // components/test-cases/TestCaseTable.tsx
-// Updated with Test Execution Integration
+// FIXED: React key prop warning in linked assets tooltip
 // ============================================
 'use client'
 
@@ -397,7 +397,7 @@ export function TestCaseTable({
                 </div>
               </TableCell>
 
-              {/* Linked Assets */}
+              {/* Linked Assets - FIXED: Added unique key prefix */}
               <TableCell>
                 <div className="relative group">
                   <div className="flex items-center gap-1.5 cursor-help">
@@ -410,7 +410,7 @@ export function TestCaseTable({
                     </span>
                   </div>
                   
-                  {/* Tooltip */}
+                  {/* Tooltip - FIXED: Changed key to include testCase.id prefix */}
                   {linkedCount > 0 && linkedAssets.length > 0 && (
                     <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-64">
                       <div className="bg-popover border border-border rounded-lg shadow-lg p-3">
@@ -419,7 +419,7 @@ export function TestCaseTable({
                         </div>
                         <div className="space-y-1.5 max-h-48 overflow-y-auto">
                           {linkedAssets.map((asset) => (
-                            <div key={asset.id} className="text-xs">
+                            <div key={`${testCase.id}-asset-${asset.id}`} className="text-xs">
                               <div className="font-medium text-foreground truncate" title={asset.name}>
                                 {asset.name}
                               </div>

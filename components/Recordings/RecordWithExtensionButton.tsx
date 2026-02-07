@@ -288,7 +288,7 @@ export function RecordWithExtensionButton({
       ) : (
         <>
           <Circle className="h-4 w-4 fill-white" />
-          <span>Record Test</span>
+          <span>Record Screen</span>
         </>
       )}
     </Button>
