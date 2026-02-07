@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { aiService } from '@/lib/ai/ai-service'
+import { isCoverageAnalysisResponse } from '@/lib/ai/types'
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,12 +54,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result, { status: 500 })
     }
 
+    // Type guard to ensure we have the right response shape
+    if (!result.data || !isCoverageAnalysisResponse(result.data)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid response format from AI service'
+      }, { status: 500 })
+    }
+
     return NextResponse.json({
       success: true,
       data: {
-        analysis: result.data?.coverageAnalysis || null,
-        tokensUsed: result.data?.tokensUsed,
-        cost: result.data?.cost
+        analysis: result.data.coverageAnalysis,
+        tokensUsed: result.data.tokensUsed,
+        cost: result.data.cost
       }
     })
 

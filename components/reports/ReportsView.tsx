@@ -364,8 +364,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
           isOpen={isScheduleOpen}
           onClose={handleCloseScheduleDialog}
           onSchedule={handleScheduleReport}
-          existingSchedule={editingSchedule}
-        />
+          existingSchedule={editingSchedule} suiteId={''}        />
 
         {selectedReport && (
           <ReportDetailsDialog
@@ -568,8 +567,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
         isOpen={isScheduleOpen}
         onClose={handleCloseScheduleDialog}
         onSchedule={handleScheduleReport}
-        existingSchedule={editingSchedule}
-      />
+        existingSchedule={editingSchedule} suiteId={''}      />
 
       {selectedReport && (
         <ReportDetailsDialog
