@@ -598,6 +598,49 @@ export type Database = {
           },
         ]
       }
+      bug_screenshots: {
+        Row: {
+          bug_id: string
+          created_at: string | null
+          id: string
+          screenshot_id: string
+        }
+        Insert: {
+          bug_id: string
+          created_at?: string | null
+          id?: string
+          screenshot_id: string
+        }
+        Update: {
+          bug_id?: string
+          created_at?: string | null
+          id?: string
+          screenshot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_screenshots_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_screenshots_bug_id_fkey"
+            columns: ["bug_id"]
+            isOneToOne: false
+            referencedRelation: "bugs_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_screenshots_screenshot_id_fkey"
+            columns: ["screenshot_id"]
+            isOneToOne: false
+            referencedRelation: "screenshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bug_test_cases: {
         Row: {
           bug_id: string
@@ -1677,6 +1720,56 @@ export type Database = {
         }
         Relationships: []
       }
+      screenshots: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          description: string | null
+          file_path: string
+          file_size: number
+          file_url: string
+          id: string
+          metadata: Json | null
+          suite_id: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          file_path: string
+          file_size: number
+          file_url: string
+          id?: string
+          metadata?: Json | null
+          suite_id: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          file_path?: string
+          file_size?: number
+          file_url?: string
+          id?: string
+          metadata?: Json | null
+          suite_id?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screenshots_suite_id_fkey"
+            columns: ["suite_id"]
+            isOneToOne: false
+            referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sprints: {
         Row: {
           created_at: string | null
@@ -2029,6 +2122,42 @@ export type Database = {
             columns: ["suite_id"]
             isOneToOne: false
             referencedRelation: "test_suites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_case_screenshots: {
+        Row: {
+          created_at: string | null
+          id: string
+          screenshot_id: string
+          test_case_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          screenshot_id: string
+          test_case_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          screenshot_id?: string
+          test_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_case_screenshots_screenshot_id_fkey"
+            columns: ["screenshot_id"]
+            isOneToOne: false
+            referencedRelation: "screenshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_case_screenshots_test_case_id_fkey"
+            columns: ["test_case_id"]
+            isOneToOne: false
+            referencedRelation: "test_cases"
             referencedColumns: ["id"]
           },
         ]
@@ -2403,8 +2532,10 @@ export type Database = {
         Row: {
           actual_result: string | null
           bug_id: string | null
+          completed_at: string | null
           created_at: string | null
           duration_seconds: number | null
+          error_message: string | null
           executed_at: string | null
           executed_by: string | null
           id: string
@@ -2412,6 +2543,7 @@ export type Database = {
           screenshots: Json | null
           sprint_id: string | null
           status: string | null
+          step_results: Json | null
           test_case_id: string
           test_run_id: string
           updated_at: string | null
@@ -2419,8 +2551,10 @@ export type Database = {
         Insert: {
           actual_result?: string | null
           bug_id?: string | null
+          completed_at?: string | null
           created_at?: string | null
           duration_seconds?: number | null
+          error_message?: string | null
           executed_at?: string | null
           executed_by?: string | null
           id?: string
@@ -2428,6 +2562,7 @@ export type Database = {
           screenshots?: Json | null
           sprint_id?: string | null
           status?: string | null
+          step_results?: Json | null
           test_case_id: string
           test_run_id: string
           updated_at?: string | null
@@ -2435,8 +2570,10 @@ export type Database = {
         Update: {
           actual_result?: string | null
           bug_id?: string | null
+          completed_at?: string | null
           created_at?: string | null
           duration_seconds?: number | null
+          error_message?: string | null
           executed_at?: string | null
           executed_by?: string | null
           id?: string
@@ -2444,6 +2581,7 @@ export type Database = {
           screenshots?: Json | null
           sprint_id?: string | null
           status?: string | null
+          step_results?: Json | null
           test_case_id?: string
           test_run_id?: string
           updated_at?: string | null

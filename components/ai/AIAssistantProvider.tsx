@@ -376,54 +376,52 @@ export function AIAssistantProvider({
     try {
       const lowerMessage = message.toLowerCase()
 
-      // Bug Report Generation
+      // ============================================
+      // NEW: Coverage Analysis Request
+      // ============================================
       if (
-        lowerMessage.includes('generate bug') ||
-        lowerMessage.includes('create bug') ||
-        lowerMessage.includes('bug report') ||
-        lowerMessage.includes('write a bug') ||
-        lowerMessage.includes('report this bug')
+        lowerMessage.includes('coverage') ||
+        lowerMessage.includes('test gap') ||
+        lowerMessage.includes('what am i missing') ||
+        lowerMessage.includes('missing test')
       ) {
-        logger.log('🐛 Detected bug report request')
+        logger.log('🎯 Detected coverage analysis request')
 
-        const response = await fetch('/api/ai/bug-report', {
+        const response = await fetch('/api/ai/coverage-analysis', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: message,
-            suiteId: context.suiteId
+            suiteId: context.suiteId,
+            message: message
           })
         })
 
         const data = await response.json()
 
         if (!response.ok || !data.success) {
-          throw new Error(data.error || 'Failed to generate bug report')
+          throw new Error(data.error || 'Failed to analyze coverage')
         }
 
-        if (data.data?.bugReport) {
-          const bugReport = data.data.bugReport
+        if (data.data?.analysis) {
+          const analysis = data.data.analysis
+
           const content: AIGeneratedContent = {
-            id: `bug_${Date.now()}`,
-            type: 'bug_report',
+            id: `coverage_${Date.now()}`,
+            type: 'coverage_analysis',
             status: 'draft',
-            data: bugReport,
+            data: analysis,
             createdAt: new Date()
           }
 
-          logger.log('✅ Adding bug report to generatedContent:', content)
           setGeneratedContent(prev => [...prev, content])
 
-          // Save to database with session_id
           if (currentSessionId) {
             await saveGeneratedContentToDb(currentSessionId, content.id, content.type, content.data, false)
           }
 
-          const formattedMessage = `I've generated a bug report for you.`
-
           const assistantMessage: Message = {
             role: 'assistant',
-            content: formattedMessage,
+            content: `I've analyzed your test coverage (${analysis.coverageScore}% score). Found ${analysis.gaps?.length || 0} coverage gaps. Review the full analysis in the panel to see which areas need attention.`,
             timestamp: new Date(),
             metadata: {
               generatedContent: {
@@ -450,22 +448,260 @@ export function AIAssistantProvider({
         return
       }
 
-      // Test Cases Generation  
+      // ============================================
+      // NEW: Automation Analysis Request
+      // ============================================
       if (
-        lowerMessage.includes('generate test case') ||
-        lowerMessage.includes('create test case') ||
-        lowerMessage.includes('write test case') ||
-        lowerMessage.includes('test case for') ||
-        (lowerMessage.includes('test') && lowerMessage.includes('case'))
+        lowerMessage.includes('automat') &&
+        (lowerMessage.includes('which') || lowerMessage.includes('should') ||
+          lowerMessage.includes('recommend') || lowerMessage.includes('opportunit'))
       ) {
-        logger.log('📝 Detected test case request')
+        logger.log('🤖 Detected automation analysis request')
 
-        const response = await fetch('/api/ai/test-cases', {
+        const response = await fetch('/api/ai/automation-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            suiteId: context.suiteId,
+            message: message,
+            framework: 'Playwright'
+          })
+        })
+
+        const data = await response.json()
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to analyze automation opportunities')
+        }
+
+        if (data.data?.analysis) {
+          const analysis = data.data.analysis
+
+          const content: AIGeneratedContent = {
+            id: `automation_${Date.now()}`,
+            type: 'automation_analysis',
+            status: 'draft',
+            data: analysis,
+            createdAt: new Date()
+          }
+
+          setGeneratedContent(prev => [...prev, content])
+
+          if (currentSessionId) {
+            await saveGeneratedContentToDb(currentSessionId, content.id, content.type, content.data, false)
+          }
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: `I've analyzed ${analysis.summary?.totalCases || 0} test cases. Found ${analysis.summary?.recommendedForAutomation || 0} tests worth automating with ${analysis.summary?.expectedROI || 'high'} ROI. Check the panel for detailed recommendations with effort estimates!`,
+            timestamp: new Date(),
+            metadata: {
+              generatedContent: {
+                id: content.id,
+                type: content.type,
+                data: content.data,
+                isSaved: false
+              },
+              tokensUsed: data.data.tokensUsed,
+              cost: data.data.cost
+            }
+          }
+          setMessages(prev => [...prev, assistantMessage])
+
+          if (data.data.tokensUsed) {
+            setSessionStats(prev => ({
+              operations: prev.operations + 1,
+              tokens: prev.tokens + data.data.tokensUsed,
+              cost: prev.cost + (data.data.cost || 0)
+            }))
+          }
+        }
+
+        return
+      }
+
+      // ============================================
+      // NEW: Testing Insights Request
+      // ============================================
+      if (
+        lowerMessage.includes('insight') ||
+        lowerMessage.includes('pattern') ||
+        lowerMessage.includes('trend') ||
+        (lowerMessage.includes('learn') && lowerMessage.includes('history'))
+      ) {
+        logger.log('📊 Detected testing insights request')
+
+        const response = await fetch('/api/ai/testing-insights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            suiteId: context.suiteId,
+            message: message
+          })
+        })
+
+        const data = await response.json()
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to generate insights')
+        }
+
+        if (data.data?.insights) {
+          const insights = data.data.insights
+
+          const content: AIGeneratedContent = {
+            id: `insights_${Date.now()}`,
+            type: 'testing_insights',
+            status: 'draft',
+            data: insights,
+            createdAt: new Date()
+          }
+
+          setGeneratedContent(prev => [...prev, content])
+
+          if (currentSessionId) {
+            await saveGeneratedContentToDb(currentSessionId, content.id, content.type, content.data, false)
+          }
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: `I've analyzed your testing history. Found ${insights.keyInsights?.length || 0} important patterns and ${insights.recommendations?.length || 0} actionable recommendations. Quality trend is ${insights.trends?.qualityTrend || 'stable'}. Review the full analysis in the panel!`,
+            timestamp: new Date(),
+            metadata: {
+              generatedContent: {
+                id: content.id,
+                type: content.type,
+                data: content.data,
+                isSaved: false
+              },
+              tokensUsed: data.data.tokensUsed,
+              cost: data.data.cost
+            }
+          }
+          setMessages(prev => [...prev, assistantMessage])
+
+          if (data.data.tokensUsed) {
+            setSessionStats(prev => ({
+              operations: prev.operations + 1,
+              tokens: prev.tokens + data.data.tokensUsed,
+              cost: prev.cost + (data.data.cost || 0)
+            }))
+          }
+        }
+
+        return
+      }
+
+      // ============================================
+      // REPLACE your existing bug report generation with this:
+      // ============================================
+      if (
+        lowerMessage.includes('generate bug') ||
+        lowerMessage.includes('create bug') ||
+        lowerMessage.includes('bug report') ||
+        lowerMessage.includes('write a bug')
+      ) {
+        logger.log('🐛 Detected bug report request (enhanced)')
+
+        // Fetch recent bugs for context
+        const bugsResponse = await fetch(`/api/bugs?suiteId=${context.suiteId}`)
+        const bugsData = await bugsResponse.json()
+        const recentBugs = bugsData.data?.slice(0, 5) || []
+
+        const response = await fetch('/api/ai/bug-report-enhanced', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             prompt: message,
-            suiteId: context.suiteId
+            suiteId: context.suiteId,
+            suiteName: context.suiteName,
+            recentBugs: recentBugs
+          })
+        })
+
+        const data = await response.json()
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to generate bug report')
+        }
+
+        if (data.data?.bugReport) {
+          const bugReport = data.data.bugReport
+          const content: AIGeneratedContent = {
+            id: `bug_${Date.now()}`,
+            type: 'bug_report',
+            status: 'draft',
+            data: bugReport,
+            createdAt: new Date()
+          }
+
+          setGeneratedContent(prev => [...prev, content])
+
+          if (currentSessionId) {
+            await saveGeneratedContentToDb(currentSessionId, content.id, content.type, content.data, false)
+          }
+
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: `I've generated a ${bugReport.severity} severity bug report with root cause analysis based on ${recentBugs.length} similar bugs in your system. The report includes detailed reproduction steps and a suggested fix approach.`,
+            timestamp: new Date(),
+            metadata: {
+              generatedContent: {
+                id: content.id,
+                type: content.type,
+                data: content.data,
+                isSaved: false
+              },
+              tokensUsed: data.data.tokensUsed,
+              cost: data.data.cost
+            }
+          }
+          setMessages(prev => [...prev, assistantMessage])
+
+          if (data.data.tokensUsed) {
+            setSessionStats(prev => ({
+              operations: prev.operations + 1,
+              tokens: prev.tokens + data.data.tokensUsed,
+              cost: prev.cost + (data.data.cost || 0)
+            }))
+          }
+        }
+
+        return
+      }
+
+      // ============================================
+      // REPLACE your existing test case generation with this:
+      // ============================================
+      if (
+        lowerMessage.includes('generate test case') ||
+        lowerMessage.includes('create test case') ||
+        lowerMessage.includes('test case for') ||
+        lowerMessage.includes('write test case')
+      ) {
+        logger.log('📝 Detected test case request (enhanced)')
+
+        // Fetch context data
+        const [testCasesRes, bugsRes] = await Promise.all([
+          fetch(`/api/test-cases?suiteId=${context.suiteId}`),
+          fetch(`/api/bugs?suiteId=${context.suiteId}`)
+        ])
+
+        const testCasesData = await testCasesRes.json()
+        const bugsData = await bugsRes.json()
+
+        const existingTestCases = testCasesData.data?.slice(0, 10) || []
+        const recentBugs = bugsData.data?.slice(0, 5) || []
+
+        const response = await fetch('/api/ai/test-cases-enhanced', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: message,
+            suiteId: context.suiteId,
+            suiteName: context.suiteName,
+            existingTestCases: existingTestCases,
+            recentBugs: recentBugs
           })
         })
 
@@ -485,19 +721,15 @@ export function AIAssistantProvider({
             createdAt: new Date()
           }
 
-          logger.log('✅ Adding test cases to generatedContent:', content)
           setGeneratedContent(prev => [...prev, content])
 
-          // Save to database with session_id
           if (currentSessionId) {
             await saveGeneratedContentToDb(currentSessionId, content.id, content.type, content.data, false)
           }
 
-          const formattedMessage = `I've generated ${testCases.length} test case${testCases.length > 1 ? 's' : ''} for you.`
-
           const assistantMessage: Message = {
             role: 'assistant',
-            content: formattedMessage,
+            content: `I've generated ${testCases.length} test case${testCases.length > 1 ? 's' : ''}, learning from your ${existingTestCases.length} existing tests and considering ${recentBugs.length} recent bugs. The test cases include positive, negative, and edge case scenarios with automation potential scores.`,
             timestamp: new Date(),
             metadata: {
               generatedContent: {

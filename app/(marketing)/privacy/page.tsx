@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react';
-import { Shield, Calendar } from 'lucide-react';
+import { Shield, Calendar, Chrome, Globe } from 'lucide-react';
 import Link from 'next/link';
 
 const PrivacyPolicyPage = () => {
@@ -17,7 +17,7 @@ const PrivacyPolicyPage = () => {
         },
         {
           subtitle: "Information we collect automatically",
-          text: "We automatically collect certain information when you use Assura, including your IP address, browser type, device information, operating system, and usage data such as pages visited, features used, and time spent on the platform."
+          text: "We automatically collect certain information when you use Surely, including your IP address, browser type, device information, operating system, and usage data such as pages visited, features used, and time spent on the platform."
         },
         {
           subtitle: "Test data and analytics",
@@ -30,7 +30,7 @@ const PrivacyPolicyPage = () => {
       content: [
         {
           subtitle: "To provide our services",
-          text: "We use your information to operate, maintain, and improve Assura's testing platform, process your transactions, and provide customer support."
+          text: "We use your information to operate, maintain, and improve Surely's testing platform, process your transactions, and provide customer support."
         },
         {
           subtitle: "To communicate with you",
@@ -132,7 +132,7 @@ const PrivacyPolicyPage = () => {
       content: [
         {
           subtitle: "Global operations",
-          text: "Assura operates globally, and your information may be transferred to and processed in countries other than your own. We ensure appropriate safeguards are in place for such transfers."
+          text: "Surely operates globally, and your information may be transferred to and processed in countries other than your own. We ensure appropriate safeguards are in place for such transfers."
         },
         {
           subtitle: "GDPR compliance",
@@ -145,7 +145,7 @@ const PrivacyPolicyPage = () => {
       content: [
         {
           subtitle: "Age restrictions",
-          text: "Assura is not intended for users under the age of 18. We do not knowingly collect information from children. If we become aware that we have collected information from a child, we will take steps to delete it."
+          text: "Surely is not intended for users under the age of 18. We do not knowingly collect information from children. If we become aware that we have collected information from a child, we will take steps to delete it."
         }
       ]
     },
@@ -163,19 +163,14 @@ const PrivacyPolicyPage = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-orange-50 via-white to-orange-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 py-20">
+      <section className="relative overflow-hidden dark:to-slate-950 py-20">
         <div className="absolute inset-0 bg-grid-slate-900/[0.04] dark:bg-grid-slate-400/[0.05] bg-[size:32px_32px]" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center space-x-2 bg-orange-100 dark:bg-orange-900/30 rounded-full px-4 py-2 mb-6">
-              <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-              <span className="text-sm font-medium text-orange-900 dark:text-orange-300">Legal</span>
-            </div>
-            
             <h1 className="text-5xl sm:text-6xl font-bold text-foreground mb-6">
               Privacy Policy
             </h1>
-            
+
             <div className="flex items-center justify-center gap-2 text-muted-foreground">
               <Calendar className="h-5 w-5" />
               <span>Last updated: {lastUpdated}</span>
@@ -184,11 +179,31 @@ const PrivacyPolicyPage = () => {
         </div>
       </section>
 
+      {/* Privacy Toggle */}
+      <section className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-orange-500 text-white shadow-md">
+              <Globe className="h-4 w-4" />
+              <span>Platform Privacy</span>
+            </div>
+
+            <Link
+              href="/privacy/extension"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-all"
+            >
+              <Chrome className="h-4 w-4" />
+              <span>Extension Privacy</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Introduction */}
       <section className="py-12 border-b border-border">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-lg text-muted-foreground leading-relaxed">
-            At Assura, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our testing and quality assurance platform. Please read this policy carefully to understand our practices regarding your personal data.
+            At Surely, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our testing and quality assurance platform. Please read this policy carefully to understand our practices regarding your personal data.
           </p>
         </div>
       </section>
@@ -202,7 +217,7 @@ const PrivacyPolicyPage = () => {
                 <h2 className="text-3xl font-bold text-foreground mb-8 pb-4 border-b-2 border-orange-500">
                   {index + 1}. {section.title}
                 </h2>
-                
+
                 <div className="space-y-6">
                   {section.content.map((item, idx) => (
                     <div key={idx}>
