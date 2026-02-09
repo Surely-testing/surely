@@ -1560,6 +1560,7 @@ export type Database = {
           frequency: string
           id: string
           is_active: boolean | null
+          last_run: string | null
           name: string
           next_run: string | null
           suite_id: string
@@ -1573,6 +1574,7 @@ export type Database = {
           frequency: string
           id?: string
           is_active?: boolean | null
+          last_run?: string | null
           name?: string
           next_run?: string | null
           suite_id: string
@@ -1586,6 +1588,7 @@ export type Database = {
           frequency?: string
           id?: string
           is_active?: boolean | null
+          last_run?: string | null
           name?: string
           next_run?: string | null
           suite_id?: string
@@ -1631,6 +1634,7 @@ export type Database = {
           data: Json | null
           id: string
           name: string
+          schedule_id: string | null
           sprint_id: string | null
           suite_id: string
           type: string
@@ -1642,6 +1646,7 @@ export type Database = {
           data?: Json | null
           id?: string
           name: string
+          schedule_id?: string | null
           sprint_id?: string | null
           suite_id: string
           type: string
@@ -1653,12 +1658,20 @@ export type Database = {
           data?: Json | null
           id?: string
           name?: string
+          schedule_id?: string | null
           sprint_id?: string | null
           suite_id?: string
           type?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "reports_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reports_sprint_id_fkey"
             columns: ["sprint_id"]

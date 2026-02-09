@@ -21,6 +21,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '../ui/Dropdown';
+import { useState } from 'react';
 
 interface ScheduleTableProps {
   schedules: ReportScheduleWithReport[];
@@ -44,6 +45,7 @@ export function ScheduleTable({
   onSelectionChange,
   isLoading = false
 }: ScheduleTableProps) {
+  const [runningSchedules, setRunningSchedules] = useState<Set<string>>(new Set());
 
   const handleToggleSelection = (scheduleId: string) => {
     if (!onSelectionChange) return;
@@ -52,6 +54,22 @@ export function ScheduleTable({
       onSelectionChange(selectedSchedules.filter(id => id !== scheduleId));
     } else {
       onSelectionChange([...selectedSchedules, scheduleId]);
+    }
+  };
+
+  const handleRunNow = async (scheduleId: string) => {
+    // Add to running set to show loading state
+    setRunningSchedules(prev => new Set(prev).add(scheduleId));
+    
+    try {
+      await onRunNow(scheduleId);
+    } finally {
+      // Remove from running set after completion
+      setRunningSchedules(prev => {
+        const next = new Set(prev);
+        next.delete(scheduleId);
+        return next;
+      });
     }
   };
 
@@ -108,6 +126,7 @@ export function ScheduleTable({
       {schedules.map((schedule) => {
         const isSelected = selectedSchedules.includes(schedule.id);
         const isActive = schedule.is_active;
+        const isRunning = runningSchedules.has(schedule.id);
 
         return (
           <TableRow key={schedule.id} selected={isSelected}>
@@ -193,20 +212,27 @@ export function ScheduleTable({
                   }}
                   className="p-2 rounded-lg hover:bg-muted transition-colors"
                   title="Edit"
+                  disabled={isRunning}
                 >
                   <Edit className="w-4 h-4 text-muted-foreground" />
                 </button>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+                    <button 
+                      className="p-2 rounded-lg hover:bg-muted transition-colors"
+                      disabled={isRunning}
+                    >
                       <MoreVertical className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => onRunNow(schedule.id)}>
+                    <DropdownMenuItem 
+                      onClick={() => handleRunNow(schedule.id)}
+                      disabled={isRunning}
+                    >
                       <Play className="w-4 h-4" />
-                      Run Now
+                      {isRunning ? 'Running...' : 'Run Now'}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onToggle(schedule.id, !isActive)}>
                       <Power className="w-4 h-4" />

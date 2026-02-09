@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    logger.log('🧪 Generating test cases for:', prompt)
+    logger.log('  Generating test cases for:', prompt)
 
     // Generate test cases using AI
     const result = await aiService.generateTestCases(prompt, templateConfig)

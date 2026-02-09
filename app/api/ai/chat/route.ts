@@ -1,8 +1,3 @@
-// ============================================
-// UPDATE: /app/api/ai/chat/route.ts
-// Remove emoji logs and minimize logging
-// ============================================
-
 import { NextRequest, NextResponse } from 'next/server'
 import { aiService } from '@/lib/ai/ai-service'
 import { logger } from '@/lib/utils/logger'
@@ -19,16 +14,54 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    // FIX: Better error handling for Supabase auth
+    let supabase
+    let user
+    
+    try {
+      supabase = await createClient()
+      const { data, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) {
+        logger.log('Auth error:', authError.message)
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Authentication failed',
+            userMessage: 'Please sign in again to continue' 
+          },
+          { status: 401 }
+        )
+      }
+      
+      if (!data || !data.user) {
+        logger.log('No user found in session')
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'User not authenticated',
+            userMessage: 'Please sign in to use the AI assistant' 
+          },
+          { status: 401 }
+        )
+      }
+      
+      user = data.user
+      logger.log('✅ User authenticated:', user.id)
+      
+    } catch (authErr: any) {
+      logger.log('Supabase auth error:', authErr)
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { 
+          success: false, 
+          error: 'Authentication system error',
+          userMessage: 'Unable to verify authentication. Please refresh and try again.' 
+        },
+        { status: 500 }
       )
     }
 
+    // Build system prompt
     let systemPrompt = `You are Surely AI, an expert QA assistant for the SURELY platform.
 
 Current Context:
@@ -60,6 +93,8 @@ Current Context:
 
     systemPrompt += `\n\nProvide helpful, accurate responses. Be concise but thorough.`
 
+    // Call AI service
+    logger.log('Calling AI service with context...')
     const result = await aiService.chatWithContext(message, {
       currentPage: context?.currentPage || '/dashboard',
       suiteName: context?.suiteName || 'Unknown Suite',

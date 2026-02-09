@@ -1,11 +1,11 @@
 // ============================================
 // FILE: app/api/cron/send-scheduled-reports/route.ts
-// Cron job to check and send scheduled reports
-// Add to vercel.json: { "crons": [{ "path": "/api/cron/send-scheduled-reports", "schedule": "0 9 * * *" }] }
 // ============================================
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/utils/logger';
+import { generateReportEmailTemplate } from '@/lib/emails/templates/report-email-template';
+import { isReportEmpty } from '@/lib/emails/utils/report-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +20,20 @@ export async function GET(request: NextRequest) {
     const now = new Date();
 
     logger.log(`[CRON] Starting scheduled reports check at ${now.toISOString()}`);
+
+    // Check if today is a weekend
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    if (isWeekend) {
+      logger.log('[CRON] Skipping execution - weekend detected');
+      return NextResponse.json({
+        success: true,
+        message: 'Skipped - weekends are excluded from scheduled reports',
+        skipped: true,
+        reason: 'weekend',
+      });
+    }
 
     // Get all active schedules that are due to run
     const { data: schedules, error: schedulesError } = await supabase
@@ -69,9 +83,67 @@ export async function GET(request: NextRequest) {
           const reportData = await generateReportData(
             schedule.type,
             schedule.suite_id,
-            schedule.frequency, // Pass frequency to determine the period
+            schedule.frequency,
             supabase
           );
+
+          // Check if report is empty
+          if (isReportEmpty(reportData, schedule.type)) {
+            logger.log(`[CRON] Report ${schedule.id} is empty - skipping email`);
+
+            // Save empty report to database for audit trail
+            await supabase
+              .from('reports')
+              .insert({
+                suite_id: schedule.suite_id,
+                name: `${schedule.type.replace(/_/g, ' ')} - ${new Date().toLocaleDateString()} [Empty]`,
+                type: schedule.type,
+                data: { ...reportData, skipped: true, reason: 'No data in period' },
+                created_by: schedule.user_id,
+                schedule_id: schedule.id,
+              });
+
+            // Update next_run and last_run timestamps
+            const nextRun = calculateNextRun(schedule.frequency);
+            await supabase
+              .from('report_schedules')
+              .update({ 
+                next_run: nextRun,
+                last_run: now.toISOString()
+              })
+              .eq('id', schedule.id);
+
+            logger.log(`[CRON] Schedule ${schedule.id} skipped (empty report). Next run: ${nextRun}`);
+
+            return { 
+              success: true, 
+              scheduleId: schedule.id, 
+              name: schedule.name,
+              skipped: true,
+              reason: 'No data in period'
+            };
+          }
+
+          // Save report to database
+          const { data: savedReport, error: saveError } = await supabase
+            .from('reports')
+            .insert({
+              suite_id: schedule.suite_id,
+              name: `${schedule.type.replace(/_/g, ' ')} - ${new Date().toLocaleDateString()}`,
+              type: schedule.type,
+              data: reportData,
+              created_by: schedule.user_id,
+              schedule_id: schedule.id,
+            })
+            .select()
+            .single();
+
+          if (saveError) {
+            logger.log(`[CRON] Error saving report to database:`, saveError);
+            // Continue anyway - still send email
+          } else {
+            logger.log(`[CRON] Report saved to database: ${savedReport.id}`);
+          }
 
           // Send email to all recipients
           await sendReportEmail({
@@ -80,7 +152,7 @@ export async function GET(request: NextRequest) {
             suiteName: schedule.suite?.name || 'Unknown Suite',
           });
 
-          // Update next_run time and last_run
+          // Update next_run time
           const nextRun = calculateNextRun(schedule.frequency);
           await supabase
             .from('report_schedules')
@@ -105,15 +177,17 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    const successful = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
-    const failed = results.length - successful;
+    const successful = results.filter((r) => r.status === 'fulfilled' && r.value.success && !r.value.skipped).length;
+    const skipped = results.filter((r) => r.status === 'fulfilled' && r.value.skipped).length;
+    const failed = results.length - successful - skipped;
 
-    logger.log(`[CRON] Completed: ${successful} successful, ${failed} failed`);
+    logger.log(`[CRON] Completed: ${successful} successful, ${skipped} skipped (empty), ${failed} failed`);
 
     return NextResponse.json({
       success: true,
       message: `Processed ${results.length} schedules`,
       successful,
+      skipped,
       failed,
       results: results.map(r => r.status === 'fulfilled' ? r.value : { error: 'Promise rejected' }),
     });
@@ -136,6 +210,10 @@ function calculateNextRun(frequency: string): string {
   switch (frequency) {
     case 'daily':
       now.setDate(now.getDate() + 1);
+      // Skip weekends for daily reports
+      while (now.getDay() === 0 || now.getDay() === 6) {
+        now.setDate(now.getDate() + 1);
+      }
       break;
     case 'weekly':
       // Schedule for next Monday at 9 AM
@@ -146,6 +224,10 @@ function calculateNextRun(frequency: string): string {
       // Schedule for 1st of next month at 9 AM
       now.setMonth(now.getMonth() + 1);
       now.setDate(1);
+      // If 1st falls on weekend, move to next Monday
+      while (now.getDay() === 0 || now.getDay() === 6) {
+        now.setDate(now.getDate() + 1);
+      }
       break;
   }
 
@@ -194,9 +276,28 @@ async function generateReportData(
       return await generateSprintSummaryReport(supabase, suiteId, period);
     case 'team_performance':
       return await generateTeamPerformanceReport(supabase, suiteId, period);
+    case 'custom':
     default:
-      return { period, metrics: {}, summary: '', insights: [] };
+      return await generateCustomReport(supabase, suiteId, period);
   }
+}
+
+async function generateCustomReport(supabase: any, suiteId: string, period: any) {
+  const testData = await generateTestCoverageReport(supabase, suiteId, period);
+  const bugData = await generateBugTrendsReport(supabase, suiteId, period);
+
+  return {
+    period,
+    metrics: {
+      ...testData.metrics,
+      ...bugData.metrics,
+    },
+    summary: `Custom report generated. ${testData.metrics.totalTests || 0} tests run with ${bugData.metrics.totalBugs || 0} bugs tracked.`,
+    insights: [
+      ...(testData.insights || []),
+      ...(bugData.insights || []),
+    ],
+  };
 }
 
 async function generateTestCoverageReport(supabase: any, suiteId: string, period: any) {
@@ -307,6 +408,7 @@ async function sendReportEmail({
     suiteName,
     data: reportData,
     frequency: schedule.frequency,
+    isManualRun: false,
   });
 
   const reportTypeNames: Record<string, string> = {
@@ -314,6 +416,7 @@ async function sendReportEmail({
     bug_trends: 'Bug Trends',
     sprint_summary: 'Sprint Summary',
     team_performance: 'Team Performance',
+    custom: 'Custom Report',
   };
 
   const subject = `${reportTypeNames[schedule.type] || 'Report'} - ${suiteName}`;
@@ -346,280 +449,5 @@ async function sendReportEmail({
   } catch (error) {
     logger.log('[EMAIL] Error sending email via Resend:', error);
     throw error;
-  }
-}
-
-// ============================================
-// EMAIL TEMPLATE
-// ============================================
-
-function generateReportEmailTemplate({
-  reportType,
-  suiteName,
-  data,
-  frequency,
-}: {
-  reportType: string;
-  suiteName: string;
-  data: any;
-  frequency: string;
-}) {
-  const reportTypeNames: Record<string, string> = {
-    test_coverage: 'Test Coverage Report',
-    bug_trends: 'Bug Trends Report',
-    sprint_summary: 'Sprint Summary Report',
-    team_performance: 'Team Performance Report',
-  };
-
-  const reportName = reportTypeNames[reportType] || 'Report';
-  
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const periodText = `${formatDate(data.period.start)} - ${formatDate(data.period.end)}`;
-
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6; 
-            color: #1f2937;
-            background-color: #f9fafb;
-          }
-          .container { 
-            max-width: 600px; 
-            margin: 40px auto; 
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          }
-          .header { 
-            background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
-            color: white; 
-            padding: 40px 30px;
-            text-align: center;
-          }
-          .header h1 { 
-            font-size: 28px; 
-            font-weight: 700;
-            margin-bottom: 8px;
-          }
-          .header p { 
-            font-size: 14px; 
-            opacity: 0.95;
-            margin-top: 8px;
-          }
-          .badge {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 12px;
-          }
-          .content { 
-            padding: 40px 30px;
-          }
-          .summary {
-            background: #f9fafb;
-            border-left: 4px solid #0d9488;
-            padding: 20px;
-            margin-bottom: 30px;
-            border-radius: 8px;
-          }
-          .summary p {
-            color: #4b5563;
-            font-size: 15px;
-            line-height: 1.6;
-          }
-          .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            margin-bottom: 30px;
-          }
-          .metric-card {
-            background: #f9fafb;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-          }
-          .metric-card h3 {
-            font-size: 12px;
-            text-transform: uppercase;
-            color: #6b7280;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-          }
-          .metric-card .value {
-            font-size: 32px;
-            font-weight: 700;
-            color: #0d9488;
-          }
-          .metric-card .label {
-            font-size: 14px;
-            color: #6b7280;
-            margin-top: 4px;
-          }
-          .insights {
-            margin-top: 30px;
-          }
-          .insights h2 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 16px;
-          }
-          .insight-item {
-            background: #f0fdfa;
-            border-left: 3px solid #14b8a6;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            border-radius: 4px;
-            font-size: 14px;
-            color: #115e59;
-          }
-          .footer { 
-            background: #f9fafb;
-            padding: 30px;
-            text-align: center;
-            border-top: 1px solid #e5e7eb;
-          }
-          .footer p { 
-            color: #6b7280; 
-            font-size: 13px;
-            margin-bottom: 8px;
-          }
-          .footer a {
-            color: #0d9488;
-            text-decoration: none;
-            font-weight: 500;
-          }
-          .footer a:hover {
-            text-decoration: underline;
-          }
-          .branding {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
-          }
-          .branding p {
-            font-size: 12px;
-            color: #9ca3af;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>${reportName}</h1>
-            <p>${suiteName}</p>
-            <span class="badge">${frequency} Report</span>
-          </div>
-
-          <div class="content">
-            <div class="summary">
-              <p><strong>Period:</strong> ${periodText}</p>
-              <p style="margin-top: 12px;">${data.summary}</p>
-            </div>
-
-            ${generateMetricsHTML(reportType, data.metrics)}
-
-            ${data.insights && data.insights.length > 0 ? `
-              <div class="insights">
-                <h2>Key Insights</h2>
-                ${data.insights.map((insight: string) => `
-                  <div class="insight-item">${insight}</div>
-                `).join('')}
-              </div>
-            ` : ''}
-          </div>
-
-          <div class="footer">
-            <p>This is an automated ${frequency} report for ${suiteName}</p>
-            <p>View full details in your <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reports">dashboard</a></p>
-            
-            <div class="branding">
-              <p>Powered by Your QA Platform</p>
-            </div>
-          </div>
-        </div>
-      </body>
-    </html>
-  `;
-}
-
-function generateMetricsHTML(reportType: string, metrics: any): string {
-  switch (reportType) {
-    case 'test_coverage':
-      return `
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <h3>Total Tests</h3>
-            <div class="value">${metrics.totalTests || 0}</div>
-          </div>
-          <div class="metric-card">
-            <h3>Pass Rate</h3>
-            <div class="value">${metrics.coveragePercentage || 0}%</div>
-          </div>
-          <div class="metric-card">
-            <h3>Passed</h3>
-            <div class="value">${metrics.passedTests || 0}</div>
-            <div class="label" style="color: #10b981;">✓ Passed</div>
-          </div>
-          <div class="metric-card">
-            <h3>Failed</h3>
-            <div class="value" style="color: #ef4444;">${metrics.failedTests || 0}</div>
-            <div class="label" style="color: #ef4444;">✗ Failed</div>
-          </div>
-        </div>
-      `;
-
-    case 'bug_trends':
-      return `
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <h3>Total Bugs</h3>
-            <div class="value">${metrics.totalBugs || 0}</div>
-          </div>
-          <div class="metric-card">
-            <h3>Resolution Rate</h3>
-            <div class="value">${
-              metrics.totalBugs > 0
-                ? Math.round((metrics.resolvedBugs / metrics.totalBugs) * 100)
-                : 0
-            }%</div>
-          </div>
-          <div class="metric-card">
-            <h3>Open Bugs</h3>
-            <div class="value" style="color: #f59e0b;">${metrics.openBugs || 0}</div>
-            <div class="label" style="color: #f59e0b;">Needs attention</div>
-          </div>
-          <div class="metric-card">
-            <h3>Critical</h3>
-            <div class="value" style="color: #ef4444;">${metrics.criticalUnresolved || 0}</div>
-            <div class="label" style="color: #ef4444;">Unresolved</div>
-          </div>
-        </div>
-      `;
-
-    default:
-      return '';
   }
 }

@@ -1,6 +1,7 @@
 // ============================================
 // FILE: lib/hooks/useReports.ts (FIXED)
 // Hook for managing generated reports - Client-side queries
+// REMOVED: Browser confirm() dialog - deletion handled by UI
 // ============================================
 'use client'
 
@@ -169,9 +170,8 @@ export function useReports(suiteId?: string) {
     }
   }
 
+  // FIX: Remove browser confirm() dialog - let the UI handle confirmation
   const deleteReportFn = async (reportId: string) => {
-    if (!confirm('Are you sure you want to delete this report?')) return
-
     try {
       const { error } = await supabase
         .from('reports')

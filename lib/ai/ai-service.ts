@@ -6,21 +6,21 @@ import type { AICallOptions, AIResponse, ChatContext, TestCase, BugReport } from
 import { logger } from '@/lib/utils/logger'
 
 export const AI_MODELS = {
-  'openai/gpt-oss-20b:free': {
-    name: 'openai/gpt-oss-20b:free',
-    displayName: 'GPT-OSS 20B (Free)',
+  'meta-llama/llama-3.2-3b-instruct:free': {
+    name: 'meta-llama/llama-3.2-3b-instruct:free',
+    displayName: 'Llama 3.2 3B (Free)',
     inputCostPer1M: 0,
     outputCostPer1M: 0,
-    contextWindow: 128000,
-    description: 'Free - OpenAI open-source model with reasoning'
+    contextWindow: 131072,
+    description: 'Free - Fast and capable for most tasks'
   },
-  'moonshotai/kimi-k2:free': {
-    name: 'moonshotai/kimi-k2:free',
-    displayName: 'Kimi K2 (Free)',
+  'meta-llama/llama-3.1-8b-instruct:free': {
+    name: 'meta-llama/llama-3.1-8b-instruct:free',
+    displayName: 'Llama 3.1 8B (Free)',
     inputCostPer1M: 0,
     outputCostPer1M: 0,
-    contextWindow: 128000,
-    description: 'Free - Advanced reasoning and tool use'
+    contextWindow: 131072,
+    description: 'Free - More powerful reasoning'
   },
   'google/gemini-flash-1.5-8b': {
     name: 'google/gemini-flash-1.5-8b',
@@ -28,14 +28,14 @@ export const AI_MODELS = {
     inputCostPer1M: 0.0375,
     outputCostPer1M: 0.15,
     contextWindow: 1000000,
-    description: 'Fast and affordable (paid)'
+    description: 'Paid - Fast and affordable ($0.04/1M tokens)'
   }
 } as const
 
 export type ModelName = keyof typeof AI_MODELS
 
 export class AIService {
-  private currentModel: ModelName = 'moonshotai/kimi-k2:free'
+  private currentModel: ModelName = 'meta-llama/llama-3.1-8b-instruct:free'
   private apiKey: string
   private baseURL = 'https://openrouter.ai/api/v1/chat/completions'
   private lastCallTime = 0
@@ -44,6 +44,8 @@ export class AIService {
   constructor(initialModel?: ModelName) {
     if (initialModel && AI_MODELS[initialModel]) {
       this.currentModel = initialModel
+    } else {
+      this.currentModel = 'meta-llama/llama-3.2-3b-instruct:free' // NEW DEFAULT
     }
 
     this.apiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ||
@@ -156,11 +158,11 @@ export class AIService {
     context: ChatContext,
     customSystemPrompt?: string
   ): Promise<AIResponse> {
-    // Models to try in order (fallback chain)
+    // Updated fallback chain with working free models
     const modelsToTry: ModelName[] = [
       this.currentModel,
-      'moonshotai/kimi-k2:free',
-      'openai/gpt-oss-20b:free'
+      'meta-llama/llama-3.1-8b-instruct:free',
+      'meta-llama/llama-3.2-3b-instruct:free'
     ]
 
     const uniqueModels = Array.from(new Set(modelsToTry))

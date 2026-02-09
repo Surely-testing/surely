@@ -1,6 +1,7 @@
 // ============================================
-// components/reports/ReportsView.tsx - Refactored
+// components/reports/ReportsView.tsx - FIXED
 // Main container with tabs: Reports | Schedules
+// FIX: Removed duplicate delete confirmations
 // ============================================
 'use client';
 
@@ -91,6 +92,16 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     runScheduleNow,
   } = useReportSchedules(suiteId);
 
+  const handleRunScheduleNow = async (scheduleId: string) => {
+    try {
+      await runScheduleNow(scheduleId);
+      // Refresh reports list immediately since the API creates the report synchronously
+      await fetchReports();
+    } catch (error) {
+      // Error is already handled by the hook
+    }
+  };
+
   const tabs = [
     { id: 'reports', label: 'Reports', icon: FileText },
     { id: 'schedules', label: 'Schedules', icon: Calendar },
@@ -115,7 +126,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
       await updateSchedule(editingSchedule.id, formData);
       setEditingSchedule(null);
     } else {
-      await createSchedule(formData, suiteId);
+      await createSchedule(formData);
     }
   };
 
@@ -164,6 +175,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
         toast.success(`${deleteDialog.bulkIds.length} schedule(s) deleted`);
         setSelectedScheduleIds([]);
       }
+      closeDeleteDialog();  // ADD THIS LINE - Close dialog after successful delete
     } catch (error: any) {
       toast.error('Delete failed', { description: error?.message });
     }
@@ -193,10 +205,12 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     }
   };
 
+  // FIX: Bulk action handlers now directly open the confirmation dialog
   const handleReportBulkAction = async (actionId: string, selectedIds: string[]) => {
     try {
       switch (actionId) {
         case 'delete':
+          // Open the confirmation dialog instead of performing delete immediately
           openDeleteDialog('bulk-report', undefined, undefined, selectedIds);
           break;
         case 'regenerate':
@@ -214,6 +228,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     try {
       switch (actionId) {
         case 'delete':
+          // Open the confirmation dialog instead of performing delete immediately
           openDeleteDialog('bulk-schedule', undefined, undefined, selectedIds);
           break;
         case 'enable':
@@ -241,7 +256,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
   // Get dialog content based on type
   const getDeleteDialogContent = () => {
     const count = deleteDialog.bulkIds?.length || 0;
-    
+
     switch (deleteDialog.type) {
       case 'report':
         return {
@@ -364,7 +379,9 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
           isOpen={isScheduleOpen}
           onClose={handleCloseScheduleDialog}
           onSchedule={handleScheduleReport}
-          existingSchedule={editingSchedule} suiteId={''}        />
+          existingSchedule={editingSchedule}
+          suiteId={suiteId}
+        />
 
         {selectedReport && (
           <ReportDetailsDialog
@@ -538,7 +555,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
                       onSelectionChange={setSelectedScheduleIds}
                       onToggle={toggleSchedule}
                       onDelete={handleDeleteSchedule}
-                      onRunNow={runScheduleNow}
+                      onRunNow={handleRunScheduleNow}
                       onEdit={handleEditSchedule}
                       isLoading={schedulesLoading}
                       onClearFilters={() => {
@@ -567,7 +584,9 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
         isOpen={isScheduleOpen}
         onClose={handleCloseScheduleDialog}
         onSchedule={handleScheduleReport}
-        existingSchedule={editingSchedule} suiteId={''}      />
+        existingSchedule={editingSchedule}
+        suiteId={suiteId}
+      />
 
       {selectedReport && (
         <ReportDetailsDialog
@@ -587,8 +606,8 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
         onConfirm={handleConfirmDelete}
         title={dialogContent.title}
         description={dialogContent.description}
-        confirmText={deleteDialog.bulkIds && deleteDialog.bulkIds.length > 1 
-          ? `Delete (${deleteDialog.bulkIds.length})` 
+        confirmText={deleteDialog.bulkIds && deleteDialog.bulkIds.length > 1
+          ? `Delete (${deleteDialog.bulkIds.length})`
           : 'Delete'
         }
         variant="error"

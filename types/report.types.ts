@@ -3,6 +3,7 @@
 // ============================================
 
 import { Tables } from "./database.types";
+import { CustomReportConfig } from '@/components/reports/CustomReportConfigurator';
 
 export type Report = Tables<'reports'>;
 export type ReportSchedule = Tables<'report_schedules'>;
@@ -66,26 +67,37 @@ export interface ReportFormData {
     suite_id?: string;
     severity?: string[];
     status?: string[];
+    [key: string]: any;
   };
+  custom_config?: CustomReportConfig; // NEW: Custom report configuration
 }
 
 export interface ReportScheduleFormData {
-  suite_id: any;
   report_id?: string;
+  suite_id: string;
+  name: string;
   type: ReportType;
   frequency: ReportFrequency;
   emails: string[];
   is_active: boolean;
-  filters?: ReportFormData['filters'];
-  name: string;
+  filters?: {
+    date_range?: { start: string; end: string };
+    sprint_id?: string;
+    user_id?: string;
+    severity?: string[];
+    status?: string[];
+    [key: string]: any;
+  };
+  custom_config?: CustomReportConfig; // NEW: Custom report configuration
 }
 
 export interface ReportWithCreator extends Report {
   [x: string]: any;
   creator?: {
     id: string;
-    name: string;
+    name?: string;
     email: string;
+    full_name?: string;
     avatar_url?: string;
   };
   schedule?: ReportSchedule;
@@ -93,5 +105,14 @@ export interface ReportWithCreator extends Report {
 
 export interface ReportScheduleWithReport extends ReportSchedule {
   [x: string]: any;
-  report?: Report;
+  custom_config?: CustomReportConfig; // NEW: Custom report configuration
+  report?: {
+    id: string;
+    name: string;
+  };
+  suite?: {
+    id: string;
+    name: string;
+    description?: string;
+  };
 }
