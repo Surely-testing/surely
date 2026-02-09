@@ -496,7 +496,7 @@ async function sendReportEmail({
         custom: 'Custom Report',
     };
 
-    const subject = `[Manual Run] ${reportTypeNames[schedule.type] || 'Report'} - ${suiteName}`;
+    const subject = `${reportTypeNames[schedule.type] || 'Report'} - ${suiteName}`;
 
     // Validate email configuration
     if (!process.env.RESEND_API_KEY) {
