@@ -1,6 +1,7 @@
 // ============================================
 // FILE: app/api/schedules/[scheduleId]/run/route.ts
 // API endpoint to manually trigger a scheduled report
+// UPDATED: Proper "from" display name in emails
 // ============================================
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -498,6 +499,11 @@ async function sendReportEmail({
 
     const subject = `${reportTypeNames[schedule.type] || 'Report'} - ${suiteName}`;
 
+    // Build from address with suite name for better inbox organization
+    // e.g., "Newly Reports" <reports@testsurely.com>
+    const fromAddress = process.env.EMAIL_FROM || 
+        `"${suiteName} Reports" <reports@testsurely.com>`;
+
     // Validate email configuration
     if (!process.env.RESEND_API_KEY) {
         throw new Error('RESEND_API_KEY is not configured');
@@ -513,7 +519,7 @@ async function sendReportEmail({
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                from: process.env.EMAIL_FROM || 'reports@yourapp.com',
+                from: fromAddress,
                 to: schedule.emails,
                 subject,
                 html: emailHtml,

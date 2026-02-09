@@ -1,5 +1,6 @@
 // ============================================
 // FILE: app/api/cron/send-scheduled-reports/route.ts
+// UPDATED: Suite name in email from field
 // ============================================
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -421,6 +422,11 @@ async function sendReportEmail({
 
   const subject = `${reportTypeNames[schedule.type] || 'Report'} - ${suiteName}`;
 
+  // Build from address with suite name for better inbox organization
+  // e.g., "Newly Reports" <reports@testsurely.com>
+  const fromAddress = process.env.EMAIL_FROM || 
+    `"${suiteName} Reports" <reports@testsurely.com>`;
+
   try {
     logger.log(`[EMAIL] Sending to ${schedule.emails.length} recipients`);
 
@@ -431,7 +437,7 @@ async function sendReportEmail({
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM || 'reports@yourapp.com',
+        from: fromAddress,
         to: schedule.emails,
         subject,
         html: emailHtml,
