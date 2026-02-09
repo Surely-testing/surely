@@ -3,6 +3,8 @@
 // Shared email template for both manual and automated reports
 // ============================================
 
+import { LOGO_URL, APP_NAME, SUPPORT_EMAIL } from '@/config/logo';
+
 interface ReportEmailTemplateProps {
   reportType: string;
   suiteName: string;
@@ -42,6 +44,25 @@ export function generateReportEmailTemplate({
   const recommendations = generateRecommendations(reportType, data.metrics);
   const statusIndicator = getStatusIndicator(reportType, data.metrics);
 
+  // Logo configuration - use config file first, fallback to environment
+  // For email compatibility, we need the full absolute URL
+  let logoUrl = process.env.NEXT_PUBLIC_APP_LOGO_URL;
+  
+  // If no environment variable, construct from LOGO_URL constant
+  if (!logoUrl) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+    // If LOGO_URL is a relative path (starts with /), prepend base URL
+    if (LOGO_URL.startsWith('/')) {
+      logoUrl = `${baseUrl}${LOGO_URL}`;
+    } else {
+      // If LOGO_URL is already absolute (https://...), use as is
+      logoUrl = LOGO_URL;
+    }
+  }
+  
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || APP_NAME;
+  const supportEmail = process.env.SUPPORT_EMAIL || SUPPORT_EMAIL;
+
   return `
     <!DOCTYPE html>
     <html>
@@ -79,6 +100,13 @@ export function generateReportEmailTemplate({
             text-align: center;
           }
           
+          .header-logo {
+            max-width: 120px;
+            height: auto;
+            margin-bottom: 12px;
+            display: inline-block;
+          }
+          
           .header h1 { 
             font-size: 26px; 
             font-weight: 700;
@@ -113,7 +141,7 @@ export function generateReportEmailTemplate({
             backdrop-filter: blur(10px);
           }
           
-          .manual-run-badge {
+          .quick-report-badge {
             background: linear-gradient(135deg, #F7A332 0%, #FFB84D 100%);
           }
           
@@ -124,9 +152,7 @@ export function generateReportEmailTemplate({
             border-radius: 8px;
             font-size: 13px;
             font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+            display: inline-block;
           }
           
           .status-excellent { 
@@ -202,46 +228,54 @@ export function generateReportEmailTemplate({
             font-weight: 700;
           }
           
-          /* Horizontal Metrics Grid - Responsive */
-          .metrics-grid {
-            display: flex;
-            gap: 12px;
+          /* Metrics Table - Full Width */
+          .metrics-table {
             width: 100%;
-            flex-wrap: wrap;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 24px;
           }
           
-          .metric-card {
+          .metrics-table td {
             background: linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);
-            padding: 16px;
-            border-radius: 8px;
+            padding: 20px 16px;
             border: 2px solid #E4E4E7;
-            transition: all 0.3s ease;
-            flex: 1;
-            min-width: 120px;
             text-align: center;
+            transition: all 0.3s ease;
           }
           
-          .metric-card h3 {
+          .metrics-table td:first-child {
+            border-radius: 8px 0 0 8px;
+          }
+          
+          .metrics-table td:last-child {
+            border-radius: 0 8px 8px 0;
+          }
+          
+          .metric-header {
             font-size: 10px;
             text-transform: uppercase;
             color: #71717A;
             font-weight: 700;
             letter-spacing: 0.8px;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+            display: block;
           }
           
-          .metric-card .value {
-            font-size: 28px;
+          .metric-value {
+            font-size: 32px;
             font-weight: 800;
             color: #326FF7;
             line-height: 1;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
+            display: block;
           }
           
-          .metric-card .label {
+          .metric-label {
             font-size: 11px;
             color: #71717A;
             font-weight: 500;
+            display: block;
           }
           
           /* Insights Section */
@@ -284,9 +318,6 @@ export function generateReportEmailTemplate({
             font-weight: 700;
             color: #78350f;
             margin-bottom: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
           }
           
           .recommendation-item {
@@ -364,6 +395,13 @@ export function generateReportEmailTemplate({
             color: #A1A1AA;
           }
           
+          .footer-logo {
+            max-width: 100px;
+            height: auto;
+            margin-bottom: 12px;
+            opacity: 0.7;
+          }
+          
           /* Responsive Design */
           @media only screen and (max-width: 600px) {
             .header {
@@ -378,16 +416,16 @@ export function generateReportEmailTemplate({
               padding: 20px 16px;
             }
             
-            .metrics-grid {
-              flex-direction: column;
-              gap: 10px;
+            .metrics-table {
+              display: block;
+              overflow-x: auto;
             }
             
-            .metric-card {
-              min-width: 100%;
+            .metrics-table td {
+              min-width: 100px;
             }
             
-            .metric-card .value {
+            .metric-value {
               font-size: 24px;
             }
             
@@ -400,14 +438,15 @@ export function generateReportEmailTemplate({
       <body>
         <div class="container">
           <div class="header">
+            ${logoUrl ? `<img src="${logoUrl}" alt="${appName} Logo" class="header-logo" style="display: block; margin: 0 auto 12px auto; max-width: 120px; height: auto;" />` : `<div style="font-size: 24px; font-weight: 800; margin-bottom: 12px;">${appName}</div>`}
             <h1>${reportName}</h1>
             <p class="suite-name">${suiteName}</p>
             <div class="badges">
               <span class="badge">${frequency.toUpperCase()}</span>
-              ${isManualRun ? '<span class="badge manual-run-badge">INSTANT RUN</span>' : ''}
+              ${isManualRun ? '<span class="badge quick-report-badge">QUICK REPORT</span>' : ''}
             </div>
             <div class="status-indicator ${statusIndicator.class}">
-              ${statusIndicator.icon} ${statusIndicator.message}
+              ${statusIndicator.message}
             </div>
           </div>
 
@@ -416,7 +455,7 @@ export function generateReportEmailTemplate({
               <h2>Executive Summary</h2>
               <p>${data.summary}</p>
               ${isManualRun ? '<p><strong>Note:</strong> This report was manually triggered and reflects real-time data.</p>' : ''}
-              <p class="period">📅 Reporting Period: ${periodText}</p>
+              <p class="period">Reporting Period: ${periodText}</p>
             </div>
 
             <div class="metrics-section">
@@ -426,7 +465,7 @@ export function generateReportEmailTemplate({
 
             ${data.insights && data.insights.length > 0 ? `
               <div class="insights-section">
-                <h2>💡 Key Insights</h2>
+                <h2>Key Insights</h2>
                 ${data.insights.map((insight: string) => `
                   <div class="insight-item">${insight}</div>
                 `).join('')}
@@ -444,18 +483,19 @@ export function generateReportEmailTemplate({
 
             <div class="cta-section">
               <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reports" class="cta-button">
-                View Full Dashboard →
+                View Full Dashboard
               </a>
             </div>
           </div>
 
           <div class="footer">
             <p><strong>What's Next?</strong> Review the recommendations above and take action to improve your quality metrics.</p>
-            <p>Questions about this report? <a href="mailto:support@testsurely.com">Contact Support</a></p>
+            <p>Questions about this report? <a href="mailto:${supportEmail}">Contact Support</a></p>
             <div class="branding">
+              ${logoUrl ? `<img src="${logoUrl}" alt="${appName} Logo" class="footer-logo" style="display: block; margin: 0 auto 12px auto; max-width: 100px; height: auto; opacity: 0.7;" />` : ''}
               <p>
-                This ${isManualRun ? 'instant' : frequency} report was generated automatically by Your QA Platform<br>
-                To manage your report schedules, visit your <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reports">dashboard</a>
+                This ${isManualRun ? 'quick' : frequency} report was generated automatically by ${appName}<br>
+                To manage your report schedules, visit your <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reports">Dashboard</a>
               </p>
             </div>
           </div>
@@ -528,7 +568,7 @@ function generateRecommendations(reportType: string, metrics: any): string[] {
   return recommendations;
 }
 
-function getStatusIndicator(reportType: string, metrics: any): { class: string; icon: string; message: string } {
+function getStatusIndicator(reportType: string, metrics: any): { class: string; message: string } {
   let score = 0;
   let total = 0;
 
@@ -561,19 +601,19 @@ function getStatusIndicator(reportType: string, metrics: any): { class: string; 
   }
 
   if (total === 0) {
-    return { class: 'status-good', icon: '📋', message: 'Report Generated - Review data to establish baseline' };
+    return { class: 'status-good', message: 'Report Generated - Review data to establish baseline' };
   }
 
   const percentage = (score / total) * 100;
 
   if (percentage >= 80) {
-    return { class: 'status-excellent', icon: '✅', message: 'Excellent - Quality metrics are strong' };
+    return { class: 'status-excellent', message: 'Excellent - Quality metrics are strong' };
   } else if (percentage >= 60) {
-    return { class: 'status-good', icon: '👍', message: 'Good - Minor improvements recommended' };
+    return { class: 'status-good', message: 'Good - Minor improvements recommended' };
   } else if (percentage >= 40) {
-    return { class: 'status-warning', icon: '⚠️', message: 'Attention Needed - Several areas require improvement' };
+    return { class: 'status-warning', message: 'Attention Needed - Several areas require improvement' };
   } else {
-    return { class: 'status-critical', icon: '🚨', message: 'Critical - Immediate action required' };
+    return { class: 'status-critical', message: 'Critical - Immediate action required' };
   }
 }
 
@@ -581,76 +621,82 @@ function generateMetricsHTML(reportType: string, metrics: any): string {
   switch (reportType) {
     case 'test_coverage':
       return `
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <h3>Total Tests</h3>
-            <div class="value">${metrics.totalTests || 0}</div>
-          </div>
-          <div class="metric-card">
-            <h3>Pass Rate</h3>
-            <div class="value">${metrics.coveragePercentage || 0}%</div>
-          </div>
-          <div class="metric-card">
-            <h3>Passed</h3>
-            <div class="value" style="color: #35D68B;">${metrics.passedTests || 0}</div>
-            <div class="label" style="color: #35D68B;">✓ Passed</div>
-          </div>
-          <div class="metric-card">
-            <h3>Failed</h3>
-            <div class="value" style="color: #F15555;">${metrics.failedTests || 0}</div>
-            <div class="label" style="color: #F15555;">✗ Failed</div>
-          </div>
-        </div>
+        <table class="metrics-table">
+          <tr>
+            <td>
+              <span class="metric-header">Total Tests</span>
+              <span class="metric-value">${metrics.totalTests || 0}</span>
+            </td>
+            <td>
+              <span class="metric-header">Pass Rate</span>
+              <span class="metric-value">${metrics.coveragePercentage || 0}%</span>
+            </td>
+            <td>
+              <span class="metric-header">Passed</span>
+              <span class="metric-value" style="color: #35D68B;">${metrics.passedTests || 0}</span>
+              <span class="metric-label" style="color: #35D68B;">Passed</span>
+            </td>
+            <td>
+              <span class="metric-header">Failed</span>
+              <span class="metric-value" style="color: #F15555;">${metrics.failedTests || 0}</span>
+              <span class="metric-label" style="color: #F15555;">Failed</span>
+            </td>
+          </tr>
+        </table>
       `;
 
     case 'bug_trends':
       return `
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <h3>Total Bugs</h3>
-            <div class="value">${metrics.totalBugs || 0}</div>
-          </div>
-          <div class="metric-card">
-            <h3>Resolution Rate</h3>
-            <div class="value">${metrics.totalBugs > 0
-                ? Math.round((metrics.resolvedBugs / metrics.totalBugs) * 100)
-                : 0
-            }%</div>
-          </div>
-          <div class="metric-card">
-            <h3>Open Bugs</h3>
-            <div class="value" style="color: #F7A332;">${metrics.openBugs || 0}</div>
-            <div class="label" style="color: #F7A332;">Needs attention</div>
-          </div>
-          <div class="metric-card">
-            <h3>Critical</h3>
-            <div class="value" style="color: #F15555;">${metrics.criticalUnresolved || 0}</div>
-            <div class="label" style="color: #F15555;">Unresolved</div>
-          </div>
-        </div>
+        <table class="metrics-table">
+          <tr>
+            <td>
+              <span class="metric-header">Total Bugs</span>
+              <span class="metric-value">${metrics.totalBugs || 0}</span>
+            </td>
+            <td>
+              <span class="metric-header">Resolution Rate</span>
+              <span class="metric-value">${metrics.totalBugs > 0
+                  ? Math.round((metrics.resolvedBugs / metrics.totalBugs) * 100)
+                  : 0
+              }%</span>
+            </td>
+            <td>
+              <span class="metric-header">Open Bugs</span>
+              <span class="metric-value" style="color: #F7A332;">${metrics.openBugs || 0}</span>
+              <span class="metric-label" style="color: #F7A332;">Needs attention</span>
+            </td>
+            <td>
+              <span class="metric-header">Critical</span>
+              <span class="metric-value" style="color: #F15555;">${metrics.criticalUnresolved || 0}</span>
+              <span class="metric-label" style="color: #F15555;">Unresolved</span>
+            </td>
+          </tr>
+        </table>
       `;
 
     case 'custom':
       return `
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <h3>Total Tests</h3>
-            <div class="value">${metrics.totalTests || 0}</div>
-          </div>
-          <div class="metric-card">
-            <h3>Pass Rate</h3>
-            <div class="value">${metrics.coveragePercentage || 0}%</div>
-          </div>
-          <div class="metric-card">
-            <h3>Total Bugs</h3>
-            <div class="value">${metrics.totalBugs || 0}</div>
-          </div>
-          <div class="metric-card">
-            <h3>Critical Bugs</h3>
-            <div class="value" style="color: #F15555;">${metrics.criticalUnresolved || 0}</div>
-            <div class="label" style="color: #F15555;">Unresolved</div>
-          </div>
-        </div>
+        <table class="metrics-table">
+          <tr>
+            <td>
+              <span class="metric-header">Total Tests</span>
+              <span class="metric-value">${metrics.totalTests || 0}</span>
+            </td>
+            <td>
+              <span class="metric-header">Pass Rate</span>
+              <span class="metric-value">${metrics.coveragePercentage || 0}%</span>
+            </td>
+            <td>
+              <span class="metric-header">Total Bugs</span>
+              <span class="metric-value">${metrics.totalBugs || 0}</span>
+            </td>
+            <td>
+              <span class="metric-header">Critical Bugs</span>
+              <span class="metric-value" style="color: #F15555;">${metrics.criticalUnresolved || 0}</span>
+              <span class="metric-label" style="color: #F15555;">Unresolved</span>
+            </td>
+          </tr>
+        </table>
       `;
 
     default:
