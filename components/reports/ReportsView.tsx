@@ -1,7 +1,6 @@
 // ============================================
-// components/reports/ReportsView.tsx - FIXED
-// Main container with tabs: Reports | Schedules
-// FIX: Removed duplicate delete confirmations
+// components/reports/ReportsView.tsx - UPDATED
+// Added immediate loading toast when clicking "Run Now"
 // ============================================
 'use client';
 
@@ -93,11 +92,19 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
   } = useReportSchedules(suiteId);
 
   const handleRunScheduleNow = async (scheduleId: string) => {
+    // Show immediate loading feedback
+    const loadingToastId = `run-${scheduleId}`;
+    toast.loading('Generating report...', { id: loadingToastId });
+    
     try {
       await runScheduleNow(scheduleId);
+      // Dismiss loading toast
+      toast.dismiss(loadingToastId);
       // Refresh reports list immediately since the API creates the report synchronously
       await fetchReports();
     } catch (error) {
+      // Dismiss loading toast
+      toast.dismiss(loadingToastId);
       // Error is already handled by the hook
     }
   };
@@ -175,7 +182,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
         toast.success(`${deleteDialog.bulkIds.length} schedule(s) deleted`);
         setSelectedScheduleIds([]);
       }
-      closeDeleteDialog();  // ADD THIS LINE - Close dialog after successful delete
+      closeDeleteDialog();
     } catch (error: any) {
       toast.error('Delete failed', { description: error?.message });
     }
@@ -205,12 +212,10 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     }
   };
 
-  // FIX: Bulk action handlers now directly open the confirmation dialog
   const handleReportBulkAction = async (actionId: string, selectedIds: string[]) => {
     try {
       switch (actionId) {
         case 'delete':
-          // Open the confirmation dialog instead of performing delete immediately
           openDeleteDialog('bulk-report', undefined, undefined, selectedIds);
           break;
         case 'regenerate':
@@ -228,7 +233,6 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
     try {
       switch (actionId) {
         case 'delete':
-          // Open the confirmation dialog instead of performing delete immediately
           openDeleteDialog('bulk-schedule', undefined, undefined, selectedIds);
           break;
         case 'enable':
@@ -253,7 +257,6 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
 
   const isLoading = activeTab === 'reports' ? reportsLoading : schedulesLoading;
 
-  // Get dialog content based on type
   const getDeleteDialogContent = () => {
     const count = deleteDialog.bulkIds?.length || 0;
 

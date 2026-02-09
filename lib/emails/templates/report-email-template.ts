@@ -1,6 +1,5 @@
 // ============================================
 // FILE: lib/email/templates/report-email-template.ts
-// Shared email template for both manual and automated reports
 // ============================================
 
 import { LOGO_URL, APP_NAME, SUPPORT_EMAIL } from '@/config/logo';
@@ -44,465 +43,274 @@ export function generateReportEmailTemplate({
   const recommendations = generateRecommendations(reportType, data.metrics);
   const statusIndicator = getStatusIndicator(reportType, data.metrics);
 
-  // Logo configuration - use config file first, fallback to environment
-  // For email compatibility, we need the full absolute URL
+  // Logo configuration
   let logoUrl = process.env.NEXT_PUBLIC_APP_LOGO_URL;
-  
-  // If no environment variable, construct from LOGO_URL constant
   if (!logoUrl) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
-    // If LOGO_URL is a relative path (starts with /), prepend base URL
     if (LOGO_URL.startsWith('/')) {
       logoUrl = `${baseUrl}${LOGO_URL}`;
     } else {
-      // If LOGO_URL is already absolute (https://...), use as is
       logoUrl = LOGO_URL;
     }
   }
   
   const appName = process.env.NEXT_PUBLIC_APP_NAME || APP_NAME;
   const supportEmail = process.env.SUPPORT_EMAIL || SUPPORT_EMAIL;
+  const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reports`;
 
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-          }
-          
-          body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6; 
-            color: #18181B;
-            background-color: #F4F4F5;
-            padding: 0;
-            margin: 0;
-          }
-          
-          .container { 
-            max-width: 100%;
-            width: 100%;
-            margin: 0 auto; 
-            background: #FFFFFF;
-          }
-          
-          /* Header - Using primary theme colors */
-          .header { 
-            background: linear-gradient(135deg, #326FF7 0%, #4D84F9 100%);
-            color: white; 
-            padding: 32px 24px;
-            text-align: center;
-          }
-          
-          .header-logo {
-            max-width: 120px;
-            height: auto;
-            margin-bottom: 12px;
-            display: inline-block;
-          }
-          
-          .header h1 { 
-            font-size: 26px; 
-            font-weight: 700;
-            margin-bottom: 8px;
-            letter-spacing: -0.3px;
-          }
-          
-          .header .suite-name { 
-            font-size: 15px; 
-            opacity: 0.95;
-            font-weight: 500;
-            margin-top: 6px;
-          }
-          
-          .badges {
-            display: flex;
-            gap: 8px;
-            margin-top: 14px;
-            justify-content: center;
-            flex-wrap: wrap;
-          }
-          
-          .badge {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            backdrop-filter: blur(10px);
-          }
-          
-          .quick-report-badge {
-            background: linear-gradient(135deg, #F7A332 0%, #FFB84D 100%);
-          }
-          
-          /* Status Indicator */
-          .status-indicator {
-            margin-top: 16px;
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            display: inline-block;
-          }
-          
-          .status-excellent { 
-            background: rgba(53, 214, 139, 0.15); 
-            color: #065f46; 
-            border: 2px solid #35D68B; 
-          }
-          
-          .status-good { 
-            background: rgba(50, 111, 247, 0.15); 
-            color: #1e3a8a; 
-            border: 2px solid #326FF7; 
-          }
-          
-          .status-warning { 
-            background: rgba(247, 163, 50, 0.15); 
-            color: #78350f; 
-            border: 2px solid #F7A332; 
-          }
-          
-          .status-critical { 
-            background: rgba(241, 85, 85, 0.15); 
-            color: #7f1d1d; 
-            border: 2px solid #F15555; 
-          }
-          
-          /* Content */
-          .content { 
-            padding: 28px 24px;
-          }
-          
-          /* Executive Summary */
-          .executive-summary {
-            background: linear-gradient(135deg, #EFF5FF 0%, #DBE9FE 100%);
-            border-left: 4px solid #326FF7;
-            padding: 20px;
-            margin-bottom: 24px;
-            border-radius: 8px;
-            width: 100%;
-          }
-          
-          .executive-summary h2 {
-            font-size: 16px;
-            color: #1D57D2;
-            margin-bottom: 10px;
-            font-weight: 700;
-          }
-          
-          .executive-summary p {
-            color: #27272A;
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 6px;
-          }
-          
-          .executive-summary .period {
-            font-size: 12px;
-            color: #326FF7;
-            font-weight: 600;
-            margin-top: 10px;
-          }
-          
-          /* Metrics Section */
-          .metrics-section {
-            margin-bottom: 24px;
-            width: 100%;
-          }
-          
-          .metrics-section h2 {
-            font-size: 18px;
-            color: #18181B;
-            margin-bottom: 16px;
-            font-weight: 700;
-          }
-          
-          /* Metrics Table - Full Width */
-          .metrics-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin-bottom: 24px;
-          }
-          
-          .metrics-table td {
-            background: linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);
-            padding: 20px 16px;
-            border: 2px solid #E4E4E7;
-            text-align: center;
-            transition: all 0.3s ease;
-          }
-          
-          .metrics-table td:first-child {
-            border-radius: 8px 0 0 8px;
-          }
-          
-          .metrics-table td:last-child {
-            border-radius: 0 8px 8px 0;
-          }
-          
-          .metric-header {
-            font-size: 10px;
-            text-transform: uppercase;
-            color: #71717A;
-            font-weight: 700;
-            letter-spacing: 0.8px;
-            margin-bottom: 10px;
-            display: block;
-          }
-          
-          .metric-value {
-            font-size: 32px;
-            font-weight: 800;
-            color: #326FF7;
-            line-height: 1;
-            margin-bottom: 6px;
-            display: block;
-          }
-          
-          .metric-label {
-            font-size: 11px;
-            color: #71717A;
-            font-weight: 500;
-            display: block;
-          }
-          
-          /* Insights Section */
-          .insights-section {
-            margin-top: 24px;
-            width: 100%;
-          }
-          
-          .insights-section h2 {
-            font-size: 18px;
-            font-weight: 700;
-            color: #18181B;
-            margin-bottom: 14px;
-          }
-          
-          .insight-item {
-            background: linear-gradient(135deg, #EFF5FF 0%, #FFFFFF 100%);
-            border-left: 3px solid #326FF7;
-            padding: 12px 16px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            font-size: 13px;
-            color: #27272A;
-            line-height: 1.5;
-            width: 100%;
-          }
-          
-          /* Recommendations Section */
-          .recommendations-section {
-            background: linear-gradient(135deg, #FFF4E6 0%, #FFE8CC 100%);
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 24px;
-            border: 2px solid #F7A332;
-            width: 100%;
-          }
-          
-          .recommendations-section h2 {
-            font-size: 18px;
-            font-weight: 700;
-            color: #78350f;
-            margin-bottom: 14px;
-          }
-          
-          .recommendation-item {
-            background: white;
-            padding: 12px 16px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            border-left: 3px solid #F7A332;
-            font-size: 13px;
-            color: #27272A;
-            line-height: 1.5;
-            width: 100%;
-          }
-          
-          .recommendation-item:last-child {
-            margin-bottom: 0;
-          }
-          
-          .recommendation-item strong {
-            color: #78350f;
-            font-weight: 700;
-          }
-          
-          /* CTA Section */
-          .cta-section {
-            text-align: center;
-            margin-top: 28px;
-            padding-top: 24px;
-            border-top: 2px solid #E4E4E7;
-            width: 100%;
-          }
-          
-          .cta-button {
-            display: inline-block;
-            background: linear-gradient(135deg, #326FF7 0%, #4D84F9 100%);
-            color: white;
-            padding: 14px 32px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 14px;
-            box-shadow: 0 4px 15px rgba(50, 111, 247, 0.3);
-            transition: all 0.3s ease;
-          }
-          
-          /* Footer */
-          .footer { 
-            background: #F9FAFB;
-            padding: 28px 24px;
-            text-align: center;
-            border-top: 2px solid #E4E4E7;
-          }
-          
-          .footer p { 
-            color: #71717A; 
-            font-size: 12px;
-            margin-bottom: 8px;
-            line-height: 1.5;
-          }
-          
-          .footer a {
-            color: #326FF7;
-            text-decoration: none;
-            font-weight: 600;
-          }
-          
-          .footer .branding {
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid #E4E4E7;
-          }
-          
-          .footer .branding p {
-            font-size: 11px;
-            color: #A1A1AA;
-          }
-          
-          .footer-logo {
-            max-width: 100px;
-            height: auto;
-            margin-bottom: 12px;
-            opacity: 0.7;
-          }
-          
-          /* Responsive Design */
-          @media only screen and (max-width: 600px) {
-            .header {
-              padding: 24px 20px;
-            }
-            
-            .header h1 {
-              font-size: 22px;
-            }
-            
-            .content {
-              padding: 20px 16px;
-            }
-            
-            .metrics-table {
-              display: block;
-              overflow-x: auto;
-            }
-            
-            .metrics-table td {
-              min-width: 100px;
-            }
-            
-            .metric-value {
-              font-size: 24px;
-            }
-            
-            .footer {
-              padding: 20px 16px;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            ${logoUrl ? `<img src="${logoUrl}" alt="${appName} Logo" class="header-logo" style="display: block; margin: 0 auto 12px auto; max-width: 120px; height: auto;" />` : `<div style="font-size: 24px; font-weight: 800; margin-bottom: 12px;">${appName}</div>`}
-            <h1>${reportName}</h1>
-            <p class="suite-name">${suiteName}</p>
-            <div class="badges">
-              <span class="badge">${frequency.toUpperCase()}</span>
-              ${isManualRun ? '<span class="badge quick-report-badge">QUICK REPORT</span>' : ''}
-            </div>
-            <div class="status-indicator ${statusIndicator.class}">
-              ${statusIndicator.message}
-            </div>
-          </div>
+  // Status indicator colors
+  const statusColors = {
+    'status-excellent': { bg: 'rgba(53, 214, 139, 0.15)', border: '#35D68B', text: '#065f46' },
+    'status-good': { bg: 'rgba(50, 111, 247, 0.15)', border: '#326FF7', text: '#1e3a8a' },
+    'status-warning': { bg: 'rgba(247, 163, 50, 0.15)', border: '#F7A332', text: '#78350f' },
+    'status-critical': { bg: 'rgba(241, 85, 85, 0.15)', border: '#F15555', text: '#7f1d1d' },
+  };
 
-          <div class="content">
-            <div class="executive-summary">
-              <h2>Executive Summary</h2>
-              <p>${data.summary}</p>
-              ${isManualRun ? '<p><strong>Note:</strong> This report was manually triggered and reflects real-time data.</p>' : ''}
-              <p class="period">Reporting Period: ${periodText}</p>
-            </div>
+  const statusStyle = statusColors[statusIndicator.class as keyof typeof statusColors];
 
-            <div class="metrics-section">
-              <h2>Key Metrics</h2>
+  return `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <style>
+    table {border-collapse: collapse;}
+  </style>
+  <![endif]-->
+  <style>
+    body { margin: 0; padding: 0; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+    p { display: block; margin: 13px 0; }
+    
+    /* Responsive styles */
+    @media only screen and (max-width: 740px) {
+      .email-container { width: 100% !important; max-width: 100% !important; }
+      .desktop-metrics { display: none !important; }
+      .mobile-metrics { display: table !important; width: 100% !important; }
+      .content-padding { padding: 24px 16px !important; }
+      .header-padding { padding: 28px 16px !important; }
+    }
+    
+    @media only screen and (max-width: 480px) {
+      .content-padding { padding: 20px 12px !important; }
+      .header-padding { padding: 24px 12px !important; }
+      .outer-padding { padding: 10px 5px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;word-spacing:normal;background-color:#f4f4f5;">
+  
+  <!-- Outer wrapper table -->
+  <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;background:#f4f4f5;">
+    <tr>
+      <td align="center" class="outer-padding" style="padding:20px 5px;">
+        
+        <!-- Main email container - 720px width for maximum content space -->
+        <table role="presentation" class="email-container" style="width:720px;max-width:720px;border-collapse:collapse;border:0;border-spacing:0;background:#ffffff;">
+          
+          <!-- HEADER SECTION -->
+          <tr>
+            <td align="center" class="header-padding" style="padding:32px 24px;background-color:#326FF7;background-image:linear-gradient(135deg, #326FF7 0%, #4D84F9 100%);">
+              <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;">
+                
+                <!-- Logo -->
+                ${logoUrl ? `
+                <tr>
+                  <td align="center" style="padding:0 0 12px 0;">
+                    <img src="${logoUrl}" alt="${appName}" width="120" style="height:auto;display:block;border:0;max-width:120px;" />
+                  </td>
+                </tr>
+                ` : ''}
+                
+                <!-- Report Title -->
+                <tr>
+                  <td align="center" style="padding:0 0 8px 0;color:#ffffff;font-size:26px;line-height:30px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                    ${reportName}
+                  </td>
+                </tr>
+                
+                <!-- Suite Name -->
+                <tr>
+                  <td align="center" style="padding:0 0 14px 0;color:#ffffff;font-size:15px;line-height:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;opacity:0.95;">
+                    ${suiteName}
+                  </td>
+                </tr>
+                
+                <!-- Badges -->
+                <tr>
+                  <td align="center" style="padding:0 0 16px 0;">
+                    <table role="presentation" style="border-collapse:collapse;border:0;border-spacing:0;">
+                      <tr>
+                        <td style="padding:6px 12px;background-color:rgba(255,255,255,0.2);border-radius:20px;color:#ffffff;font-size:11px;line-height:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                          ${frequency.toUpperCase()}
+                        </td>
+                        ${isManualRun ? `
+                        <td width="8"></td>
+                        <td style="padding:6px 12px;background-color:#F7A332;background-image:linear-gradient(135deg, #F7A332 0%, #FFB84D 100%);border-radius:20px;color:#ffffff;font-size:11px;line-height:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                          QUICK REPORT
+                        </td>
+                        ` : ''}
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Status Indicator -->
+                <tr>
+                  <td align="center" style="padding:0;">
+                    <table role="presentation" style="border-collapse:collapse;border:0;border-spacing:0;">
+                      <tr>
+                        <td style="padding:12px 16px;background-color:${statusStyle.bg};border:2px solid ${statusStyle.border};border-radius:8px;color:${statusStyle.text};font-size:13px;line-height:16px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                          ${statusIndicator.message}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+              </table>
+            </td>
+          </tr>
+          
+          <!-- CONTENT SECTION -->
+          <tr>
+            <td class="content-padding" style="padding:32px 28px;">
+              
+              <!-- Executive Summary -->
+              <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;background:#EFF5FF;background-image:linear-gradient(135deg, #EFF5FF 0%, #DBE9FE 100%);border-left:4px solid #326FF7;border-radius:8px;margin-bottom:28px;">
+                <tr>
+                  <td style="padding:22px 24px;">
+                    <h2 style="margin:0 0 10px 0;padding:0;color:#1D57D2;font-size:16px;line-height:20px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                      Executive Summary
+                    </h2>
+                    <p style="margin:0 0 6px 0;padding:0;color:#27272A;font-size:14px;line-height:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                      ${data.summary}
+                    </p>
+                    ${isManualRun ? `
+                    <p style="margin:6px 0;padding:0;color:#27272A;font-size:14px;line-height:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                      <strong>Note:</strong> This report was manually triggered and reflects real-time data.
+                    </p>
+                    ` : ''}
+                    <p style="margin:10px 0 0 0;padding:0;color:#326FF7;font-size:12px;line-height:16px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                      Reporting Period: ${periodText}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Key Metrics Section -->
+              <h2 style="margin:0 0 18px 0;padding:0;color:#18181B;font-size:18px;line-height:24px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                Key Metrics
+              </h2>
+              
               ${generateMetricsHTML(reportType, data.metrics)}
-            </div>
-
-            ${data.insights && data.insights.length > 0 ? `
-              <div class="insights-section">
-                <h2>Key Insights</h2>
-                ${data.insights.map((insight: string) => `
-                  <div class="insight-item">${insight}</div>
-                `).join('')}
-              </div>
-            ` : ''}
-
-            ${recommendations.length > 0 ? `
-              <div class="recommendations-section">
-                <h2>Recommended Actions</h2>
-                ${recommendations.map((rec: string) => `
-                  <div class="recommendation-item">${rec}</div>
-                `).join('')}
-              </div>
-            ` : ''}
-
-            <div class="cta-section">
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reports" class="cta-button">
-                View Full Dashboard
-              </a>
-            </div>
-          </div>
-
-          <div class="footer">
-            <p><strong>What's Next?</strong> Review the recommendations above and take action to improve your quality metrics.</p>
-            <p>Questions about this report? <a href="mailto:${supportEmail}">Contact Support</a></p>
-            <div class="branding">
-              ${logoUrl ? `<img src="${logoUrl}" alt="${appName} Logo" class="footer-logo" style="display: block; margin: 0 auto 12px auto; max-width: 100px; height: auto; opacity: 0.7;" />` : ''}
-              <p>
-                This ${isManualRun ? 'quick' : frequency} report was generated automatically by ${appName}<br>
-                To manage your report schedules, visit your <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reports">Dashboard</a>
-              </p>
-            </div>
-          </div>
-        </div>
-      </body>
-    </html>
-  `;
+              
+              <!-- Key Insights Section -->
+              ${data.insights && data.insights.length > 0 ? `
+              <h2 style="margin:28px 0 16px 0;padding:0;color:#18181B;font-size:18px;line-height:24px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                Key Insights
+              </h2>
+              ${data.insights.map((insight: string) => `
+              <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;background:#EFF5FF;background-image:linear-gradient(135deg, #EFF5FF 0%, #FFFFFF 100%);border-left:3px solid #326FF7;border-radius:6px;margin-bottom:10px;">
+                <tr>
+                  <td style="padding:14px 18px;color:#27272A;font-size:13px;line-height:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                    ${insight}
+                  </td>
+                </tr>
+              </table>
+              `).join('')}
+              ` : ''}
+              
+              <!-- Recommendations Section -->
+              ${recommendations.length > 0 ? `
+              <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;background:#FFF4E6;background-image:linear-gradient(135deg, #FFF4E6 0%, #FFE8CC 100%);border:2px solid #F7A332;border-radius:8px;margin-top:28px;">
+                <tr>
+                  <td style="padding:22px 24px;">
+                    <h2 style="margin:0 0 16px 0;padding:0;color:#78350f;font-size:18px;line-height:24px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                      Recommended Actions
+                    </h2>
+                    ${recommendations.map((rec: string) => `
+                    <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;background:#ffffff;border-left:3px solid #F7A332;border-radius:6px;margin-bottom:10px;">
+                      <tr>
+                        <td style="padding:14px 18px;color:#27272A;font-size:13px;line-height:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                          ${rec}
+                        </td>
+                      </tr>
+                    </table>
+                    `).join('')}
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
+              
+              <!-- CTA Button Section -->
+              <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;margin-top:32px;padding-top:28px;">
+                <tr>
+                  <td align="center" style="padding:0;">
+                    <table role="presentation" style="border-collapse:collapse;border:0;border-spacing:0;">
+                      <tr>
+                        <td style="border-radius:8px;background-color:#326FF7;background-image:linear-gradient(135deg, #326FF7 0%, #4D84F9 100%);">
+                          <a href="${dashboardUrl}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:14px;line-height:18px;font-weight:700;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                            View Full Dashboard
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+            </td>
+          </tr>
+          
+          <!-- FOOTER SECTION -->
+          <tr>
+            <td style="padding:28px 24px;background:#F9FAFB;border-top:2px solid #E4E4E7;">
+              <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;">
+                <tr>
+                  <td align="center" style="padding:0 0 8px 0;color:#71717A;font-size:12px;line-height:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                    <strong>What's Next?</strong> Review the recommendations above and take action to improve your quality metrics.
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding:0 0 16px 0;color:#71717A;font-size:12px;line-height:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                    Questions about this report? <a href="mailto:${supportEmail}" style="color:#326FF7;text-decoration:none;font-weight:600;">Contact Support</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding:16px 0 0 0;border-top:1px solid #E4E4E7;">
+                    ${logoUrl ? `
+                    <img src="${logoUrl}" alt="${appName}" width="100" style="height:auto;display:block;border:0;max-width:100px;opacity:0.7;margin:0 auto 12px auto;" />
+                    ` : ''}
+                    <p style="margin:0;padding:0;color:#A1A1AA;font-size:11px;line-height:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+                      This ${isManualRun ? 'quick' : frequency} report was generated automatically by ${appName}<br>
+                      To manage your report schedules, visit your <a href="${dashboardUrl}" style="color:#326FF7;text-decoration:none;font-weight:600;">Dashboard</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+        </table>
+        
+      </td>
+    </tr>
+  </table>
+  
+</body>
+</html>`;
 }
 
 // ============================================
@@ -559,7 +367,6 @@ function generateRecommendations(reportType: string, metrics: any): string[] {
       break;
   }
 
-  // Add general recommendations if no specific ones
   if (recommendations.length === 0) {
     recommendations.push('<strong>Maintain Momentum:</strong> Your quality metrics look good. Keep up the excellent work and continue monitoring trends.');
     recommendations.push('<strong>Next Steps:</strong> Consider expanding your test coverage to include edge cases and integration scenarios.');
@@ -621,82 +428,119 @@ function generateMetricsHTML(reportType: string, metrics: any): string {
   switch (reportType) {
     case 'test_coverage':
       return `
-        <table class="metrics-table">
+        <!-- Metrics Grid (Desktop) - 4 columns with more space -->
+        <table role="presentation" class="desktop-metrics" style="width:100%;border-collapse:separate;border-spacing:12px;margin-bottom:28px;">
           <tr>
-            <td>
-              <span class="metric-header">Total Tests</span>
-              <span class="metric-value">${metrics.totalTests || 0}</span>
+            ${[
+              { label: 'Total Tests', value: metrics.totalTests || 0, color: '#326FF7' },
+              { label: 'Pass Rate', value: `${metrics.coveragePercentage || 0}%`, color: '#326FF7' },
+              { label: 'Passed', value: metrics.passedTests || 0, sublabel: 'Passed', color: '#35D68B' },
+              { label: 'Failed', value: metrics.failedTests || 0, sublabel: 'Failed', color: '#F15555' }
+            ].map((metric) => `
+            <td style="padding:24px 20px;background:#FAFAFA;background-image:linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);border:2px solid #E4E4E7;border-radius:10px;text-align:center;width:25%;">
+              <div style="font-size:10px;text-transform:uppercase;color:#71717A;font-weight:700;letter-spacing:0.8px;margin-bottom:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.label}</div>
+              <div style="font-size:36px;font-weight:800;color:${metric.color};line-height:1;margin-bottom:${metric.sublabel ? '8' : '0'}px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.value}</div>
+              ${metric.sublabel ? `<div style="font-size:11px;color:${metric.color};font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.sublabel}</div>` : ''}
             </td>
-            <td>
-              <span class="metric-header">Pass Rate</span>
-              <span class="metric-value">${metrics.coveragePercentage || 0}%</span>
-            </td>
-            <td>
-              <span class="metric-header">Passed</span>
-              <span class="metric-value" style="color: #35D68B;">${metrics.passedTests || 0}</span>
-              <span class="metric-label" style="color: #35D68B;">Passed</span>
-            </td>
-            <td>
-              <span class="metric-header">Failed</span>
-              <span class="metric-value" style="color: #F15555;">${metrics.failedTests || 0}</span>
-              <span class="metric-label" style="color: #F15555;">Failed</span>
-            </td>
+            `).join('')}
           </tr>
         </table>
+        
+        <!-- Metrics Stacked (Mobile & Tablet) -->
+        ${[
+          { label: 'Total Tests', value: metrics.totalTests || 0, color: '#326FF7' },
+          { label: 'Pass Rate', value: `${metrics.coveragePercentage || 0}%`, color: '#326FF7' },
+          { label: 'Passed', value: metrics.passedTests || 0, sublabel: 'Passed', color: '#35D68B' },
+          { label: 'Failed', value: metrics.failedTests || 0, sublabel: 'Failed', color: '#F15555' }
+        ].map((metric, index) => `
+          <table role="presentation" class="mobile-metrics" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;margin-bottom:${index === 3 ? '28' : '12'}px;display:none;">
+            <tr>
+              <td style="padding:20px 18px;background:#FAFAFA;background-image:linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);border:2px solid #E4E4E7;border-radius:10px;text-align:center;">
+                <div style="font-size:10px;text-transform:uppercase;color:#71717A;font-weight:700;letter-spacing:0.8px;margin-bottom:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.label}</div>
+                <div style="font-size:28px;font-weight:800;color:${metric.color};line-height:1;margin-bottom:${metric.sublabel ? '6' : '0'}px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.value}</div>
+                ${metric.sublabel ? `<div style="font-size:11px;color:${metric.color};font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.sublabel}</div>` : ''}
+              </td>
+            </tr>
+          </table>
+        `).join('')}
       `;
 
     case 'bug_trends':
       return `
-        <table class="metrics-table">
+        <!-- Metrics Grid (Desktop) - 4 columns with more space -->
+        <table role="presentation" class="desktop-metrics" style="width:100%;border-collapse:separate;border-spacing:12px;margin-bottom:28px;">
           <tr>
-            <td>
-              <span class="metric-header">Total Bugs</span>
-              <span class="metric-value">${metrics.totalBugs || 0}</span>
+            ${[
+              { label: 'Total Bugs', value: metrics.totalBugs || 0, color: '#326FF7' },
+              { label: 'Resolution Rate', value: `${metrics.totalBugs > 0 ? Math.round((metrics.resolvedBugs / metrics.totalBugs) * 100) : 0}%`, color: '#326FF7' },
+              { label: 'Open Bugs', value: metrics.openBugs || 0, sublabel: 'Needs attention', color: '#F7A332' },
+              { label: 'Critical', value: metrics.criticalUnresolved || 0, sublabel: 'Unresolved', color: '#F15555' }
+            ].map((metric) => `
+            <td style="padding:24px 20px;background:#FAFAFA;background-image:linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);border:2px solid #E4E4E7;border-radius:10px;text-align:center;width:25%;">
+              <div style="font-size:10px;text-transform:uppercase;color:#71717A;font-weight:700;letter-spacing:0.8px;margin-bottom:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.label}</div>
+              <div style="font-size:36px;font-weight:800;color:${metric.color};line-height:1;margin-bottom:${metric.sublabel ? '8' : '0'}px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.value}</div>
+              ${metric.sublabel ? `<div style="font-size:11px;color:${metric.color};font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.sublabel}</div>` : ''}
             </td>
-            <td>
-              <span class="metric-header">Resolution Rate</span>
-              <span class="metric-value">${metrics.totalBugs > 0
-                  ? Math.round((metrics.resolvedBugs / metrics.totalBugs) * 100)
-                  : 0
-              }%</span>
-            </td>
-            <td>
-              <span class="metric-header">Open Bugs</span>
-              <span class="metric-value" style="color: #F7A332;">${metrics.openBugs || 0}</span>
-              <span class="metric-label" style="color: #F7A332;">Needs attention</span>
-            </td>
-            <td>
-              <span class="metric-header">Critical</span>
-              <span class="metric-value" style="color: #F15555;">${metrics.criticalUnresolved || 0}</span>
-              <span class="metric-label" style="color: #F15555;">Unresolved</span>
-            </td>
+            `).join('')}
           </tr>
         </table>
+        
+        <!-- Metrics Stacked (Mobile & Tablet) -->
+        ${[
+          { label: 'Total Bugs', value: metrics.totalBugs || 0, color: '#326FF7' },
+          { label: 'Resolution Rate', value: `${metrics.totalBugs > 0 ? Math.round((metrics.resolvedBugs / metrics.totalBugs) * 100) : 0}%`, color: '#326FF7' },
+          { label: 'Open Bugs', value: metrics.openBugs || 0, sublabel: 'Needs attention', color: '#F7A332' },
+          { label: 'Critical', value: metrics.criticalUnresolved || 0, sublabel: 'Unresolved', color: '#F15555' }
+        ].map((metric, index) => `
+          <table role="presentation" class="mobile-metrics" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;margin-bottom:${index === 3 ? '28' : '12'}px;display:none;">
+            <tr>
+              <td style="padding:20px 18px;background:#FAFAFA;background-image:linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);border:2px solid #E4E4E7;border-radius:10px;text-align:center;">
+                <div style="font-size:10px;text-transform:uppercase;color:#71717A;font-weight:700;letter-spacing:0.8px;margin-bottom:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.label}</div>
+                <div style="font-size:28px;font-weight:800;color:${metric.color};line-height:1;margin-bottom:${metric.sublabel ? '6' : '0'}px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.value}</div>
+                ${metric.sublabel ? `<div style="font-size:11px;color:${metric.color};font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.sublabel}</div>` : ''}
+              </td>
+            </tr>
+          </table>
+        `).join('')}
       `;
 
     case 'custom':
       return `
-        <table class="metrics-table">
+        <!-- Metrics Grid (Desktop) - 4 columns with more space -->
+        <table role="presentation" class="desktop-metrics" style="width:100%;border-collapse:separate;border-spacing:12px;margin-bottom:28px;">
           <tr>
-            <td>
-              <span class="metric-header">Total Tests</span>
-              <span class="metric-value">${metrics.totalTests || 0}</span>
+            ${[
+              { label: 'Total Tests', value: metrics.totalTests || 0, color: '#326FF7' },
+              { label: 'Pass Rate', value: `${metrics.coveragePercentage || 0}%`, color: '#326FF7' },
+              { label: 'Total Bugs', value: metrics.totalBugs || 0, color: '#326FF7' },
+              { label: 'Critical Bugs', value: metrics.criticalUnresolved || 0, sublabel: 'Unresolved', color: '#F15555' }
+            ].map((metric) => `
+            <td style="padding:24px 20px;background:#FAFAFA;background-image:linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);border:2px solid #E4E4E7;border-radius:10px;text-align:center;width:25%;">
+              <div style="font-size:10px;text-transform:uppercase;color:#71717A;font-weight:700;letter-spacing:0.8px;margin-bottom:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.label}</div>
+              <div style="font-size:36px;font-weight:800;color:${metric.color};line-height:1;margin-bottom:${metric.sublabel ? '8' : '0'}px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.value}</div>
+              ${metric.sublabel ? `<div style="font-size:11px;color:${metric.color};font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.sublabel}</div>` : ''}
             </td>
-            <td>
-              <span class="metric-header">Pass Rate</span>
-              <span class="metric-value">${metrics.coveragePercentage || 0}%</span>
-            </td>
-            <td>
-              <span class="metric-header">Total Bugs</span>
-              <span class="metric-value">${metrics.totalBugs || 0}</span>
-            </td>
-            <td>
-              <span class="metric-header">Critical Bugs</span>
-              <span class="metric-value" style="color: #F15555;">${metrics.criticalUnresolved || 0}</span>
-              <span class="metric-label" style="color: #F15555;">Unresolved</span>
-            </td>
+            `).join('')}
           </tr>
         </table>
+        
+        <!-- Metrics Stacked (Mobile & Tablet) -->
+        ${[
+          { label: 'Total Tests', value: metrics.totalTests || 0, color: '#326FF7' },
+          { label: 'Pass Rate', value: `${metrics.coveragePercentage || 0}%`, color: '#326FF7' },
+          { label: 'Total Bugs', value: metrics.totalBugs || 0, color: '#326FF7' },
+          { label: 'Critical Bugs', value: metrics.criticalUnresolved || 0, sublabel: 'Unresolved', color: '#F15555' }
+        ].map((metric, index) => `
+          <table role="presentation" class="mobile-metrics" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;margin-bottom:${index === 3 ? '28' : '12'}px;display:none;">
+            <tr>
+              <td style="padding:20px 18px;background:#FAFAFA;background-image:linear-gradient(135deg, #FAFAFA 0%, #F4F4F5 100%);border:2px solid #E4E4E7;border-radius:10px;text-align:center;">
+                <div style="font-size:10px;text-transform:uppercase;color:#71717A;font-weight:700;letter-spacing:0.8px;margin-bottom:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.label}</div>
+                <div style="font-size:28px;font-weight:800;color:${metric.color};line-height:1;margin-bottom:${metric.sublabel ? '6' : '0'}px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.value}</div>
+                ${metric.sublabel ? `<div style="font-size:11px;color:${metric.color};font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${metric.sublabel}</div>` : ''}
+              </td>
+            </tr>
+          </table>
+        `).join('')}
       `;
 
     default:
