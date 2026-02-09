@@ -608,7 +608,7 @@ export function AIAssistantProvider({
         const bugsData = await bugsResponse.json()
         const recentBugs = bugsData.data?.slice(0, 5) || []
 
-        const response = await fetch('/api/ai/bug-report-enhanced', {
+        const response = await fetch('/api/ai/bug-report', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -679,7 +679,7 @@ export function AIAssistantProvider({
         lowerMessage.includes('test case for') ||
         lowerMessage.includes('write test case')
       ) {
-        logger.log('📝 Detected test case request (enhanced)')
+        logger.log('Detected test case request (enhanced)')
 
         // Fetch context data
         const [testCasesRes, bugsRes] = await Promise.all([
@@ -693,7 +693,7 @@ export function AIAssistantProvider({
         const existingTestCases = testCasesData.data?.slice(0, 10) || []
         const recentBugs = bugsData.data?.slice(0, 5) || []
 
-        const response = await fetch('/api/ai/test-cases-enhanced', {
+        const response = await fetch('/api/ai/test-cases', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

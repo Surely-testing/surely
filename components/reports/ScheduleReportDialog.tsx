@@ -5,9 +5,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ReportType, ReportFrequency, ReportScheduleFormData, ReportScheduleWithReport } from '@/types/report.types';
+import { toast } from 'sonner';
+import { CustomReportConfigurator, CustomReportConfig } from './CustomReportConfigurator';
 
 interface ScheduleReportDialogProps {
   isOpen: boolean;
@@ -15,8 +17,8 @@ interface ScheduleReportDialogProps {
   onSchedule: (formData: ReportScheduleFormData) => Promise<void>;
   existingSchedule?: ReportScheduleWithReport | null;
   isSubmitting?: boolean;
-  suiteId: string; // ADDED: Required suite_id prop
-  suiteName?: string; // ADDED: Optional suite name for display
+  suiteId: string;
+  suiteName?: string;
 }
 
 export function ScheduleReportDialog({
@@ -34,13 +36,14 @@ export function ScheduleReportDialog({
     frequency: 'weekly',
     emails: [''],
     is_active: true,
-    suite_id: suiteId, // ADDED: Initialize with suite_id
+    suite_id: suiteId,
     filters: {
       date_range: {
         start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0],
       },
     },
+    custom_config: undefined,
   });
 
   useEffect(() => {
@@ -87,16 +90,25 @@ export function ScheduleReportDialog({
         };
       };
 
-      setFormData({
+      const scheduleData = {
         report_id: existingSchedule.report_id || undefined,
-        name: existingSchedule.report?.name || '',
+        name: existingSchedule.name || '',
         type: existingSchedule.type as ReportType,
         frequency: existingSchedule.frequency as ReportFrequency,
         emails: Array.isArray(existingSchedule.emails) ? existingSchedule.emails : [''],
         is_active: existingSchedule.is_active ?? true,
-        suite_id: existingSchedule.suite_id || suiteId, // ADDED: Use existing or prop
+        suite_id: existingSchedule.suite_id || suiteId,
         filters: parseFilters(existingSchedule.filters),
-      });
+        custom_config: (existingSchedule as any).custom_config || undefined,
+      };
+
+      setFormData(scheduleData);
+
+      // If custom config exists, set it and show the panel
+      if ((existingSchedule as any).custom_config) {
+        setCustomConfig((existingSchedule as any).custom_config);
+        setShowCustomConfig(true);
+      }
     } else {
       // Reset to defaults when no existing schedule
       setFormData({
@@ -112,9 +124,39 @@ export function ScheduleReportDialog({
             end: new Date().toISOString().split('T')[0],
           },
         },
+        custom_config: undefined,
       });
+      setShowCustomConfig(false);
     }
   }, [existingSchedule, suiteId]);
+
+  // Toggle custom config when report type changes to/from 'custom'
+  useEffect(() => {
+    if (formData.type === 'custom') {
+      setShowCustomConfig(true);
+    } else {
+      setShowCustomConfig(false);
+    }
+  }, [formData.type]);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [showCustomConfig, setShowCustomConfig] = useState(false);
+  const [customConfig, setCustomConfig] = useState<CustomReportConfig>({
+    sections: ['test_coverage'],
+    metrics: {
+      testCoverage: ['total_tests', 'pass_rate', 'coverage_percentage'],
+      bugTrends: ['total_bugs', 'critical_bugs', 'resolution_rate'],
+      performance: [],
+    },
+    filters: {},
+    dateRange: {
+      type: 'relative',
+      relative: { value: 7, unit: 'days' },
+    },
+    groupBy: 'none',
+    includeCharts: true,
+    includeTrends: true,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,21 +165,47 @@ export function ScheduleReportDialog({
     const validEmails = formData.emails.filter(email => email.trim() !== '');
 
     if (validEmails.length === 0) {
-      alert('Please add at least one email recipient');
+      toast.error('Validation Error', { description: 'Please add at least one email recipient' });
       return;
     }
 
     // Ensure suite_id is included
     if (!formData.suite_id) {
-      alert('Suite ID is required');
+      toast.error('Validation Error', { description: 'Suite ID is required' });
       return;
     }
 
-    await onSchedule({ ...formData, emails: validEmails });
-    onClose();
-    resetForm();
-  };
+    // Ensure name is included
+    if (!formData.name || formData.name.trim() === '') {
+      toast.error('Validation Error', { description: 'Report name is required' });
+      return;
+    }
 
+    // Validate custom report configuration
+    if (formData.type === 'custom') {
+      if (customConfig.sections.length === 0) {
+        toast.error('Validation Error', { description: 'Please select at least one report section' });
+        return;
+      }
+    }
+
+    try {
+      setIsLoading(true);
+      const submitData = { 
+        ...formData, 
+        emails: validEmails,
+        custom_config: formData.type === 'custom' ? customConfig : undefined,
+      };
+      await onSchedule(submitData);
+      onClose();
+      resetForm();
+    } catch (error) {
+      // Error is already handled by the hook
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   const resetForm = () => {
     setFormData({
       name: '',
@@ -175,10 +243,13 @@ export function ScheduleReportDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-background border border-border rounded-lg shadow-lg max-w-lg w-full my-8">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div 
+        className="bg-background border border-border rounded-lg shadow-lg w-full max-h-[90vh] flex flex-col transition-all duration-300" 
+        style={{ maxWidth: showCustomConfig ? '900px' : '500px' }}
+      >
+        {/* Header - Fixed */}
+        <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
           <h2 className="text-lg font-semibold text-foreground">
             {existingSchedule ? 'Edit Schedule' : 'Schedule Report'}
           </h2>
@@ -191,10 +262,12 @@ export function ScheduleReportDialog({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Scrollable Content */}
+          <div className="p-4 space-y-4 overflow-y-auto flex-1">
           {/* Suite Info Display */}
           {suiteName && (
-            <div className="p-3 bg-muted/30 rounded-md border border-border">
+            <div className="p-3 border border-border rounded-md">
               <p className="text-xs text-muted-foreground mb-1">Test Suite</p>
               <p className="text-sm font-medium text-foreground">{suiteName}</p>
             </div>
@@ -203,7 +276,7 @@ export function ScheduleReportDialog({
           {/* Report Name */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Report Name
+              Schedule Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -219,7 +292,7 @@ export function ScheduleReportDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
-                Report Type
+                Report Type <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.type}
@@ -236,7 +309,7 @@ export function ScheduleReportDialog({
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
-                Frequency
+                Frequency <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.frequency}
@@ -250,11 +323,25 @@ export function ScheduleReportDialog({
             </div>
           </div>
 
+          {/* Custom Report Configuration */}
+          {showCustomConfig && (
+            <div className="border-2 border-border/50 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Settings className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-foreground">Custom Report Configuration</h3>
+              </div>
+              <CustomReportConfigurator
+                config={customConfig}
+                onChange={setCustomConfig}
+              />
+            </div>
+          )}
+
           {/* Email Recipients */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-sm font-medium text-foreground">
-                Email Recipients
+                Email Recipients <span className="text-red-500">*</span>
               </label>
               <button
                 type="button"
@@ -305,29 +392,32 @@ export function ScheduleReportDialog({
           </div>
 
           {/* Schedule Info */}
-          <div className="p-3 bg-muted/50 rounded-md">
+          <div className="p-3 border border-border rounded-md">
             <p className="text-xs text-muted-foreground">
               {getScheduleInfo(formData.frequency)}
             </p>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-2">
+          {/* Actions - Fixed at bottom */}
+          <div className="flex justify-end gap-3 p-4 border-t border-border flex-shrink-0">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1"
-              disabled={isSubmitting}
+              disabled={isLoading}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              className="flex-1"
-              disabled={isSubmitting}
+              className="btn-primary"
+              disabled={isLoading}
             >
-              {isSubmitting ? 'Saving...' : existingSchedule ? 'Update Schedule' : 'Create Schedule'}
+              {isLoading 
+                ? (existingSchedule ? 'Updating...' : 'Creating...')
+                : (existingSchedule ? 'Update Schedule' : 'Create Schedule')
+              }
             </Button>
           </div>
         </form>

@@ -1,5 +1,5 @@
 // ============================================
-// FILE: components/reports/ReportsTable.tsx
+// FILE: components/reports/ReportsTable.tsx (FIXED)
 // Using custom Table components with responsive behavior
 // ============================================
 'use client';
@@ -87,6 +87,20 @@ export function ReportTable({
     });
   };
 
+  // FIX: Helper function to get creator name safely
+  const getCreatorName = (creator: ReportWithCreator['creator']): string => {
+    if (!creator) return 'Unknown';
+    return creator.name || creator.full_name || creator.email || 'Unknown';
+  };
+
+  // FIX: Helper function to get creator initials safely
+  const getCreatorInitials = (creator: ReportWithCreator['creator']): string => {
+    if (!creator) return '?';
+    const name = creator.name || creator.full_name || creator.email;
+    if (!name) return '?';
+    return name.charAt(0).toUpperCase();
+  };
+
   if (reports.length === 0) {
     return (
       <TableEmpty
@@ -115,6 +129,8 @@ export function ReportTable({
       {reports.map((report) => {
         const isSelected = selectedReports.includes(report.id);
         const isGenerating = generatingId === report.id;
+        const creatorName = getCreatorName(report.creator);
+        const creatorInitials = getCreatorInitials(report.creator);
 
         return (
           <TableRow key={report.id} selected={isSelected}>
@@ -159,20 +175,16 @@ export function ReportTable({
               </div>
             </TableCell>
 
-            {/* Creator */}
+            {/* Creator - FIX: Handle undefined name */}
             <TableCell minWidth="min-w-[180px]">
-              {report.creator ? (
-                <div className="flex items-center gap-2">
-                  <TableAvatar
-                    src={report.creator.avatar_url || undefined}
-                    alt={report.creator.name}
-                    fallback={report.creator.name.charAt(0).toUpperCase()}
-                  />
-                  <span className="text-sm truncate">{report.creator.name}</span>
-                </div>
-              ) : (
-                <span className="text-sm text-muted-foreground">Unknown</span>
-              )}
+              <div className="flex items-center gap-2">
+                <TableAvatar
+                  src={report.creator?.avatar_url || undefined}
+                  alt={creatorName}
+                  fallback={creatorInitials}
+                />
+                <span className="text-sm truncate">{creatorName}</span>
+              </div>
             </TableCell>
 
             {/* Generated */}

@@ -71,16 +71,13 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
     };
 
     const handleAction = async (actionId: string, actionConfig: BulkAction, selectedOption: ActionOption | null = null) => {
-        if (actionConfig.requiresConfirm || actionConfig.destructive) {
-            setConfirmDialog({ isOpen: true, action: actionId, config: actionConfig, option: selectedOption });
-            return;
-        }
+        // Skip BulkActionsBar's built-in confirmation - let parent component handle it
         await executeAction(actionId, actionConfig, selectedOption);
     };
 
     return createPortal(
         <>
-            <ConfirmDialog
+            {/* <ConfirmDialog
                 isOpen={confirmDialog.isOpen}
                 onClose={() => setConfirmDialog({ isOpen: false, action: null, config: null, option: null })}
                 onConfirm={async () => {
@@ -94,7 +91,7 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
                 message={confirmDialog.config?.confirmMessage || "Are you sure?"}
                 confirmText={confirmDialog.config?.destructive ? "Delete" : "Confirm"}
                 confirmColor={confirmDialog.config?.destructive ? "error" : "warning"}
-            />
+            /> */}
 
             <div className="pointer-events-auto mx-2 sm:mx-4">
                 <div className="bg-card border border-border rounded-xl shadow-xl px-4 py-3 animate-in slide-in-from-bottom-4 duration-300">

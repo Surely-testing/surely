@@ -108,8 +108,6 @@ export async function proxy(request: NextRequest) {
   // ============================================
   // CRITICAL: SEO FILES - BYPASS EVERYTHING
   // ============================================
-  // Allow sitemap, robots.txt, and other SEO files
-  // WITHOUT any authentication or route checks
   if (
     path === '/sitemap.xml' ||
     path === '/robots.txt' ||
@@ -126,18 +124,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // CRITICAL: Allow API routes to handle their own authentication
-  if (path.startsWith('/api/')) {
-    return NextResponse.next()
-  }
-
-  // CRITICAL: Public routes should pass through WITHOUT auth checks
-  // This prevents any authentication flow from being triggered
-  if (routeType === 'public') {
-    return NextResponse.next()
-  }
-
-  // Initialize Supabase client
+  // ============================================
+  // INITIALIZE SUPABASE CLIENT
+  // This must happen BEFORE any route checks to refresh session
+  // ============================================
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
@@ -163,6 +153,23 @@ export async function proxy(request: NextRequest) {
       },
     }
   )
+
+  // Refresh the session - this updates the auth cookies
+  await supabase.auth.getUser()
+
+  // ============================================
+  // API ROUTES - Return with refreshed session
+  // ============================================
+  if (path.startsWith('/api/')) {
+    return response
+  }
+
+  // ============================================
+  // PUBLIC ROUTES - Return with refreshed session
+  // ============================================
+  if (routeType === 'public') {
+    return response
+  }
 
   // ============================================
   // AUTHENTICATION CHECK

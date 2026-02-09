@@ -52,18 +52,24 @@ export function useReportSchedules(suiteId?: string) {
     fetchSchedules()
   }, [fetchSchedules])
 
-  const createSchedule = async (formData: ReportScheduleFormData, suiteId: string) => {
+  const createSchedule = async (formData: ReportScheduleFormData) => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
+
+      // Validate suite_id
+      if (!formData.suite_id) {
+        throw new Error('Suite ID is required')
+      }
 
       const nextRun = calculateNextRun(formData.frequency)
 
       const { data, error } = await supabase
         .from('report_schedules')
         .insert({
-          suite_id: suiteId,
+          suite_id: formData.suite_id,
           user_id: user.id,
+          name: formData.name,
           type: formData.type,
           frequency: formData.frequency,
           emails: formData.emails,
@@ -81,7 +87,7 @@ export function useReportSchedules(suiteId?: string) {
     } catch (error: any) {
       logger.log('Error creating schedule:', error)
       toast.error('Failed to create schedule', { description: error.message })
-      return null
+      throw error
     }
   }
 
@@ -89,6 +95,7 @@ export function useReportSchedules(suiteId?: string) {
     try {
       const updateData: any = {}
       
+      if (updates.name) updateData.name = updates.name
       if (updates.type) updateData.type = updates.type
       if (updates.emails) updateData.emails = updates.emails
       if (updates.is_active !== undefined) updateData.is_active = updates.is_active
@@ -110,6 +117,7 @@ export function useReportSchedules(suiteId?: string) {
     } catch (error: any) {
       logger.log('Error updating schedule:', error)
       toast.error('Failed to update schedule', { description: error.message })
+      throw error
     }
   }
 
@@ -127,12 +135,11 @@ export function useReportSchedules(suiteId?: string) {
     } catch (error: any) {
       logger.log('Error toggling schedule:', error)
       toast.error('Failed to toggle schedule', { description: error.message })
+      throw error
     }
   }
 
   const deleteSchedule = async (scheduleId: string) => {
-    if (!confirm('Are you sure you want to delete this schedule?')) return
-
     try {
       const { error } = await supabase
         .from('report_schedules')
@@ -146,34 +153,37 @@ export function useReportSchedules(suiteId?: string) {
     } catch (error: any) {
       logger.log('Error deleting schedule:', error)
       toast.error('Failed to delete schedule', { description: error.message })
+      throw error
     }
   }
 
   const runScheduleNow = async (scheduleId: string) => {
     try {
-      const { data: schedule, error: fetchError } = await supabase
-        .from('report_schedules')
-        .select('*')
-        .eq('id', scheduleId)
-        .single()
+      // Call the existing API endpoint to trigger report generation
+      const response = await fetch(`/api/schedules/${scheduleId}/run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (fetchError || !schedule) throw new Error('Schedule not found')
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to run schedule');
+      }
 
-      // Update next_run
-      const { error } = await supabase
-        .from('report_schedules')
-        .update({ 
-          next_run: calculateNextRun(schedule.frequency)
-        })
-        .eq('id', scheduleId)
+      const result = await response.json();
 
-      if (error) throw error
+      toast.success('Report generated and sent successfully', {
+        description: `Sent to ${result.sentTo?.length || 0} recipient(s)`
+      });
 
-      toast.success('Report scheduled for generation')
-      await fetchSchedules()
+      await fetchSchedules();
+      return result;
     } catch (error: any) {
-      logger.log('Error running schedule:', error)
-      toast.error('Failed to run schedule', { description: error.message })
+      logger.log('Error running schedule:', error);
+      toast.error('Failed to generate report', { description: error.message });
+      throw error;
     }
   }
 
