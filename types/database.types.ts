@@ -2746,6 +2746,7 @@ export type Database = {
           owner_type: string
           status: string | null
           updated_at: string | null
+          viewers: string[] | null
         }
         Insert: {
           admins?: string[] | null
@@ -2759,6 +2760,7 @@ export type Database = {
           owner_type: string
           status?: string | null
           updated_at?: string | null
+          viewers?: string[] | null
         }
         Update: {
           admins?: string[] | null
@@ -2772,6 +2774,7 @@ export type Database = {
           owner_type?: string
           status?: string | null
           updated_at?: string | null
+          viewers?: string[] | null
         }
         Relationships: []
       }

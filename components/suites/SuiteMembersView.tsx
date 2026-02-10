@@ -1,18 +1,18 @@
 // ============================================
-// FILE 1: components/suites/SuiteMembersView.tsx
+// components/suites/SuiteMembersView.tsx
 // ============================================
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useSuiteMembers } from '@/lib/hooks/useMembers';
+import { useSuiteMembers, useSuiteInvitations, useCancelInvitation } from '@/lib/hooks/useMembers';
 import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { SuiteMembersList } from './SuiteMembersList';
 import { SuiteMembersGrid } from './SuiteMembersGrid';
 import { InviteMemberPortal } from '../shared/InviteMemberPortal';
-import { Plus, Search, Filter, Grid, List, Sparkles, Crown } from 'lucide-react';
+import { Plus, Search, Filter, Grid, List, Sparkles, Crown, Clock, X, Mail } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
@@ -29,6 +29,7 @@ interface SuiteMembersViewProps {
   userName?: string;
   userEmail?: string;
   userAvatar?: string;
+  isAdmin?: boolean;
 }
 
 type ViewMode = 'grid' | 'table';
@@ -36,13 +37,14 @@ type RoleFilter = 'all' | 'owner' | 'admin' | 'member';
 type SortField = 'name' | 'email' | 'role' | 'joined_at';
 type SortOrder = 'asc' | 'desc';
 
-export function SuiteMembersView({ 
+export function SuiteMembersView({
   suiteId,
   userId,
   accountType,
   userName = 'You',
   userEmail = '',
-  userAvatar = ''
+  userAvatar = '',
+  isAdmin = false,
 }: SuiteMembersViewProps) {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -52,24 +54,25 @@ export function SuiteMembersView({
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
-  const { data: members, isLoading } = useSuiteMembers(suiteId);
+  const { data: members, isLoading: membersLoading } = useSuiteMembers(suiteId);
+  const { data: invitations, isLoading: invitationsLoading } = useSuiteInvitations(suiteId);
+  const cancelInvitation = useCancelInvitation(suiteId);
 
-  // Cast members to SuiteMember type
+  const isLoading = membersLoading || invitationsLoading;
+
   const typedMembers = (members || []) as SuiteMember[];
+  const pendingInvitations = (invitations || []).filter((inv) => inv.status === 'pending');
 
-  // Filter and sort members
+  // Filter and sort active members
   const filteredAndSortedMembers = useMemo(() => {
-    let filtered = typedMembers.filter(member => {
+    let filtered = typedMembers.filter((member) => {
       const matchesSearch =
-        member.name.toLowerCase().includes(search.toLowerCase()) ||
+        member.name?.toLowerCase().includes(search.toLowerCase()) ||
         member.email.toLowerCase().includes(search.toLowerCase());
-      
       const matchesRole = roleFilter === 'all' || member.role === roleFilter;
-
       return matchesSearch && matchesRole;
     });
 
-    // Apply sorting
     filtered.sort((a, b) => {
       let aVal: any = a[sortField];
       let bVal: any = b[sortField];
@@ -79,13 +82,11 @@ export function SuiteMembersView({
         bVal = bVal ? new Date(bVal).getTime() : 0;
       }
 
-      if (aVal === null || aVal === undefined) return sortOrder === 'asc' ? 1 : -1;
-      if (bVal === null || bVal === undefined) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal == null) return sortOrder === 'asc' ? 1 : -1;
+      if (bVal == null) return sortOrder === 'asc' ? -1 : 1;
 
       if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc'
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+        return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
 
       if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
@@ -96,6 +97,14 @@ export function SuiteMembersView({
     return filtered;
   }, [typedMembers, search, roleFilter, sortField, sortOrder]);
 
+  // Filter pending invitations by search too
+  const filteredInvitations = useMemo(() => {
+    if (!search) return pendingInvitations;
+    return pendingInvitations.filter((inv) =>
+      inv.invitee_email.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [pendingInvitations, search]);
+
   const clearFilters = () => {
     setSearch('');
     setRoleFilter('all');
@@ -103,7 +112,17 @@ export function SuiteMembersView({
     setSortOrder('asc');
   };
 
-  const activeFiltersCount = (roleFilter !== 'all' ? 1 : 0);
+  const handleCancelInvitation = async (invitationId: string, email: string) => {
+    try {
+      await cancelInvitation.mutateAsync(invitationId);
+      toast.success(`Invitation to ${email} cancelled`);
+    } catch {
+      toast.error('Failed to cancel invitation');
+    }
+  };
+
+  const activeFiltersCount = roleFilter !== 'all' ? 1 : 0;
+  const totalCount = typedMembers.length + pendingInvitations.length;
 
   if (isLoading) {
     return (
@@ -113,35 +132,29 @@ export function SuiteMembersView({
     );
   }
 
-  // ==========================================
-  // INDIVIDUAL ACCOUNT - Show upgrade banner
-  // ==========================================
+  // ──────────────────────────────────────────────────────────────────────────
+  // INDIVIDUAL ACCOUNT — upgrade banner
+  // ──────────────────────────────────────────────────────────────────────────
   if (accountType === 'individual') {
     return (
       <div className="space-y-6">
-        {/* Header */}
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Suite Members
-          </h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Suite Members</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage who has access to this test suite (1)
           </p>
         </div>
 
-        {/* Stats Bar */}
         <div className="bg-card border border-border rounded-lg px-4 py-3">
           <p className="text-sm text-muted-foreground">1 of 1 members</p>
         </div>
 
-        {/* Current User Card - Same style as org */}
         <div className="bg-card border border-border rounded-lg">
           <div className="p-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              {/* Avatar */}
               {userAvatar ? (
-                <img 
-                  src={userAvatar} 
+                <img
+                  src={userAvatar}
                   alt={userName}
                   className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                 />
@@ -154,9 +167,7 @@ export function SuiteMembersView({
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-foreground truncate">{userName}</p>
-                <p className="text-sm text-muted-foreground truncate">
-                  {userEmail}
-                </p>
+                <p className="text-sm text-muted-foreground truncate">{userEmail}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -168,14 +179,14 @@ export function SuiteMembersView({
           </div>
         </div>
 
-        {/* Upgrade Banner */}
         <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-2 border-primary/20 rounded-2xl p-8 text-center">
           <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
             <Sparkles className="w-8 h-8 text-primary" />
           </div>
           <h2 className="text-xl font-bold text-foreground mb-2">Unlock Team Collaboration</h2>
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            Upgrade to an organization account to invite team members, collaborate on test suites, and manage permissions together.
+            Upgrade to an organization account to invite team members, collaborate on test suites,
+            and manage permissions together.
           </p>
           <Link href="/settings/billing">
             <Button size="lg" className="gap-2">
@@ -188,19 +199,17 @@ export function SuiteMembersView({
     );
   }
 
-  // ==========================================
-  // ORGANIZATION ACCOUNT - Original UI
-  // ==========================================
+  // ──────────────────────────────────────────────────────────────────────────
+  // ORGANIZATION ACCOUNT
+  // ──────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Suite Members
-          </h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Suite Members</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage who has access to this test suite ({typedMembers.length})
+            Manage who has access to this test suite ({totalCount})
           </p>
         </div>
         <Button onClick={() => setIsInviteModalOpen(true)}>
@@ -209,13 +218,12 @@ export function SuiteMembersView({
         </Button>
       </div>
 
-      {/* Controls Bar - Mobile First */}
+      {/* Controls Bar */}
       <div className="bg-card border border-border rounded-lg">
         <div className="px-3 py-2">
           <div className="flex flex-col gap-3 lg:gap-0">
-            {/* Mobile Layout (< lg screens) */}
+            {/* Mobile Layout */}
             <div className="lg:hidden space-y-3">
-              {/* Row 1: Search (Full Width) */}
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
@@ -226,24 +234,19 @@ export function SuiteMembersView({
                   className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground"
                 />
               </div>
-
-              {/* Row 2: Filter & Sort */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {/* Filter Button */}
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200 whitespace-nowrap flex-shrink-0"
                 >
                   <Filter className="w-4 h-4" />
-                  <span>Filter</span>
+                  Filter
                   {activeFiltersCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
                       {activeFiltersCount}
                     </span>
                   )}
                 </button>
-
-                {/* Sort Dropdown */}
                 <Select
                   value={`${sortField}-${sortOrder}`}
                   onValueChange={(value) => {
@@ -266,8 +269,6 @@ export function SuiteMembersView({
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Row 3: View Toggle (Right) */}
               <div className="flex items-center justify-end">
                 <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                   <button
@@ -296,16 +297,17 @@ export function SuiteMembersView({
               </div>
             </div>
 
-            {/* Desktop Layout (lg+ screens) */}
+            {/* Desktop Layout */}
             <div className="hidden lg:flex lg:items-center lg:justify-between lg:gap-4">
-              {/* Left Side: Stats */}
               <div className="text-sm text-muted-foreground">
-                {filteredAndSortedMembers.length} of {typedMembers.length} members
+                {filteredAndSortedMembers.length} active
+                {filteredInvitations.length > 0 && (
+                  <span className="ml-2 text-amber-600 dark:text-amber-400">
+                    · {filteredInvitations.length} pending
+                  </span>
+                )}
               </div>
-
-              {/* Right Side: Search, Filter, Sort, View Toggle */}
               <div className="flex items-center gap-3">
-                {/* Search */}
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <input
@@ -316,8 +318,6 @@ export function SuiteMembersView({
                     className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent bg-background text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
-
-                {/* Filter Button */}
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   className="relative inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200"
@@ -330,8 +330,6 @@ export function SuiteMembersView({
                     </span>
                   )}
                 </button>
-
-                {/* Sort Dropdown */}
                 <Select
                   value={`${sortField}-${sortOrder}`}
                   onValueChange={(value) => {
@@ -353,8 +351,6 @@ export function SuiteMembersView({
                     <SelectItem value="joined_at-asc">Oldest First</SelectItem>
                   </SelectContent>
                 </Select>
-
-                {/* View Toggle */}
                 <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                   <button
                     onClick={() => setViewMode('grid')}
@@ -397,9 +393,7 @@ export function SuiteMembersView({
                   </button>
                 )}
               </div>
-
               <div className="grid grid-cols-1 gap-4">
-                {/* Role Filter */}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
                     Role
@@ -426,15 +420,106 @@ export function SuiteMembersView({
         </div>
       </div>
 
-      {/* Stats Bar - Mobile */}
+      {/* Mobile stats */}
       <div className="lg:hidden">
         <p className="text-sm text-muted-foreground">
-          {filteredAndSortedMembers.length} of {typedMembers.length} members
+          {filteredAndSortedMembers.length} active
+          {filteredInvitations.length > 0 && (
+            <span className="ml-2 text-amber-600 dark:text-amber-400">
+              · {filteredInvitations.length} pending
+            </span>
+          )}
         </p>
       </div>
 
-      {/* Content Area */}
-      {filteredAndSortedMembers.length === 0 ? (
+      {/* ── Pending Invitations Section ────────────────────────────────────── */}
+      {filteredInvitations.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-500" />
+            <h2 className="text-sm font-semibold text-foreground">
+              Pending Invitations ({filteredInvitations.length})
+            </h2>
+          </div>
+
+          <div className="border border-border rounded-lg overflow-hidden divide-y divide-border">
+            {filteredInvitations.map((inv) => {
+              const invitedAt = inv.created_at
+                ? new Date(inv.created_at).toLocaleDateString()
+                : 'Unknown';
+              const expiresAt = inv.expires_at
+                ? new Date(inv.expires_at).toLocaleDateString()
+                : null;
+              const isExpired = inv.expires_at
+                ? new Date(inv.expires_at) < new Date()
+                : false;
+
+              return (
+                <div
+                  key={inv.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 gap-3 bg-card"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Avatar placeholder */}
+                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                      <Mail className="w-4 h-4 text-muted-foreground" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {inv.invitee_email}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Invited {invitedAt}
+                        {expiresAt && !isExpired && (
+                          <span> · expires {expiresAt}</span>
+                        )}
+                        {isExpired && (
+                          <span className="text-destructive"> · expired</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Role badge */}
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-muted text-muted-foreground border border-border">
+                      {inv.role}
+                    </span>
+
+                    {/* Status badge */}
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        isExpired
+                          ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                      }`}
+                    >
+                      <Clock className="w-3 h-3" />
+                      {isExpired ? 'Expired' : 'Pending'}
+                    </span>
+
+                    {/* Cancel button — only for admins */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleCancelInvitation(inv.id, inv.invitee_email)}
+                        disabled={cancelInvitation.isPending}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                        title="Cancel invitation"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Active Members Section ──────────────────────────────────────────── */}
+      {filteredAndSortedMembers.length === 0 && filteredInvitations.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center px-4 border border-border rounded-lg bg-card">
           <Filter className="h-12 w-12 text-muted-foreground mb-3" />
           <h3 className="text-lg font-medium text-foreground mb-1">No members found</h3>
@@ -445,13 +530,14 @@ export function SuiteMembersView({
             Clear Filters
           </Button>
         </div>
-      ) : viewMode === 'table' ? (
-        <SuiteMembersList members={filteredAndSortedMembers} suiteId={suiteId} />
-      ) : (
-        <SuiteMembersGrid members={filteredAndSortedMembers} suiteId={suiteId} />
-      )}
+      ) : filteredAndSortedMembers.length > 0 ? (
+        viewMode === 'table' ? (
+          <SuiteMembersList members={filteredAndSortedMembers} suiteId={suiteId} />
+        ) : (
+          <SuiteMembersGrid members={filteredAndSortedMembers} suiteId={suiteId} />
+        )
+      ) : null}
 
-      {/* Use InviteMemberPortal instead of Modal */}
       <InviteMemberPortal
         suiteId={suiteId}
         userId={userId}

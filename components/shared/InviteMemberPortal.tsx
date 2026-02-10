@@ -1,11 +1,11 @@
 // ============================================
-// InviteMemberPortal.tsx - Complete Fixed Version
+// InviteMemberPortal.tsx
 // ============================================
 'use client'
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Loader2, X, Shield, Users, Mail, AlertCircle, Plus, CheckCircle } from 'lucide-react'
+import { Loader2, X, Shield, Users, Mail, AlertCircle, Plus } from 'lucide-react'
 
 interface InviteMemberPortalProps {
   suiteId: string
@@ -32,9 +32,6 @@ export function InviteMemberPortal({
   const [emails, setEmails] = useState([''])
   const [role, setRole] = useState<'admin' | 'member'>('member')
   const [showExternalWarning, setShowExternalWarning] = useState(false)
-  const [externalEmails, setExternalEmails] = useState<string[]>([])
-  const [showResultsDialog, setShowResultsDialog] = useState(false)
-  const [inviteResults, setInviteResults] = useState<any>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -92,7 +89,6 @@ export function InviteMemberPortal({
     if (organizationDomain) {
       const external = filteredEmails.filter((email) => isExternalEmail(email))
       if (external.length > 0 && !showExternalWarning) {
-        setExternalEmails(filteredEmails)
         setShowExternalWarning(true)
         return
       }
@@ -104,8 +100,8 @@ export function InviteMemberPortal({
   const sendInvites = async (inviteEmails: string[]) => {
     setIsLoading(true)
     try {
-      const results = []
       let sent = 0, failed = 0, alreadyInvited = 0
+      const failedEmails: string[] = []
 
       for (const email of inviteEmails) {
         try {
@@ -113,85 +109,58 @@ export function InviteMemberPortal({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              type: 'testSuite',                    // ← required by route
               email: email.trim().toLowerCase(),
-              suiteId: suiteId,
-              role: role,
-              organizationId: organizationId,
-              organizationDomain: organizationDomain,
+              suiteId,
+              role,
+              organizationId,
             }),
           })
 
           const result = await response.json()
 
           if (response.ok) {
-            results.push({
-              email: email.trim(),
-              status: 'sent',
-              message: result.message || 'Invitation sent successfully',
-            })
             sent++
           } else if (response.status === 409) {
-            results.push({
-              email: email.trim(),
-              status: 'already_invited',
-              message: result.error || 'User already has a pending invitation',
-            })
             alreadyInvited++
           } else {
-            results.push({
-              email: email.trim(),
-              status: 'failed',
-              message: result.error || `Server error: ${response.status}`,
-            })
             failed++
+            failedEmails.push(email.trim())
           }
         } catch (error: any) {
           console.error('Error sending invite to', email, ':', error)
-          results.push({
-            email: email.trim(),
-            status: 'failed',
-            message: `Network error: ${error.message}`,
-          })
           failed++
+          failedEmails.push(email.trim())
         }
       }
 
-      const finalResult = {
-        success: sent > 0 || alreadyInvited > 0,
-        results,
-        summary: { sent, failed, alreadyInvited }
-      }
-
-      setInviteResults(finalResult)
-
-      // Show toast
-      if (sent > 0) {
-        const msg = `Sent ${sent} invitation${sent !== 1 ? 's' : ''}`
-        if (failed > 0 || alreadyInvited > 0) {
-          toast.warning(msg + ` (${failed} failed, ${alreadyInvited} already invited)`)
-        } else {
-          toast.success(msg + '! 🎉')
-        }
-      } else {
-        toast.error('No invitations were sent successfully')
-      }
-
-      // Show results dialog if there are failures
-      if (failed > 0 || alreadyInvited > 0) {
-        setShowResultsDialog(true)
-      } else {
-        // Close if all successful
+      if (sent > 0 && failed === 0 && alreadyInvited === 0) {
+        toast.success(`${sent} invitation${sent !== 1 ? 's' : ''} sent! 🎉`)
         setEmails([''])
         setRole('member')
         setShowExternalWarning(false)
         if (onSuccess) onSuccess()
         onClose()
-      }
-
-      // Keep only failed emails in the form
-      const failedEmails = results.filter(r => r.status === 'failed').map(r => r.email)
-      if (failedEmails.length > 0) {
-        setEmails(failedEmails)
+      } else if (sent > 0) {
+        let message = `Sent ${sent} invitation${sent !== 1 ? 's' : ''}`
+        if (alreadyInvited > 0) message += `, ${alreadyInvited} already invited`
+        if (failed > 0) message += `, ${failed} failed`
+        toast.warning(message, {
+          description: failed > 0 ? 'Check the remaining emails and try again' : undefined
+        })
+        setEmails(failedEmails.length > 0 ? failedEmails : [''])
+      } else if (alreadyInvited > 0 && failed === 0) {
+        toast.info(`${alreadyInvited} email${alreadyInvited !== 1 ? 's' : ''} already invited`)
+        setEmails([''])
+        setRole('member')
+        setShowExternalWarning(false)
+        if (onSuccess) onSuccess()
+        onClose()
+      } else {
+        toast.error('All invitations failed', {
+          description: 'Please check the emails and try again'
+        })
+        setEmails(failedEmails.length > 0 ? failedEmails : emails)
       }
 
     } catch (error: any) {
@@ -207,8 +176,6 @@ export function InviteMemberPortal({
       setEmails([''])
       setRole('member')
       setShowExternalWarning(false)
-      setShowResultsDialog(false)
-      setInviteResults(null)
       onClose()
     }
   }
@@ -225,22 +192,6 @@ export function InviteMemberPortal({
 
   const filledEmailsCount = emails.filter(email => email.trim()).length
   const externalEmailsList = emails.filter(email => email.trim() && isExternalEmail(email))
-
-  const getStatusIcon = (status: string) => {
-    if (status === 'sent') return <CheckCircle className="w-4 h-4 text-green-500" />
-    if (status === 'failed') return <AlertCircle className="w-4 h-4 text-red-500" />
-    if (status === 'already_invited') return <AlertCircle className="w-4 h-4 text-yellow-500" />
-    return null
-  }
-
-  const getStatusText = (status: string) => {
-    const statuses: Record<string, string> = {
-      'sent': 'Sent successfully',
-      'failed': 'Failed to send',
-      'already_invited': 'Already invited'
-    }
-    return statuses[status] || status
-  }
 
   if (!isOpen) return null
 
@@ -273,7 +224,7 @@ export function InviteMemberPortal({
           </div>
 
           <div className="px-6 py-5">
-            {/* External Email Warning Dialog */}
+            {/* External Email Warning */}
             {showExternalWarning && (
               <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                 <div className="flex items-start gap-3">
@@ -456,54 +407,6 @@ export function InviteMemberPortal({
           </div>
         </div>
       </div>
-
-      {/* Results Dialog */}
-      {showResultsDialog && inviteResults && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 max-w-md w-full max-h-96 overflow-y-auto">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Invitation Results</h3>
-            
-            {inviteResults.summary && (
-              <div className="flex flex-wrap gap-2 text-xs bg-gray-100 dark:bg-gray-700 p-3 rounded mb-4">
-                <span className="text-green-600 font-medium">✓ {inviteResults.summary.sent} sent</span>
-                {inviteResults.summary.failed > 0 && (
-                  <span className="text-red-600 font-medium">✗ {inviteResults.summary.failed} failed</span>
-                )}
-                {inviteResults.summary.alreadyInvited > 0 && (
-                  <span className="text-yellow-600 font-medium">⚠ {inviteResults.summary.alreadyInvited} already invited</span>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-2 mb-4">
-              {inviteResults.results?.map((result: any, idx: number) => (
-                <div key={idx} className="flex items-start gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                  <div className="flex-shrink-0 mt-0.5">{getStatusIcon(result.status)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{result.email}</div>
-                    <div className="text-gray-600 dark:text-gray-400">{getStatusText(result.status)}</div>
-                    {result.message && result.status === 'failed' && (
-                      <div className="text-red-600 text-xs mt-1">{result.message}</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => {
-                setShowResultsDialog(false)
-                if (inviteResults.summary.failed === 0) {
-                  handleClose()
-                }
-              }}
-              className="w-full px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

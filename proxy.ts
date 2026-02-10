@@ -33,7 +33,7 @@ const ROUTES = {
   AUTH: ['/login', '/register'],
 
   // Always accessible (bypass all checks)
-  BYPASS: ['/auth/callback', '/verify-email', '/auth/reactivate', '/select-account-type'],
+  BYPASS: ['/auth/callback', '/verify-email', '/auth/reactivate', '/select-account-type', '/invite/accept'],
 
   // System role protected routes
   SYSTEM: {

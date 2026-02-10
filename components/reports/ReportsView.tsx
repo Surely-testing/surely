@@ -1,17 +1,18 @@
 // ============================================
 // components/reports/ReportsView.tsx - UPDATED
-// Added immediate loading toast when clicking "Run Now"
+// Added Defect Calendar button and view integration
 // ============================================
 'use client';
 
 import { useState } from 'react';
-import { Plus, Calendar, FileText, RefreshCw } from 'lucide-react';
+import { Plus, Calendar, FileText, RefreshCw, CalendarDays } from 'lucide-react';
 import { ReportsControlBar } from '@/components/reports/views/ReportsControlBar';
 import { ReportsTabContent } from '@/components/reports/views/ReportsTabContent';
 import { SchedulesTabContent } from '@/components/reports/views/SchedulesTabContent';
 import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog';
 import { ScheduleReportDialog } from '@/components/reports/ScheduleReportDialog';
 import { ReportDetailsDialog } from '@/components/reports/ReportDetailsDialog';
+import { DefectCalendarView } from '@/components/reports/DefectCalendarView';
 import { BulkActionsBar } from '@/components/shared/bulk-action/BulkActionBar';
 import { useReports } from '@/lib/hooks/useReports';
 import { useReportSchedules } from '@/lib/hooks/useReportSchedules';
@@ -45,6 +46,7 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReportWithCreator | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ReportScheduleWithReport | null>(null);
+  const [showDefectCalendar, setShowDefectCalendar] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({
     isOpen: false,
     type: null,
@@ -92,20 +94,15 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
   } = useReportSchedules(suiteId);
 
   const handleRunScheduleNow = async (scheduleId: string) => {
-    // Show immediate loading feedback
     const loadingToastId = `run-${scheduleId}`;
     toast.loading('Generating report...', { id: loadingToastId });
     
     try {
       await runScheduleNow(scheduleId);
-      // Dismiss loading toast
       toast.dismiss(loadingToastId);
-      // Refresh reports list immediately since the API creates the report synchronously
       await fetchReports();
     } catch (error) {
-      // Dismiss loading toast
       toast.dismiss(loadingToastId);
-      // Error is already handled by the hook
     }
   };
 
@@ -295,6 +292,11 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
 
   const dialogContent = getDeleteDialogContent();
 
+  // If showing defect calendar, render it instead
+  if (showDefectCalendar) {
+    return <DefectCalendarView suiteId={suiteId} onClose={() => setShowDefectCalendar(false)} />;
+  }
+
   // Empty state check
   if (reports.length === 0 && schedules.length === 0 && !isLoading) {
     return (
@@ -413,6 +415,16 @@ export function ReportsView({ suiteId }: ReportsViewProps) {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 sm:gap-3">
+                {/* Defect Calendar Button */}
+                <button
+                  onClick={() => setShowDefectCalendar(true)}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-muted transition-all duration-200"
+                  title="View Defect Calendar"
+                >
+                  <CalendarDays className="w-4 h-4" />
+                  <span className="hidden sm:inline">Defect Calendar</span>
+                </button>
+
                 {activeTab === 'reports' ? (
                   <button
                     onClick={() => setIsGenerateOpen(true)}
