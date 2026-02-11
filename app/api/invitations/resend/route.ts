@@ -1,5 +1,5 @@
 // ============================================
-// app/api/invitations/resend/route.ts
+// app/api/invitations/resend/route.ts - FIXED
 // ============================================
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user has permission to resend
-    // User must be the original inviter OR admin of the org/suite
     let hasPermission = invitation.invited_by === user.id
 
     if (!hasPermission && invitation.organization_id) {
@@ -220,7 +219,7 @@ function emailShell(bodyContent: string): string {
               ${logoUrl ? `
               <img src="${logoUrl}" alt="${appName}" width="120" style="height:auto;display:block;border:0;max-width:120px;" />
               ` : `
-              <span style="font-size:20px;font-weight:800;color:#0d9488;letter-spacing:-0.5px;">${appName}</span>
+              <span style="font-size:20px;font-weight:800;color:#326FF7;letter-spacing:-0.5px;">${appName}</span>
               `}
             </td>
           </tr>
@@ -240,7 +239,7 @@ function emailShell(bodyContent: string): string {
                 <a href="https://testsurely.com" style="color:#9ca3af;text-decoration:none;">testsurely.com</a>
               </p>
               <p style="margin:8px 0 0 0;font-size:12px;color:#9ca3af;">
-                Questions? <a href="mailto:${supportEmail}" style="color:#0d9488;text-decoration:none;">Contact Support</a>
+                Questions? <a href="mailto:${supportEmail}" style="color:#326FF7;text-decoration:none;">Contact Support</a>
               </p>
             </td>
           </tr>
@@ -258,7 +257,7 @@ function acceptButton(inviteUrl: string): string {
       <tr>
         <td>
           <a href="${inviteUrl}"
-             style="display:inline-block;padding:13px 30px;background:#0d9488;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
+             style="display:inline-block;padding:13px 30px;background:#326FF7;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
             Accept Invitation
           </a>
         </td>
@@ -266,13 +265,13 @@ function acceptButton(inviteUrl: string): string {
     </table>
     <p style="margin:16px 0 0;font-size:13px;color:#9ca3af;text-align:center;">
       Or paste this link into your browser:<br/>
-      <span style="color:#0d9488;word-break:break-all;">${inviteUrl}</span>
+      <span style="color:#326FF7;word-break:break-all;">${inviteUrl}</span>
     </p>
   </div>`
 }
 
 function rolePill(role: string): string {
-  return `<span style="display:inline-block;padding:3px 10px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:999px;font-size:12px;font-weight:600;color:#0d9488;text-transform:capitalize;">${role}</span>`
+  return `<span style="display:inline-block;padding:3px 10px;background:#EFF5FF;border:1px solid #93C5FD;border-radius:999px;font-size:12px;font-weight:600;color:#326FF7;text-transform:capitalize;">${role}</span>`
 }
 
 interface OrgEmailOptions {
@@ -321,7 +320,7 @@ function buildSuiteInviteEmail({
 }: SuiteEmailOptions): string {
   return emailShell(`
     <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;text-align:center;">
-      You've been invited to a test suite 🧪
+      You've been invited to a test suite
     </h2>
     <p style="margin:0 0 28px;font-size:15px;color:#6b7280;text-align:center;">
       Join <strong style="color:#111827;">${suiteName}</strong> on ${APP_NAME}
@@ -332,7 +331,7 @@ function buildSuiteInviteEmail({
     </p>
     ${
       suiteDescription
-        ? `<p style="margin:0 0 20px;padding:14px 16px;background:#f9fafb;border-left:3px solid #0d9488;border-radius:0 6px 6px 0;font-size:14px;color:#6b7280;line-height:1.6;font-style:italic;text-align:left;">${suiteDescription}</p>`
+        ? `<p style="margin:0 0 20px;padding:14px 16px;background:#f9fafb;border-left:3px solid #326FF7;border-radius:0 6px 6px 0;font-size:14px;color:#6b7280;line-height:1.6;font-style:italic;text-align:left;">${suiteDescription}</p>`
         : ''
     }
     <p style="margin:0 0 8px;font-size:14px;color:#6b7280;text-align:center;">You'll be joining as:</p>

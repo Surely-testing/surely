@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     console.error('=== FULL ERROR IN SEND-INVITE ===')
     console.error('Error message:', error.message)
     console.error('Error stack:', error.stack)
-    
+
     logger.log('Unhandled error in send-invite:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to send invitation' },
@@ -128,7 +128,7 @@ async function handleOrgInvite({
 
   // Get organization domain (from org table or owner email)
   let orgDomain = org.domain
-  
+
   if (!orgDomain) {
     const { data: orgOwner } = await supabase
       .from('profiles')
@@ -142,7 +142,7 @@ async function handleOrgInvite({
         { status: 500 }
       )
     }
-    
+
     orgDomain = extractDomain(orgOwner.email)
   }
 
@@ -165,7 +165,7 @@ async function handleOrgInvite({
   // VALIDATION 1: Block common email providers
   if (isCommonEmailProvider(email)) {
     return NextResponse.json(
-      { 
+      {
         error: `Cannot invite ${email}. Organization members must use the company email domain (@${orgDomain}). Personal email providers are not allowed.`
       },
       { status: 400 }
@@ -178,7 +178,7 @@ async function handleOrgInvite({
   if (!domainMatches && role !== 'viewer') {
     // Admin/Manager/Member roles MUST match domain
     return NextResponse.json(
-      { 
+      {
         error: `${role === 'admin' ? 'Admins' : role === 'manager' ? 'Managers' : 'Members'} must use the organization's email domain (@${orgDomain}). To invite external users, assign them the "Viewer" role.`
       },
       { status: 400 }
@@ -196,21 +196,21 @@ async function handleOrgInvite({
     // User already exists - ALWAYS BLOCK
     if (existingProfile.account_type === 'individual') {
       return NextResponse.json(
-        { 
+        {
           error: `${email} already has an individual account. They need to use a different email address to join your organization.`
         },
         { status: 409 }
       )
     } else if (existingProfile.organization_id === organizationId) {
       return NextResponse.json(
-        { 
+        {
           error: `${email} is already a member of this organization.`
         },
         { status: 409 }
       )
     } else if (existingProfile.organization_id) {
       return NextResponse.json(
-        { 
+        {
           error: `${email} is already a member of another organization. They need to use a different email address to join your organization.`
         },
         { status: 409 }
@@ -218,7 +218,7 @@ async function handleOrgInvite({
     } else {
       // Has an org account but no org_id set (edge case)
       return NextResponse.json(
-        { 
+        {
           error: `${email} already has an account. They need to use a different email address.`
         },
         { status: 409 }
@@ -273,10 +273,10 @@ async function handleOrgInvite({
   return sendEmail({
     to: email,
     subject: `${inviterName} invited you to join ${org.name} on ${APP_NAME}`,
-    html: buildOrgInviteEmail({ 
-      orgName: org.name, 
-      inviterName, 
-      role, 
+    html: buildOrgInviteEmail({
+      orgName: org.name,
+      inviterName,
+      role,
       inviteUrl,
       isExternalViewer: !domainMatches && role === 'viewer'
     }),
@@ -317,25 +317,161 @@ async function handleSuiteInvite({
     )
   }
 
-  // Resolve organization ID
-  let resolvedOrgId: string | null = body.organizationId ?? null
+  // ============ FIXED: Get organization ID - check owned orgs FIRST ============
+  let resolvedOrgId: string | null = null
 
-  if (!resolvedOrgId && suite.owner_id) {
-    const { data: ownerProfile } = await supabase
+  console.log('🔍 Starting organization resolution for user:', user.id)
+
+  // 1. FIRST: Check if user owns an organization (most direct)
+  const { data: userOwnedOrg, error: userOwnedOrgError } = await supabase
+    .from('organizations')
+    .select('id, name, owner_id, status')
+    .eq('owner_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  console.log('1️⃣ User-owned org query:', { 
+    userOwnedOrg, 
+    userOwnedOrgError,
+    userId: user.id 
+  })
+
+  if (userOwnedOrg?.id) {
+    resolvedOrgId = userOwnedOrg.id
+    console.log('✅ Found org via user ownership:', resolvedOrgId)
+  }
+
+  // 2. FALLBACK: Check if suite owner owns an organization (if different user)
+  if (!resolvedOrgId && suite.owner_id && suite.owner_id !== user.id) {
+    const { data: ownerOwnedOrg, error: ownerOwnedOrgError } = await supabase
+      .from('organizations')
+      .select('id, name, owner_id, status')
+      .eq('owner_id', suite.owner_id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    console.log('2️⃣ Suite owner org query:', { 
+      ownerOwnedOrg, 
+      ownerOwnedOrgError,
+      suiteOwnerId: suite.owner_id 
+    })
+
+    if (ownerOwnedOrg?.id) {
+      resolvedOrgId = ownerOwnedOrg.id
+      console.log('✅ Found org via suite owner:', resolvedOrgId)
+    }
+  }
+
+  // 3. FALLBACK: Check inviter's organization membership
+  if (!resolvedOrgId) {
+    const { data: inviterMembership, error: inviterMembershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    console.log('3️⃣ Inviter membership query:', { 
+      inviterMembership, 
+      inviterMembershipError,
+      userId: user.id 
+    })
+
+    if (inviterMembership?.organization_id) {
+      resolvedOrgId = inviterMembership.organization_id
+      console.log('✅ Found org via inviter membership:', resolvedOrgId)
+    }
+  }
+
+  // 4. FALLBACK: Check suite owner's organization membership
+  if (!resolvedOrgId && suite.owner_id && suite.owner_id !== user.id) {
+    const { data: ownerMembership, error: ownerMembershipError } = await supabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('user_id', suite.owner_id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    console.log('4️⃣ Suite owner membership query:', { 
+      ownerMembership, 
+      ownerMembershipError,
+      suiteOwnerId: suite.owner_id 
+    })
+
+    if (ownerMembership?.organization_id) {
+      resolvedOrgId = ownerMembership.organization_id
+      console.log('✅ Found org via suite owner membership:', resolvedOrgId)
+    }
+  }
+
+  // 5. FALLBACK: Try profiles table
+  if (!resolvedOrgId) {
+    const { data: inviterProfile, error: inviterProfileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    console.log('5️⃣ Inviter profile query:', { 
+      inviterProfile, 
+      inviterProfileError,
+      userId: user.id 
+    })
+
+    if (inviterProfile?.organization_id) {
+      resolvedOrgId = inviterProfile.organization_id
+      console.log('✅ Found org via inviter profile:', resolvedOrgId)
+    }
+  }
+
+  // 6. FALLBACK: Try suite owner's profile
+  if (!resolvedOrgId && suite.owner_id && suite.owner_id !== user.id) {
+    const { data: ownerProfile, error: ownerProfileError } = await supabase
       .from('profiles')
       .select('organization_id')
       .eq('id', suite.owner_id)
-      .single()
-    
-    resolvedOrgId = ownerProfile?.organization_id ?? null
+      .maybeSingle()
+
+    console.log('6️⃣ Suite owner profile query:', { 
+      ownerProfile, 
+      ownerProfileError,
+      suiteOwnerId: suite.owner_id 
+    })
+
+    if (ownerProfile?.organization_id) {
+      resolvedOrgId = ownerProfile.organization_id
+      console.log('✅ Found org via suite owner profile:', resolvedOrgId)
+    }
   }
 
+  // 7. LAST RESORT: Use from body if provided
+  if (!resolvedOrgId && body.organizationId) {
+    resolvedOrgId = body.organizationId
+    console.log('✅ Using org from request body:', resolvedOrgId)
+  }
+
+  // DATA INTEGRITY CHECK
   if (!resolvedOrgId) {
+    console.error('❌ DATA INTEGRITY ERROR - Suite marked as organization-owned but no organization found:', {
+      suiteId,
+      suiteName: suite.name,
+      ownerType: suite.owner_type,
+      ownerId: suite.owner_id,
+      inviterId: user.id,
+      hint: 'User owns no organization and is not in organization_members table'
+    })
+    
     return NextResponse.json(
-      { error: 'Could not determine organization for this suite' },
+      { 
+        error: 'This test suite is marked as organization-owned, but no organization could be found. Please ensure you have created an organization first.',
+        technicalDetails: 'No organization found for user'
+      },
       { status: 500 }
     )
   }
+
+  console.log('✅ RESOLVED ORGANIZATION ID:', resolvedOrgId)
+  // ============ END FIX ============
 
   // Get organization domain
   const { data: org } = await supabase
@@ -366,7 +502,7 @@ async function handleSuiteInvite({
         { status: 500 }
       )
     }
-    
+
     orgDomain = extractDomain(orgOwner.email)
   }
 
@@ -389,7 +525,7 @@ async function handleSuiteInvite({
   // VALIDATION 1: Block common email providers
   if (isCommonEmailProvider(email)) {
     return NextResponse.json(
-      { 
+      {
         error: `Cannot invite ${email}. Team members must use the company email domain (@${orgDomain}). Personal email providers are not allowed.`
       },
       { status: 400 }
@@ -402,7 +538,7 @@ async function handleSuiteInvite({
   if (!domainMatches && role !== 'viewer') {
     // Admin/Member roles MUST match domain
     return NextResponse.json(
-      { 
+      {
         error: `${role === 'admin' ? 'Admins' : 'Members'} must use the organization's email domain (@${orgDomain}). To invite external users, assign them the "Viewer" role.`
       },
       { status: 400 }
@@ -420,7 +556,7 @@ async function handleSuiteInvite({
     // User already exists - ALWAYS BLOCK
     if (existingProfile.account_type === 'individual') {
       return NextResponse.json(
-        { 
+        {
           error: `${email} already has an individual account. They need to use a different email address to join your team.`
         },
         { status: 409 }
@@ -432,7 +568,7 @@ async function handleSuiteInvite({
         ...(suite.members || []),
         ...(suite.viewers || [])
       ]
-      
+
       if (allMembers.includes(existingProfile.id)) {
         return NextResponse.json(
           { error: `${email} already has access to this test suite` },
@@ -446,14 +582,14 @@ async function handleSuiteInvite({
       }
     } else if (existingProfile.organization_id) {
       return NextResponse.json(
-        { 
+        {
           error: `${email} is already a member of another organization. They need to use a different email address.`
         },
         { status: 409 }
       )
     } else {
       return NextResponse.json(
-        { 
+        {
           error: `${email} already has an account. They need to use a different email address.`
         },
         { status: 409 }
@@ -564,9 +700,9 @@ async function sendEmail({
     if (!emailResponse.ok) {
       const errorBody = await emailResponse.text()
       logger.log('Resend API error:', errorBody)
-      
+
       await supabase.from('invitations').delete().eq('id', invitationId)
-      
+
       return NextResponse.json(
         { error: 'Failed to send invitation email' },
         { status: 502 }
@@ -580,9 +716,9 @@ async function sendEmail({
     })
   } catch (error: any) {
     logger.log('Email send error:', error.message)
-    
+
     await supabase.from('invitations').delete().eq('id', invitationId)
-    
+
     return NextResponse.json(
       { error: 'Failed to send invitation email' },
       { status: 502 }
@@ -601,7 +737,7 @@ function emailShell(bodyContent: string): string {
       logoUrl = LOGO_URL
     }
   }
-  
+
   const appName = process.env.NEXT_PUBLIC_APP_NAME || APP_NAME
   const supportEmail = process.env.SUPPORT_EMAIL || SUPPORT_EMAIL
 
@@ -689,7 +825,7 @@ function buildOrgInviteEmail({ orgName, inviterName, role, inviteUrl, isExternal
   const externalNotice = isExternalViewer ? `
     <div style="margin:20px 0;padding:12px 16px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;">
       <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6;">
-        <strong>ℹ️ External Viewer:</strong> You're being added as an external viewer with limited access.
+        <strong>External Viewer:</strong> You're being added as an external viewer with limited access.
       </p>
     </div>
   ` : ''
@@ -736,14 +872,14 @@ function buildSuiteInviteEmail({
   const externalNotice = isExternalViewer ? `
     <div style="margin:20px 0;padding:12px 16px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;">
       <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6;">
-        <strong>ℹ️ External Viewer:</strong> You're being added as an external viewer with limited access.
+        <strong>External Viewer:</strong> You're being added as an external viewer with limited access.
       </p>
     </div>
   ` : ''
 
   return emailShell(`
     <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;text-align:center;">
-      You've been invited to a test suite 🧪
+      You've been invited to a test suite
     </h2>
     <p style="margin:0 0 28px;font-size:15px;color:#6b7280;text-align:center;">
       Join <strong style="color:#111827;">${suiteName}</strong> on ${APP_NAME}
@@ -752,10 +888,9 @@ function buildSuiteInviteEmail({
       <strong>${inviterName}</strong> has invited you to collaborate on the
       <strong>${suiteName}</strong> test suite.
     </p>
-    ${
-      suiteDescription
-        ? `<p style="margin:0 0 20px;padding:14px 16px;background:#f9fafb;border-left:3px solid #326FF7;border-radius:0 6px 6px 0;font-size:14px;color:#6b7280;line-height:1.6;font-style:italic;text-align:left;">${suiteDescription}</p>`
-        : ''
+    ${suiteDescription
+      ? `<p style="margin:0 0 20px;padding:14px 16px;background:#f9fafb;border-left:3px solid #326FF7;border-radius:0 6px 6px 0;font-size:14px;color:#6b7280;line-height:1.6;font-style:italic;text-align:left;">${suiteDescription}</p>`
+      : ''
     }
     ${externalNotice}
     <p style="margin:0 0 8px;font-size:14px;color:#6b7280;text-align:center;">You'll be joining as:</p>

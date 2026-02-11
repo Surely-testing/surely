@@ -1,5 +1,6 @@
 // ============================================
-// components/suites/SuiteMembersView.tsx
+// components/suites/SuiteMembersView.tsx - FIXED
+// Added organizationId and organizationDomain props
 // ============================================
 'use client';
 
@@ -30,6 +31,8 @@ interface SuiteMembersViewProps {
   userEmail?: string;
   userAvatar?: string;
   isAdmin?: boolean;
+  organizationId?: string;      // ← ADDED
+  organizationDomain?: string;  // ← ADDED
 }
 
 type ViewMode = 'grid' | 'table';
@@ -45,6 +48,8 @@ export function SuiteMembersView({
   userEmail = '',
   userAvatar = '',
   isAdmin = false,
+  organizationId,      // ← ADDED
+  organizationDomain,  // ← ADDED
 }: SuiteMembersViewProps) {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -236,7 +241,7 @@ export function SuiteMembersView({
             Manage who has access to this test suite ({totalCount})
           </p>
         </div>
-        <Button onClick={() => setIsInviteModalOpen(true)}>
+        <Button className='btn-primary' onClick={() => setIsInviteModalOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Invite Member
         </Button>
@@ -575,6 +580,8 @@ export function SuiteMembersView({
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
         onSuccess={() => setIsInviteModalOpen(false)}
+        organizationId={organizationId}          // ← FIXED: Now passing the prop
+        organizationDomain={organizationDomain}  // ← FIXED: Now passing the prop
       />
     </div>
   );

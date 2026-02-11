@@ -47,8 +47,6 @@ const ROLE_OPTIONS = [
 
 export function InviteMemberPortal({ 
   suiteId, 
-  userId, 
-  accountType, 
   isOpen, 
   onClose, 
   onSuccess,
@@ -238,7 +236,7 @@ export function InviteMemberPortal({
         onClick={handleClose}
       />
 
-      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
         <div className="bg-card border border-border rounded-2xl shadow-theme-xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
             <div className="flex items-center gap-3">
