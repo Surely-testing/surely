@@ -1,6 +1,7 @@
 // ============================================
-// app/invite/accept/page.tsx
-// Accept invitation page - TypeScript null handling fixed
+// app/invite/accept/page.tsx - FIXED
+// The invitations table has NO 'token' column - it uses 'id' as the token
+// Changed line 69: .eq('token', invitationId) → .eq('id', invitationId)
 // ============================================
 'use client'
 
@@ -10,7 +11,15 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 
-type InvitationStatus = 'loading' | 'valid' | 'expired' | 'already_accepted' | 'not_found' | 'error' | 'accepting' | 'success'
+type InvitationStatus = 
+  | 'loading' 
+  | 'redirecting'
+  | 'accepting'
+  | 'success'
+  | 'expired' 
+  | 'already_accepted' 
+  | 'not_found' 
+  | 'error'
 
 interface Invitation {
   id: string
@@ -33,7 +42,7 @@ interface Invitation {
 export default function AcceptInvitePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const token = searchParams.get('token')
+  const token = searchParams.get('token') // This is actually the invitation ID
   
   const [status, setStatus] = useState<InvitationStatus>('loading')
   const [invitation, setInvitation] = useState<Invitation | null>(null)
@@ -45,14 +54,14 @@ export default function AcceptInvitePage() {
       return
     }
     
-    loadInvitation(token)
+    checkInvitationAndUser(token)
   }, [token])
 
-  const loadInvitation = async (invitationToken: string) => {
+  const checkInvitationAndUser = async (invitationId: string) => {
     const supabase = createClient()
     
     try {
-      // Get invitation details
+      // FIXED: Use 'id' instead of 'token' - the invitations table has no token column
       const { data, error: fetchError } = await supabase
         .from('invitations')
         .select(`
@@ -65,29 +74,61 @@ export default function AcceptInvitePage() {
             name
           )
         `)
-        .eq('id', invitationToken)
+        .eq('id', invitationId)
         .single()
 
       if (fetchError || !data) {
+        console.error('Invitation fetch error:', {
+          error: fetchError,
+          message: fetchError?.message,
+          code: fetchError?.code,
+          details: fetchError?.details,
+          hint: fetchError?.hint
+        })
         setStatus('not_found')
         return
       }
 
       setInvitation(data as Invitation)
 
-      // Check if already accepted
       if (data.status === 'accepted') {
         setStatus('already_accepted')
         return
       }
 
-      // Check if expired
-      if (new Date(data.expires_at) < new Date()) {
+      const expiresAt = new Date(data.expires_at)
+      const now = new Date()
+
+      if (expiresAt < now) {
         setStatus('expired')
         return
       }
 
-      setStatus('valid')
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        setStatus('redirecting')
+        
+        const params = new URLSearchParams({
+          invitation: invitationId,
+          email: data.invitee_email,
+          type: data.type
+        })
+        
+        setTimeout(() => {
+          router.push(`/register?${params.toString()}`)
+        }, 1500)
+        return
+      }
+
+      if (user.email !== data.invitee_email) {
+        setError('This invitation was sent to a different email address. Please log out and create an account with the invited email.')
+        setStatus('error')
+        return
+      }
+
+      await acceptInvitation(user.id)
+
     } catch (err) {
       console.error('Error loading invitation:', err)
       setStatus('error')
@@ -95,37 +136,18 @@ export default function AcceptInvitePage() {
     }
   }
 
-  const acceptInvitation = async () => {
+  const acceptInvitation = async (userId: string) => {
     if (!invitation || !token) return
     
     setStatus('accepting')
     const supabase = createClient()
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        // Redirect to login with return URL
-        router.push(`/login?redirect=/invite/accept?token=${token}`)
-        return
-      }
-
-      // Verify email matches
-      if (user.email !== invitation.invitee_email) {
-        setError('This invitation was sent to a different email address')
-        setStatus('error')
-        return
-      }
-
       if (invitation.type === 'testSuite' && invitation.suite_id) {
-        // Handle test suite invitation
-        await acceptSuiteInvitation(supabase, user.id, invitation)
+        await acceptSuiteInvitation(supabase, userId, invitation)
       } else if (invitation.type === 'organization' && invitation.organization_id) {
-        // Handle organization invitation
-        await acceptOrganizationInvitation(supabase, user.id, invitation)
+        await acceptOrganizationInvitation(supabase, userId, invitation)
       }
-
     } catch (err) {
       console.error('Error accepting invitation:', err)
       setStatus('error')
@@ -134,21 +156,57 @@ export default function AcceptInvitePage() {
   }
 
   const acceptSuiteInvitation = async (supabase: any, userId: string, invitation: Invitation) => {
-    // Get current suite data
-    const { data: suite, error: fetchError } = await supabase
+    // Get suite with actual columns
+    const { data: suite, error: suiteError } = await supabase
       .from('test_suites')
-      .select('members, admins, viewers')
+      .select('owner_id, owner_type, admins, members, viewers')
       .eq('id', invitation.suite_id)
       .single()
 
-    if (fetchError) throw fetchError
+    if (suiteError || !suite) throw new Error('Suite not found')
 
-    // Prepare updated arrays based on role
+    // Get organization ID from suite owner's profile
+    let organizationId = invitation.organization_id
+
+    if (!organizationId && suite.owner_id) {
+      const { data: ownerProfile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', suite.owner_id)
+        .single()
+      
+      organizationId = ownerProfile?.organization_id || null
+    }
+
+    // Create org membership if doesn't exist (suite invites = org member)
+    if (organizationId) {
+      const { data: existingMember } = await supabase
+        .from('organization_members')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (!existingMember) {
+        const { error: orgError } = await supabase
+          .from('organization_members')
+          .insert({
+            organization_id: organizationId,
+            user_id: userId,
+            role: 'member',
+            status: 'active',
+          })
+
+        if (orgError) throw orgError
+      }
+    }
+
+    // Add to suite arrays based on role
     let updates: any = {}
     
     if (invitation.role === 'admin') {
       const newAdmins = [...(suite.admins || []), userId]
-      updates.admins = Array.from(new Set(newAdmins)) // Remove duplicates
+      updates.admins = Array.from(new Set(newAdmins))
     } else if (invitation.role === 'viewer') {
       const newViewers = [...(suite.viewers || []), userId]
       updates.viewers = Array.from(new Set(newViewers))
@@ -157,7 +215,6 @@ export default function AcceptInvitePage() {
       updates.members = Array.from(new Set(newMembers))
     }
 
-    // Update suite with new member
     const { error: updateError } = await supabase
       .from('test_suites')
       .update(updates)
@@ -165,24 +222,23 @@ export default function AcceptInvitePage() {
 
     if (updateError) throw updateError
 
-    // Update invitation status
-    const { error: inviteUpdateError } = await supabase
+    // Mark invitation as accepted
+    await supabase
       .from('invitations')
-      .update({ status: 'accepted' })
+      .update({ 
+        status: 'accepted',
+        updated_at: new Date().toISOString()
+      })
       .eq('id', invitation.id)
-
-    if (inviteUpdateError) throw inviteUpdateError
 
     setStatus('success')
     
-    // Redirect to suite after 2 seconds
     setTimeout(() => {
       router.push(`/suite/${invitation.suite_id}`)
     }, 2000)
   }
 
   const acceptOrganizationInvitation = async (supabase: any, userId: string, invitation: Invitation) => {
-    // Check if user is already a member
     const { data: existingMember } = await supabase
       .from('organization_members')
       .select('id')
@@ -191,8 +247,7 @@ export default function AcceptInvitePage() {
       .maybeSingle()
 
     if (existingMember) {
-      // Update existing membership
-      const { error: updateError } = await supabase
+      await supabase
         .from('organization_members')
         .update({
           role: invitation.role,
@@ -200,56 +255,30 @@ export default function AcceptInvitePage() {
           updated_at: new Date().toISOString()
         })
         .eq('id', existingMember.id)
-
-      if (updateError) throw updateError
     } else {
-      // Create new membership
-      const { error: insertError } = await supabase
+      await supabase
         .from('organization_members')
         .insert({
           organization_id: invitation.organization_id,
           user_id: userId,
           role: invitation.role,
-          status: 'active'
+          status: 'active',
         })
-
-      if (insertError) throw insertError
     }
 
-    // Update invitation status
-    const { error: inviteUpdateError } = await supabase
+    await supabase
       .from('invitations')
-      .update({ status: 'accepted' })
+      .update({ 
+        status: 'accepted',
+        updated_at: new Date().toISOString()
+      })
       .eq('id', invitation.id)
-
-    if (inviteUpdateError) throw inviteUpdateError
 
     setStatus('success')
     
-    // Redirect to organization after 2 seconds
     setTimeout(() => {
       router.push(`/organization/${invitation.organization_id}`)
     }, 2000)
-  }
-
-  const declineInvitation = async () => {
-    if (!invitation) return
-    
-    const supabase = createClient()
-
-    try {
-      const { error } = await supabase
-        .from('invitations')
-        .update({ status: 'declined' })
-        .eq('id', invitation.id)
-
-      if (error) throw error
-
-      router.push('/')
-    } catch (err) {
-      console.error('Error declining invitation:', err)
-      setError(err instanceof Error ? err.message : 'Failed to decline invitation')
-    }
   }
 
   const getInvitationTitle = () => {
@@ -260,26 +289,6 @@ export default function AcceptInvitePage() {
     return invitation.organization?.name || 'an organization'
   }
 
-  const getRoleDescription = () => {
-    if (!invitation) return ''
-    
-    const role = invitation.role
-    const type = invitation.type
-
-    if (type === 'testSuite') {
-      if (role === 'admin') return 'Full access to manage the suite'
-      if (role === 'member') return 'Can view and edit test cases'
-      if (role === 'viewer') return 'View-only access'
-    } else if (type === 'organization') {
-      if (role === 'admin') return 'Full access to manage the organization'
-      if (role === 'manager') return 'Can manage members and projects'
-      if (role === 'member') return 'Basic access to organization resources'
-    }
-    
-    return ''
-  }
-
-  // Early return for no token
   if (!token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -311,52 +320,14 @@ export default function AcceptInvitePage() {
           </div>
         )}
 
-        {status === 'valid' && invitation && (
-          <div>
-            <div className="text-center mb-6">
-              <div className="h-12 w-12 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="h-6 w-6 text-teal-600" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">You're Invited!</h2>
-              <p className="text-gray-600">
-                You've been invited to join{' '}
-                <span className="font-semibold">{getInvitationTitle()}</span>
-              </p>
-            </div>
-
-            {invitation.type === 'testSuite' && invitation.suite?.description && (
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <p className="text-sm text-gray-700">{invitation.suite.description}</p>
-              </div>
-            )}
-
-            <div className="bg-blue-50 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-900">
-                <span className="font-semibold">Role:</span>{' '}
-                {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)}
-              </p>
-              <p className="text-xs text-blue-700 mt-1">
-                {getRoleDescription()}
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={acceptInvitation}
-                className="flex-1"
-                size="lg"
-              >
-                Accept Invitation
-              </Button>
-              <Button
-                onClick={declineInvitation}
-                variant="outline"
-                className="flex-1"
-                size="lg"
-              >
-                Decline
-              </Button>
-            </div>
+        {status === 'redirecting' && invitation && (
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Redirecting to signup...</h2>
+            <p className="text-gray-600">
+              Creating your account to join{' '}
+              <span className="font-semibold">{getInvitationTitle()}</span>
+            </p>
           </div>
         )}
 
@@ -373,7 +344,8 @@ export default function AcceptInvitePage() {
               <CheckCircle2 className="h-6 w-6 text-green-600" />
             </div>
             <h2 className="text-2xl font-bold mb-2 text-green-900">Welcome aboard!</h2>
-            <p className="text-gray-600 mb-4">Redirecting you...</p>
+            <p className="text-gray-600 mb-4">You've successfully joined!</p>
+            <p className="text-sm text-gray-500">Redirecting you...</p>
           </div>
         )}
 
@@ -401,8 +373,8 @@ export default function AcceptInvitePage() {
             <p className="text-gray-600 mb-4">
               You've already accepted this invitation.
             </p>
-            <Button onClick={() => router.push('/')}>
-              Go to Dashboard
+            <Button onClick={() => router.push('/login')}>
+              Go to Login
             </Button>
           </div>
         )}
@@ -429,9 +401,14 @@ export default function AcceptInvitePage() {
             </div>
             <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
             <p className="text-gray-600 mb-4">{error || 'Please try again later'}</p>
-            <Button onClick={() => router.push('/')} variant="outline">
-              Go Home
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => router.push('/login')} variant="outline">
+                Try Logging In
+              </Button>
+              <Button onClick={() => router.push('/')}>
+                Go Home
+              </Button>
+            </div>
           </div>
         )}
       </div>

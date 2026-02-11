@@ -1267,6 +1267,7 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string
+          domain: string | null
           id: string
           industry: string | null
           name: string
@@ -1278,6 +1279,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by: string
+          domain?: string | null
           id?: string
           industry?: string | null
           name: string
@@ -1289,6 +1291,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string
+          domain?: string | null
           id?: string
           industry?: string | null
           name?: string
@@ -1356,6 +1359,7 @@ export type Database = {
           created_by: string | null
           email: string
           id: string
+          is_setup_complete: boolean | null
           location: string | null
           metadata: Json | null
           name: string
@@ -1385,6 +1389,7 @@ export type Database = {
           created_by?: string | null
           email: string
           id: string
+          is_setup_complete?: boolean | null
           location?: string | null
           metadata?: Json | null
           name: string
@@ -1414,6 +1419,7 @@ export type Database = {
           created_by?: string | null
           email?: string
           id?: string
+          is_setup_complete?: boolean | null
           location?: string | null
           metadata?: Json | null
           name?: string

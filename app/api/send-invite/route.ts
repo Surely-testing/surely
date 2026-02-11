@@ -1,20 +1,20 @@
 // ============================================
-// app/api/send-invite/route.ts
+// app/api/send-invite/route.ts - COMPLETE & CORRECT
+// Blocks all existing users to prevent login conflicts
 // ============================================
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { LOGO_URL, APP_NAME, SUPPORT_EMAIL } from '@/config/logo'
+import { extractDomain, isCommonEmailProvider } from '@/utils/domainValidator'
 
 const EMAIL_FROM = 'Surely <noreply@testsurely.com>'
-
-// ── Body shapes ───────────────────────────────────────────────────────────────
 
 interface OrgInviteBody {
   type: 'organization'
   email: string
   organizationId: string
-  role: 'admin' | 'manager' | 'member'
+  role: 'admin' | 'manager' | 'member' | 'viewer'
 }
 
 interface SuiteInviteBody {
@@ -22,13 +22,10 @@ interface SuiteInviteBody {
   email: string
   suiteId: string
   role: 'admin' | 'member' | 'viewer'
-  /** Optional — if omitted the route resolves it from the suite row */
   organizationId?: string
 }
 
 type InviteBody = OrgInviteBody | SuiteInviteBody
-
-// ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,7 +40,6 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as InviteBody
 
-    // ── Shared validation ──────────────────────────────────────────────────
     if (!body.type || !body.email || !body.role) {
       return NextResponse.json(
         { error: 'type, email, and role are required' },
@@ -65,7 +61,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ── Fetch inviter profile ──────────────────────────────────────────────
     const { data: inviter } = await supabase
       .from('profiles')
       .select('name, email')
@@ -74,7 +69,6 @@ export async function POST(request: NextRequest) {
 
     const inviterName = inviter?.name || inviter?.email || 'Someone'
 
-    // ── Branch per invite type ─────────────────────────────────────────────
     if (body.type === 'organization') {
       return handleOrgInvite({ supabase, user, body, inviterName })
     } else {
@@ -84,7 +78,6 @@ export async function POST(request: NextRequest) {
     console.error('=== FULL ERROR IN SEND-INVITE ===')
     console.error('Error message:', error.message)
     console.error('Error stack:', error.stack)
-    console.error('Error object:', error)
     
     logger.log('Unhandled error in send-invite:', error)
     return NextResponse.json(
@@ -93,8 +86,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-// ── Organization invite ───────────────────────────────────────────────────────
 
 async function handleOrgInvite({
   supabase,
@@ -109,7 +100,7 @@ async function handleOrgInvite({
 }) {
   const { email, organizationId, role } = body
 
-  // Permission check — only owners/admins can invite
+  // Check permissions
   const { data: membership } = await supabase
     .from('organization_members')
     .select('role')
@@ -117,17 +108,17 @@ async function handleOrgInvite({
     .eq('user_id', user.id)
     .single()
 
-  if (!membership || !['owner', 'admin'].includes(membership.role)) {
+  if (!membership || !['owner', 'admin', 'manager'].includes(membership.role)) {
     return NextResponse.json(
       { error: 'You do not have permission to invite members to this organization' },
       { status: 403 }
     )
   }
 
-  // Fetch org name for email copy
+  // Get organization details
   const { data: org } = await supabase
     .from('organizations')
-    .select('name')
+    .select('name, owner_id, domain')
     .eq('id', organizationId)
     .single()
 
@@ -135,8 +126,108 @@ async function handleOrgInvite({
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
 
-  // Duplicate-invite guard
-  const { data: existingInvite, error: checkError } = await supabase
+  // Get organization domain (from org table or owner email)
+  let orgDomain = org.domain
+  
+  if (!orgDomain) {
+    const { data: orgOwner } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', org.owner_id)
+      .single()
+
+    if (!orgOwner?.email) {
+      return NextResponse.json(
+        { error: 'Organization domain not found' },
+        { status: 500 }
+      )
+    }
+    
+    orgDomain = extractDomain(orgOwner.email)
+  }
+
+  if (!orgDomain) {
+    return NextResponse.json(
+      { error: 'Could not determine organization domain' },
+      { status: 500 }
+    )
+  }
+
+  const inviteeDomain = extractDomain(email)
+
+  if (!inviteeDomain) {
+    return NextResponse.json(
+      { error: 'Invalid email format' },
+      { status: 400 }
+    )
+  }
+
+  // VALIDATION 1: Block common email providers
+  if (isCommonEmailProvider(email)) {
+    return NextResponse.json(
+      { 
+        error: `Cannot invite ${email}. Organization members must use the company email domain (@${orgDomain}). Personal email providers are not allowed.`
+      },
+      { status: 400 }
+    )
+  }
+
+  // VALIDATION 2: Check domain matching based on role
+  const domainMatches = inviteeDomain === orgDomain.toLowerCase()
+
+  if (!domainMatches && role !== 'viewer') {
+    // Admin/Manager/Member roles MUST match domain
+    return NextResponse.json(
+      { 
+        error: `${role === 'admin' ? 'Admins' : role === 'manager' ? 'Managers' : 'Members'} must use the organization's email domain (@${orgDomain}). To invite external users, assign them the "Viewer" role.`
+      },
+      { status: 400 }
+    )
+  }
+
+  // VALIDATION 3: Block ALL existing users (prevents login conflicts)
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('id, account_type, organization_id')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existingProfile) {
+    // User already exists - ALWAYS BLOCK
+    if (existingProfile.account_type === 'individual') {
+      return NextResponse.json(
+        { 
+          error: `${email} already has an individual account. They need to use a different email address to join your organization.`
+        },
+        { status: 409 }
+      )
+    } else if (existingProfile.organization_id === organizationId) {
+      return NextResponse.json(
+        { 
+          error: `${email} is already a member of this organization.`
+        },
+        { status: 409 }
+      )
+    } else if (existingProfile.organization_id) {
+      return NextResponse.json(
+        { 
+          error: `${email} is already a member of another organization. They need to use a different email address to join your organization.`
+        },
+        { status: 409 }
+      )
+    } else {
+      // Has an org account but no org_id set (edge case)
+      return NextResponse.json(
+        { 
+          error: `${email} already has an account. They need to use a different email address.`
+        },
+        { status: 409 }
+      )
+    }
+  }
+
+  // Check for existing pending invitation
+  const { data: existingInvite } = await supabase
     .from('invitations')
     .select('id')
     .eq('type', 'organization')
@@ -145,14 +236,6 @@ async function handleOrgInvite({
     .eq('status', 'pending')
     .maybeSingle()
 
-  if (checkError) {
-    logger.log('Error checking existing invite:', checkError)
-    return NextResponse.json(
-      { error: 'Failed to check existing invitations', detail: checkError.message },
-      { status: 500 }
-    )
-  }
-
   if (existingInvite) {
     return NextResponse.json(
       { error: 'A pending invitation has already been sent to this email' },
@@ -160,30 +243,7 @@ async function handleOrgInvite({
     )
   }
 
-  // Check if already a member
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .single()
-
-  if (existingProfile) {
-    const { data: existingMember } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('user_id', existingProfile.id)
-      .single()
-
-    if (existingMember) {
-      return NextResponse.json(
-        { error: 'This user is already a member of the organization' },
-        { status: 409 }
-      )
-    }
-  }
-
-  // Insert
+  // Create invitation
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + 7)
 
@@ -213,12 +273,17 @@ async function handleOrgInvite({
   return sendEmail({
     to: email,
     subject: `${inviterName} invited you to join ${org.name} on ${APP_NAME}`,
-    html: buildOrgInviteEmail({ orgName: org.name, inviterName, role, inviteUrl }),
+    html: buildOrgInviteEmail({ 
+      orgName: org.name, 
+      inviterName, 
+      role, 
+      inviteUrl,
+      isExternalViewer: !domainMatches && role === 'viewer'
+    }),
     invitationId: invitation.id,
+    supabase,
   })
 }
-
-// ── Suite invite ──────────────────────────────────────────────────────────────
 
 async function handleSuiteInvite({
   supabase,
@@ -233,10 +298,10 @@ async function handleSuiteInvite({
 }) {
   const { email, suiteId, role } = body
 
-  // Fetch suite
+  // Get suite details
   const { data: suite, error: suiteError } = await supabase
     .from('test_suites')
-    .select('name, description, owner_type, owner_id')
+    .select('name, description, owner_type, owner_id, admins, members, viewers')
     .eq('id', suiteId)
     .single()
 
@@ -244,10 +309,18 @@ async function handleSuiteInvite({
     return NextResponse.json({ error: 'Suite not found' }, { status: 404 })
   }
 
-  // Resolve org id properly: get from suite owner's profile if org account
+  // Individual accounts can't invite
+  if (suite.owner_type === 'individual') {
+    return NextResponse.json(
+      { error: 'Individual accounts cannot invite team members. Upgrade to an organization account to enable team collaboration.' },
+      { status: 403 }
+    )
+  }
+
+  // Resolve organization ID
   let resolvedOrgId: string | null = body.organizationId ?? null
 
-  if (!resolvedOrgId && suite.owner_type === 'organization') {
+  if (!resolvedOrgId && suite.owner_id) {
     const { data: ownerProfile } = await supabase
       .from('profiles')
       .select('organization_id')
@@ -257,8 +330,139 @@ async function handleSuiteInvite({
     resolvedOrgId = ownerProfile?.organization_id ?? null
   }
 
-  // Duplicate-invite guard
-  const { data: existingInvite, error: checkError } = await supabase
+  if (!resolvedOrgId) {
+    return NextResponse.json(
+      { error: 'Could not determine organization for this suite' },
+      { status: 500 }
+    )
+  }
+
+  // Get organization domain
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('owner_id, domain')
+    .eq('id', resolvedOrgId)
+    .single()
+
+  if (!org) {
+    return NextResponse.json(
+      { error: 'Organization not found' },
+      { status: 404 }
+    )
+  }
+
+  let orgDomain = org.domain
+
+  if (!orgDomain) {
+    const { data: orgOwner } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', org.owner_id)
+      .single()
+
+    if (!orgOwner?.email) {
+      return NextResponse.json(
+        { error: 'Organization domain not found' },
+        { status: 500 }
+      )
+    }
+    
+    orgDomain = extractDomain(orgOwner.email)
+  }
+
+  if (!orgDomain) {
+    return NextResponse.json(
+      { error: 'Could not determine organization domain' },
+      { status: 500 }
+    )
+  }
+
+  const inviteeDomain = extractDomain(email)
+
+  if (!inviteeDomain) {
+    return NextResponse.json(
+      { error: 'Invalid email format' },
+      { status: 400 }
+    )
+  }
+
+  // VALIDATION 1: Block common email providers
+  if (isCommonEmailProvider(email)) {
+    return NextResponse.json(
+      { 
+        error: `Cannot invite ${email}. Team members must use the company email domain (@${orgDomain}). Personal email providers are not allowed.`
+      },
+      { status: 400 }
+    )
+  }
+
+  // VALIDATION 2: Check domain matching based on role
+  const domainMatches = inviteeDomain === orgDomain.toLowerCase()
+
+  if (!domainMatches && role !== 'viewer') {
+    // Admin/Member roles MUST match domain
+    return NextResponse.json(
+      { 
+        error: `${role === 'admin' ? 'Admins' : 'Members'} must use the organization's email domain (@${orgDomain}). To invite external users, assign them the "Viewer" role.`
+      },
+      { status: 400 }
+    )
+  }
+
+  // VALIDATION 3: Block ALL existing users
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('id, account_type, organization_id')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existingProfile) {
+    // User already exists - ALWAYS BLOCK
+    if (existingProfile.account_type === 'individual') {
+      return NextResponse.json(
+        { 
+          error: `${email} already has an individual account. They need to use a different email address to join your team.`
+        },
+        { status: 409 }
+      )
+    } else if (existingProfile.organization_id === resolvedOrgId) {
+      // Check if already has suite access
+      const allMembers = [
+        ...(suite.admins || []),
+        ...(suite.members || []),
+        ...(suite.viewers || [])
+      ]
+      
+      if (allMembers.includes(existingProfile.id)) {
+        return NextResponse.json(
+          { error: `${email} already has access to this test suite` },
+          { status: 409 }
+        )
+      } else {
+        return NextResponse.json(
+          { error: `${email} is already a member of this organization` },
+          { status: 409 }
+        )
+      }
+    } else if (existingProfile.organization_id) {
+      return NextResponse.json(
+        { 
+          error: `${email} is already a member of another organization. They need to use a different email address.`
+        },
+        { status: 409 }
+      )
+    } else {
+      return NextResponse.json(
+        { 
+          error: `${email} already has an account. They need to use a different email address.`
+        },
+        { status: 409 }
+      )
+    }
+  }
+
+  // Check for existing pending invitation
+  const { data: existingInvite } = await supabase
     .from('invitations')
     .select('id')
     .eq('type', 'testSuite')
@@ -267,14 +471,6 @@ async function handleSuiteInvite({
     .eq('status', 'pending')
     .maybeSingle()
 
-  if (checkError) {
-    logger.log('Error checking existing invite:', checkError)
-    return NextResponse.json(
-      { error: 'Failed to check existing invitations', detail: checkError.message },
-      { status: 500 }
-    )
-  }
-
   if (existingInvite) {
     return NextResponse.json(
       { error: 'A pending invitation has already been sent to this email' },
@@ -282,7 +478,7 @@ async function handleSuiteInvite({
     )
   }
 
-  // Insert
+  // Create invitation
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + 7)
 
@@ -318,68 +514,84 @@ async function handleSuiteInvite({
       inviterName,
       role,
       inviteUrl,
+      isExternalViewer: !domainMatches && role === 'viewer'
     }),
     invitationId: invitation.id,
+    supabase,
   })
 }
-
-// ── Shared email sender ───────────────────────────────────────────────────────
 
 async function sendEmail({
   to,
   subject,
   html,
   invitationId,
+  supabase,
 }: {
   to: string
   subject: string
   html: string
   invitationId: string
+  supabase: Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>>
 }): Promise<NextResponse> {
   const resendApiKey = process.env.RESEND_API_KEY
 
   if (!resendApiKey) {
-    logger.log('RESEND_API_KEY is not set — invitation saved but email not sent')
-    return NextResponse.json({
-      success: true,
-      warning: 'Invitation created but email not sent: RESEND_API_KEY missing',
-      invitationId,
-    })
-  }
-
-  const emailResponse = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from: EMAIL_FROM, to, subject, html }),
-  })
-
-  if (!emailResponse.ok) {
-    const errorBody = await emailResponse.text()
-    logger.log('Resend API error:', errorBody)
+    await supabase.from('invitations').delete().eq('id', invitationId)
+    logger.log('RESEND_API_KEY is not set — invitation deleted')
     return NextResponse.json(
-      {
-        error: 'Invitation saved but email delivery failed',
-        detail: errorBody,
-        invitationId,
-      },
-      { status: 502 }
+      { error: 'Email service is not configured' },
+      { status: 503 }
     )
   }
 
-  return NextResponse.json({
-    success: true,
-    message: 'Invitation sent successfully',
-    invitationId,
-  })
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
+
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: EMAIL_FROM, to, subject, html }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!emailResponse.ok) {
+      const errorBody = await emailResponse.text()
+      logger.log('Resend API error:', errorBody)
+      
+      await supabase.from('invitations').delete().eq('id', invitationId)
+      
+      return NextResponse.json(
+        { error: 'Failed to send invitation email' },
+        { status: 502 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Invitation sent successfully',
+      invitationId,
+    })
+  } catch (error: any) {
+    logger.log('Email send error:', error.message)
+    
+    await supabase.from('invitations').delete().eq('id', invitationId)
+    
+    return NextResponse.json(
+      { error: 'Failed to send invitation email' },
+      { status: 502 }
+    )
+  }
 }
 
-// ── Email templates ───────────────────────────────────────────────────────────
-
+// Email templates
 function emailShell(bodyContent: string): string {
-  // Logo configuration
   let logoUrl = process.env.NEXT_PUBLIC_APP_LOGO_URL
   if (!logoUrl) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
@@ -405,31 +617,24 @@ function emailShell(bodyContent: string): string {
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-
-          <!-- Logo -->
           <tr>
             <td align="center" style="padding-bottom:28px;">
               ${logoUrl ? `
               <img src="${logoUrl}" alt="${appName}" width="120" style="height:auto;display:block;border:0;max-width:120px;" />
               ` : `
-              <span style="font-size:20px;font-weight:800;color:#0d9488;letter-spacing:-0.5px;">${appName}</span>
+              <span style="font-size:20px;font-weight:800;color:#326FF7;letter-spacing:-0.5px;">${appName}</span>
               `}
             </td>
           </tr>
-
-          <!-- Card -->
           <tr>
             <td style="background:#ffffff;border-radius:12px;padding:40px;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
               ${bodyContent}
-
               <hr style="border:none;border-top:1px solid #f3f4f6;margin:32px 0 24px;" />
               <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6;">
                 This invitation expires in 7 days. If you weren't expecting this, you can safely ignore it.
               </p>
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
               <p style="margin:0;font-size:12px;color:#9ca3af;">
@@ -437,11 +642,10 @@ function emailShell(bodyContent: string): string {
                 <a href="https://testsurely.com" style="color:#9ca3af;text-decoration:none;">testsurely.com</a>
               </p>
               <p style="margin:8px 0 0 0;font-size:12px;color:#9ca3af;">
-                Questions? <a href="mailto:${supportEmail}" style="color:#0d9488;text-decoration:none;">Contact Support</a>
+                Questions? <a href="mailto:${supportEmail}" style="color:#326FF7;text-decoration:none;">Contact Support</a>
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
@@ -456,7 +660,7 @@ function acceptButton(inviteUrl: string): string {
       <tr>
         <td>
           <a href="${inviteUrl}"
-             style="display:inline-block;padding:13px 30px;background:#0d9488;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
+             style="display:inline-block;padding:13px 30px;background:#326FF7;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
             Accept Invitation
           </a>
         </td>
@@ -464,24 +668,32 @@ function acceptButton(inviteUrl: string): string {
     </table>
     <p style="margin:16px 0 0;font-size:13px;color:#9ca3af;text-align:center;">
       Or paste this link into your browser:<br/>
-      <span style="color:#0d9488;word-break:break-all;">${inviteUrl}</span>
+      <span style="color:#326FF7;word-break:break-all;">${inviteUrl}</span>
     </p>
   </div>`
 }
 
 function rolePill(role: string): string {
-  return `<span style="display:inline-block;padding:3px 10px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:999px;font-size:12px;font-weight:600;color:#0d9488;text-transform:capitalize;">${role}</span>`
+  return `<span style="display:inline-block;padding:3px 10px;background:#EFF5FF;border:1px solid #93C5FD;border-radius:999px;font-size:12px;font-weight:600;color:#326FF7;text-transform:capitalize;">${role}</span>`
 }
 
-// Organization invite email
 interface OrgEmailOptions {
   orgName: string
   inviterName: string
   role: string
   inviteUrl: string
+  isExternalViewer: boolean
 }
 
-function buildOrgInviteEmail({ orgName, inviterName, role, inviteUrl }: OrgEmailOptions): string {
+function buildOrgInviteEmail({ orgName, inviterName, role, inviteUrl, isExternalViewer }: OrgEmailOptions): string {
+  const externalNotice = isExternalViewer ? `
+    <div style="margin:20px 0;padding:12px 16px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;">
+      <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6;">
+        <strong>ℹ️ External Viewer:</strong> You're being added as an external viewer with limited access.
+      </p>
+    </div>
+  ` : ''
+
   return emailShell(`
     <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;text-align:center;">
       You've been invited to an organization 🎉
@@ -489,31 +701,28 @@ function buildOrgInviteEmail({ orgName, inviterName, role, inviteUrl }: OrgEmail
     <p style="margin:0 0 28px;font-size:15px;color:#6b7280;text-align:center;">
       Join <strong style="color:#111827;">${orgName}</strong> on ${APP_NAME}
     </p>
-
     <p style="margin:0 0 12px;font-size:15px;color:#374151;line-height:1.7;text-align:center;">
       <strong>${inviterName}</strong> has invited you to join
       <strong>${orgName}</strong> as a team member.
     </p>
-
+    ${externalNotice}
     <p style="margin:0 0 8px;font-size:14px;color:#6b7280;text-align:center;">You'll be joining as:</p>
     <div style="text-align:center;">${rolePill(role)}</div>
-
     <p style="margin:16px 0 0;font-size:14px;color:#6b7280;line-height:1.6;text-align:center;">
       As a member of <strong>${orgName}</strong>, you'll gain access to the organization's
       test suites, shared resources, and team collaboration tools.
     </p>
-
     ${acceptButton(inviteUrl)}
   `)
 }
 
-// Suite invite email
 interface SuiteEmailOptions {
   suiteName: string
   suiteDescription: string | null
   inviterName: string
   role: string
   inviteUrl: string
+  isExternalViewer: boolean
 }
 
 function buildSuiteInviteEmail({
@@ -522,7 +731,16 @@ function buildSuiteInviteEmail({
   inviterName,
   role,
   inviteUrl,
+  isExternalViewer
 }: SuiteEmailOptions): string {
+  const externalNotice = isExternalViewer ? `
+    <div style="margin:20px 0;padding:12px 16px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;">
+      <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6;">
+        <strong>ℹ️ External Viewer:</strong> You're being added as an external viewer with limited access.
+      </p>
+    </div>
+  ` : ''
+
   return emailShell(`
     <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;text-align:center;">
       You've been invited to a test suite 🧪
@@ -530,21 +748,18 @@ function buildSuiteInviteEmail({
     <p style="margin:0 0 28px;font-size:15px;color:#6b7280;text-align:center;">
       Join <strong style="color:#111827;">${suiteName}</strong> on ${APP_NAME}
     </p>
-
     <p style="margin:0 0 12px;font-size:15px;color:#374151;line-height:1.7;text-align:center;">
       <strong>${inviterName}</strong> has invited you to collaborate on the
       <strong>${suiteName}</strong> test suite.
     </p>
-
     ${
       suiteDescription
-        ? `<p style="margin:0 0 20px;padding:14px 16px;background:#f9fafb;border-left:3px solid #0d9488;border-radius:0 6px 6px 0;font-size:14px;color:#6b7280;line-height:1.6;font-style:italic;text-align:left;">${suiteDescription}</p>`
+        ? `<p style="margin:0 0 20px;padding:14px 16px;background:#f9fafb;border-left:3px solid #326FF7;border-radius:0 6px 6px 0;font-size:14px;color:#6b7280;line-height:1.6;font-style:italic;text-align:left;">${suiteDescription}</p>`
         : ''
     }
-
+    ${externalNotice}
     <p style="margin:0 0 8px;font-size:14px;color:#6b7280;text-align:center;">You'll be joining as:</p>
     <div style="text-align:center;">${rolePill(role)}</div>
-
     ${acceptButton(inviteUrl)}
   `)
 }

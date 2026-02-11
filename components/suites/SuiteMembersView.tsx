@@ -62,6 +62,8 @@ export function SuiteMembersView({
 
   const typedMembers = (members || []) as SuiteMember[];
   const pendingInvitations = (invitations || []).filter((inv) => inv.status === 'pending');
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
 
   // Filter and sort active members
   const filteredAndSortedMembers = useMemo(() => {
@@ -118,6 +120,28 @@ export function SuiteMembersView({
       toast.success(`Invitation to ${email} cancelled`);
     } catch {
       toast.error('Failed to cancel invitation');
+    }
+  };
+
+  const handleResendInvitation = async (invitationId: string, email: string) => {
+    setResendingId(invitationId);
+    try {
+      const response = await fetch('/api/invitations/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitationId }),
+      });
+
+      if (response.ok) {
+        toast.success(`Invitation resent to ${email}`);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to resend invitation');
+      }
+    } catch (error) {
+      toast.error('Failed to resend invitation');
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -273,22 +297,20 @@ export function SuiteMembersView({
                 <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                   <button
                     onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded transition-all duration-200 ${
-                      viewMode === 'grid'
+                    className={`p-2 rounded transition-all duration-200 ${viewMode === 'grid'
                         ? 'bg-primary text-primary-foreground shadow-theme-sm'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
+                      }`}
                     title="Grid View"
                   >
                     <Grid className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setViewMode('table')}
-                    className={`p-2 rounded transition-all duration-200 ${
-                      viewMode === 'table'
+                    className={`p-2 rounded transition-all duration-200 ${viewMode === 'table'
                         ? 'bg-primary text-primary-foreground shadow-theme-sm'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
+                      }`}
                     title="Table View"
                   >
                     <List className="w-4 h-4" />
@@ -354,22 +376,20 @@ export function SuiteMembersView({
                 <div className="flex gap-1 border border-border rounded-lg p-1 bg-background shadow-theme-sm">
                   <button
                     onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded transition-all duration-200 ${
-                      viewMode === 'grid'
+                    className={`p-2 rounded transition-all duration-200 ${viewMode === 'grid'
                         ? 'bg-primary text-primary-foreground shadow-theme-sm'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
+                      }`}
                     title="Grid View"
                   >
                     <Grid className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setViewMode('table')}
-                    className={`p-2 rounded transition-all duration-200 ${
-                      viewMode === 'table'
+                    className={`p-2 rounded transition-all duration-200 ${viewMode === 'table'
                         ? 'bg-primary text-primary-foreground shadow-theme-sm'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
+                      }`}
                     title="Table View"
                   >
                     <List className="w-4 h-4" />
@@ -403,11 +423,10 @@ export function SuiteMembersView({
                       <button
                         key={role}
                         onClick={() => setRoleFilter(role)}
-                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-                          roleFilter === role
+                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${roleFilter === role
                             ? 'bg-primary text-primary-foreground border-primary'
                             : 'bg-background text-foreground border-border hover:border-primary'
-                        }`}
+                          }`}
                       >
                         {role === 'all' ? 'All Roles' : role.charAt(0).toUpperCase() + role.slice(1)}
                       </button>
@@ -432,7 +451,7 @@ export function SuiteMembersView({
         </p>
       </div>
 
-      {/* ── Pending Invitations Section ────────────────────────────────────── */}
+      {/* ── Pending Invitations Section with RESEND & CANCEL ────────────────────────────────────── */}
       {filteredInvitations.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -459,13 +478,13 @@ export function SuiteMembersView({
                   key={inv.id}
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 gap-3 bg-card"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {/* Avatar placeholder */}
                     <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                       <Mail className="w-4 h-4 text-muted-foreground" />
                     </div>
 
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground truncate">
                         {inv.invitee_email}
                       </p>
@@ -479,17 +498,15 @@ export function SuiteMembersView({
                         )}
                       </p>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
                     {/* Role badge */}
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-muted text-muted-foreground border border-border">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-muted text-muted-foreground border border-border flex-shrink-0">
                       {inv.role}
                     </span>
 
                     {/* Status badge */}
                     <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
                         isExpired
                           ? 'bg-destructive/10 text-destructive border border-destructive/20'
                           : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
@@ -498,18 +515,31 @@ export function SuiteMembersView({
                       <Clock className="w-3 h-3" />
                       {isExpired ? 'Expired' : 'Pending'}
                     </span>
+                  </div>
 
-                    {/* Cancel button — only for admins */}
-                    {isAdmin && (
-                      <button
-                        onClick={() => handleCancelInvitation(inv.id, inv.invitee_email)}
-                        disabled={cancelInvitation.isPending}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                        title="Cancel invitation"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
+                  {/* Action Buttons - Always visible */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Resend button */}
+                    <button
+                      onClick={() => handleResendInvitation(inv.id, inv.invitee_email)}
+                      disabled={resendingId === inv.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-md hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Resend invitation email"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Resend</span>
+                    </button>
+
+                    {/* Cancel button */}
+                    <button
+                      onClick={() => handleCancelInvitation(inv.id, inv.invitee_email)}
+                      disabled={cancelInvitation.isPending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-md hover:bg-destructive/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Cancel invitation"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Cancel</span>
+                    </button>
                   </div>
                 </div>
               );
