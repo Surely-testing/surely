@@ -1,6 +1,5 @@
-
 // ============================================
-// FILE 5: components/settings/organizations/RoleSelector.tsx
+// components/settings/organizations/RoleSelector.tsx
 // ============================================
 'use client'
 
@@ -11,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/Select'
-import { Crown, Shield, Users, User } from 'lucide-react'
+import { Shield, Users, User, Eye } from 'lucide-react'
 
 interface RoleSelectorProps {
   value: string
@@ -54,6 +53,12 @@ export default function RoleSelector({ value, onChange, type }: RoleSelectorProp
       icon: User, 
       description: 'Can view and edit test cases' 
     },
+    { 
+      value: 'viewer', 
+      label: 'Viewer', 
+      icon: Eye, 
+      description: 'Can only view test cases and notes' 
+    },
   ]
 
   const roles = type === 'organization' ? organizationRoles : suiteRoles
@@ -88,4 +93,3 @@ export default function RoleSelector({ value, onChange, type }: RoleSelectorProp
     </Select>
   )
 }
-

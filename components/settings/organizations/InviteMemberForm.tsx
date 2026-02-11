@@ -1,6 +1,6 @@
 // ============================================
 // components/settings/organizations/InviteMemberForm.tsx
-// Organization member invite form
+// FIXED: Works for both organizations and suites
 // ============================================
 'use client'
 
@@ -28,13 +28,11 @@ import {
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
-import { inviteOrgMember } from '@/lib/actions/members'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select'
-import { SuiteMemberRole } from '@/types/member.types'
+import RoleSelector from './RoleSelector'
 
 const inviteSchema = z.object({
   email: z.string().email('Invalid email address'),
-  role: z.enum(['admin', 'manager', 'member']),
+  role: z.enum(['admin', 'member', 'viewer', 'manager']),
 })
 
 type InviteFormData = z.infer<typeof inviteSchema>
@@ -42,13 +40,17 @@ type InviteFormData = z.infer<typeof inviteSchema>
 interface InviteMemberFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  organizationId: string
+  organizationId?: string  // For organizations
+  suiteId?: string         // For suites
+  type?: 'organization' | 'suite'
 }
 
 export default function InviteMemberForm({
   open,
   onOpenChange,
   organizationId,
+  suiteId,
+  type = 'organization',
 }: InviteMemberFormProps) {
   const [isLoading, setIsLoading] = useState(false)
 
@@ -63,25 +65,38 @@ export default function InviteMemberForm({
   const onSubmit = async (data: InviteFormData) => {
     setIsLoading(true)
 
-    const result = await inviteOrgMember(organizationId, data)
-
-    if (result.error) {
-      toast.error('Error', {
-        description: result.error,
+    try {
+      const response = await fetch('/api/send-invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          suiteId: suiteId || undefined,
+          organizationId: organizationId || undefined,
+          role: data.role,
+        }),
       })
-    } else {
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send invitation')
+      }
+
       toast.success('Invitation sent', {
         description: `Invitation sent to ${data.email}`,
       })
       form.reset()
       onOpenChange(false)
+    } catch (error) {
+      toast.error('Error', {
+        description: error instanceof Error ? error.message : 'Failed to send invitation',
+      })
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
-  }
-
-  function setRole(arg0: SuiteMemberRole): void {
-    throw new Error('Function not implemented.')
   }
 
   return (
@@ -90,7 +105,7 @@ export default function InviteMemberForm({
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl">Invite Team Member</DialogTitle>
           <DialogDescription className="text-sm">
-            Send an invitation to join your organization
+            Send an invitation to join your {type}
           </DialogDescription>
         </DialogHeader>
 
@@ -122,30 +137,20 @@ export default function InviteMemberForm({
               control={form.control}
               name="role"
               render={({ field }) => (
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Role</FormLabel>
-                      <FormControl>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="member">Member - Can view and contribute</SelectItem>
-                            <SelectItem value="admin">Admin - Full access to suite settings</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormDescription>
-                        Select the access level for this member
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormItem>
+                  <FormLabel className="text-sm sm:text-base">Role</FormLabel>
+                  <FormControl>
+                    <RoleSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      type={type}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs sm:text-sm">
+                    Select the access level for this member
+                  </FormDescription>
+                  <FormMessage className="text-xs sm:text-sm" />
+                </FormItem>
               )}
             />
 
@@ -154,6 +159,7 @@ export default function InviteMemberForm({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
+                disabled={isLoading}
                 className="w-full sm:w-auto order-2 sm:order-1"
               >
                 Cancel
